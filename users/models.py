@@ -1,6 +1,7 @@
 """User models for the tipapp application."""
 
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class User(AbstractUser):
@@ -19,8 +20,18 @@ class User(AbstractUser):
     - last_login
     - date_joined
 
-    Can be extended with additional fields in future changes.
+    Additional fields:
+    - predicted_champion: The team this user predicts will win the tournament
     """
+
+    predicted_champion: models.ForeignKey = models.ForeignKey(
+        "matches.Team",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="champion_predictions",
+        help_text="The team this user predicts will win the tournament",
+    )
 
     class Meta:
         db_table = "users_user"
