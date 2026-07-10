@@ -50,6 +50,8 @@ Do not silently reinterpret game rules.
 
 ## Required Workflow
 
+Always work in venv create one if not present.
+
 Always follow this order:
 
 1. Read the relevant OpenSpec change.
