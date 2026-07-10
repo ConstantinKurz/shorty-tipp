@@ -1,1 +1,95 @@
-# Create your models here.
+from django.db import models
+
+
+class Team(models.Model):
+    """Represents a country/team participating in World Cup 2026."""
+
+    name: models.CharField = models.CharField(max_length=100, help_text="Team name (e.g., Germany)")
+    fifa_code: models.CharField = models.CharField(
+        max_length=3,
+        unique=True,
+        help_text="FIFA country code (e.g., GER)"
+    )
+    points: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Championship points"
+    )
+    is_champion: models.BooleanField = models.BooleanField(
+        default=False,
+        help_text="Whether this team won the tournament"
+    )
+
+    class Meta:
+        db_table = 'matches_team'
+        ordering = ['name']
+        verbose_name = 'Team'
+        verbose_name_plural = 'Teams'
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Match(models.Model):
+    """Represents a match between two teams in World Cup 2026."""
+
+    ROUND_CHOICES = [
+        ('group', 'Group Stage'),
+        ('r32', 'Round of 32'),
+        ('r16', 'Round of 16'),
+        ('qf', 'Quarter-Final'),
+        ('sf', 'Semi-Final'),
+        ('3rd', 'Third Place'),
+        ('final', 'Final'),
+    ]
+
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('live', 'Live'),
+        ('finished', 'Finished'),
+    ]
+
+    team_home: models.ForeignKey = models.ForeignKey(
+        Team,
+        on_delete=models.PROTECT,
+        related_name='home_matches',
+        help_text="Home team"
+    )
+    team_away: models.ForeignKey = models.ForeignKey(
+        Team,
+        on_delete=models.PROTECT,
+        related_name='away_matches',
+        help_text="Away team"
+    )
+    kickoff: models.DateTimeField = models.DateTimeField(help_text="Match start time")
+    round: models.CharField = models.CharField(
+        max_length=10,
+        choices=ROUND_CHOICES,
+        help_text="Tournament round"
+    )
+    goals_home: models.IntegerField = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Goals scored by home team"
+    )
+    goals_away: models.IntegerField = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Goals scored by away team"
+    )
+    status: models.CharField = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='scheduled',
+        help_text="Match status"
+    )
+
+    class Meta:
+        db_table = 'matches_match'
+        ordering = ['kickoff']
+        verbose_name = 'Match'
+        verbose_name_plural = 'Matches'
+
+    def __str__(self) -> str:
+        if self.status == 'finished' and self.goals_home is not None and self.goals_away is not None:
+            return f"{self.team_home.name} {self.goals_home}-{self.goals_away} {self.team_away.name}"
+        return f"{self.team_home.name} vs {self.team_away.name} ({self.get_round_display()})"  # type: ignore[attr-defined]
