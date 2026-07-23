@@ -24,7 +24,6 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
         "is_active",
         "is_superuser",
         "date_joined",
-        ("total_points", admin.EmptyFieldListFilter),
     ]
     search_fields = ["username", "email", "first_name", "last_name"]
     ordering = ["-total_points", "-exact_match_count", "jokers_used", "username"]
