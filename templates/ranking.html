@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load user_tags %}
+
+{% block title %}Ranking – WM 2026 Tippspiel{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800 p-4">
+    <div class="w-full max-w-4xl">
+        <!-- Dark mode toggle -->
+        <div class="flex justify-end mb-4">
+            <button 
+                onclick="toggleDarkMode()"
+                type="button"
+                class="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors duration-200"
+                aria-label="Toggle dark mode"
+                id="dark-mode-toggle"
+            >
+                <!-- Sun icon (shown in dark mode) -->
+                <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+                <!-- Moon icon (shown in light mode) -->
+                <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Ranking card -->
+        <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-6 sm:p-8">
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">
+                    🏆 Ranking
+                </h1>
+                <p class="text-zinc-500 dark:text-zinc-400 mt-2">
+                    Aktuelle Rangliste aller Teilnehmer
+                </p>
+            </div>
+            
+            {% if leaderboard %}
+            <!-- Desktop table (hidden on mobile) -->
+            <div class="hidden sm:block overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-300">Rang</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-300">Name</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-300">Champion</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">Exakt</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">Joker</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">Punkte</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in leaderboard %}
+                        <tr class="border-b border-zinc-100 dark:border-zinc-700/50 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors duration-150 {% if forloop.counter|divisibleby:2 %}bg-zinc-50/50 dark:bg-zinc-800/50{% endif %}">
+                            <td class="px-4 py-3 text-zinc-900 dark:text-zinc-100 font-medium">{{ entry.rank }}</td>
+                            <td class="px-4 py-3 text-zinc-900 dark:text-zinc-100">{{ entry.username }}</td>
+                            <td class="px-4 py-3 text-zinc-900 dark:text-zinc-100">
+                                {% if entry.predicted_champion %}
+                                    <span class="text-3xl rounded-lg inline-block">{{ entry.predicted_champion.fifa_code|flag_emoji }}</span>
+                                {% else %}
+                                    <span class="text-zinc-400 dark:text-zinc-500">–</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400">{{ entry.exact_match_count }}</td>
+                            <td class="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400">{{ entry.jokers_used }}</td>
+                            <td class="px-4 py-3 text-right text-zinc-900 dark:text-zinc-100 font-bold text-lg text-emerald-600 dark:text-emerald-400">{{ entry.total_points }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Mobile stacked cards (hidden on desktop) -->
+            <div class="sm:hidden space-y-3">
+                {% for entry in leaderboard %}
+                <div class="bg-zinc-50 dark:bg-zinc-700/50 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-base font-semibold text-zinc-900 dark:text-white">
+                            #{{ entry.rank }} {{ entry.username }}
+                        </span>
+                        <span class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                            {{ entry.total_points }}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-zinc-600 dark:text-zinc-400">
+                            {% if entry.predicted_champion %}
+                                <span class="text-2xl rounded-lg inline-block">{{ entry.predicted_champion.fifa_code|flag_emoji }}</span>
+                            {% else %}
+                                <span class="text-zinc-400 dark:text-zinc-500">–</span>
+                            {% endif %}
+                        </span>
+                        <span class="text-zinc-500 dark:text-zinc-400">
+                            {{ entry.exact_match_count }} Exakt · {{ entry.jokers_used }} Joker
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- Empty state -->
+            <div class="text-center py-12">
+                <p class="text-zinc-500 dark:text-zinc-400">
+                    Noch keine Teilnehmer im Ranking.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Navigation footer -->
+        <div class="flex justify-center mt-6">
+            <nav class="flex items-center gap-4 text-sm">
+                <a href="{% url 'login' %}" class="text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+                    Home
+                </a>
+                <span class="text-zinc-300 dark:text-zinc-600">•</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-medium">
+                    Ranking
+                </span>
+            </nav>
+        </div>
+        
+        <!-- Footer -->
+        <p class="text-center text-zinc-500 dark:text-zinc-400 text-sm mt-4">
+            WM 2026 Tippspiel • Nur für eingeladene Teilnehmer
+        </p>
+    </div>
+</div>
+{% endblock %}
