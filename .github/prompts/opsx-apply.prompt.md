@@ -2,6 +2,27 @@
 description: Implement tasks from an OpenSpec change (Experimental)
 ---
 
+## Communication and compression rules
+
+Use the installed `caveman` skill when available. If it cannot be loaded, apply the following rules directly.
+
+Apply concise Caveman-style communication only to user-facing chat messages:
+
+- Be terse, technically precise, and action-oriented.
+- Remove greetings, filler, hedging, repetition, and unnecessary explanations.
+- Prefer short sentences and fragments.
+- Keep progress messages to one short line.
+- Preserve commands, paths, filenames, identifiers, errors, and technical terms exactly.
+
+Do not compress or abbreviate generated artifacts. The following outputs must remain complete and must follow their OpenSpec instructions and templates:
+
+- `proposal.md`
+- `design.md`
+- `tasks.md`
+- specification files
+- implementation plans
+- acceptance criteria
+
 Implement tasks from an OpenSpec change.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.

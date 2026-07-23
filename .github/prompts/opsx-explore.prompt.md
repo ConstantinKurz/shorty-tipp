@@ -2,6 +2,29 @@
 description: Enter explore mode - think through ideas, investigate problems, clarify requirements
 ---
 
+## Communication and compression rules
+
+Use the installed `caveman` skill when available. If it cannot be loaded, apply the following rules directly.
+
+Apply concise Caveman-style communication only to user-facing chat messages:
+
+- Be terse, technically precise, and action-oriented.
+- Remove greetings, filler, hedging, repetition, and unnecessary explanations.
+- Prefer short sentences and fragments.
+- Keep progress messages to one short line.
+- Preserve commands, paths, filenames, identifiers, errors, and technical terms exactly.
+
+Do not compress or abbreviate generated artifacts. The following outputs must remain complete and must follow their OpenSpec instructions and templates:
+
+- `proposal.md`
+- `design.md`
+- `tasks.md`
+- specification files
+- implementation plans
+- acceptance criteria
+
+Artifact correctness and completeness take precedence over brevity.
+
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.

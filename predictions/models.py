@@ -10,6 +10,9 @@ class MatchPrediction(models.Model):
     Stores the predicted goals for both teams and tracks whether
     the user activated a joker (double points) for this match.
     Enforces one prediction per user per match via unique_together.
+
+    Scoring fields (points_earned, is_exact_match) are populated by
+    the ScoringService when match results are entered.
     """
 
     user: models.ForeignKey = models.ForeignKey(
@@ -37,6 +40,17 @@ class MatchPrediction(models.Model):
     joker_active: models.BooleanField = models.BooleanField(
         default=False,
         help_text="Whether joker is active for this prediction (double points)",
+    )
+
+    points_earned: models.IntegerField = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Points earned after match result entered (calculated by ScoringService)"
+    )
+
+    is_exact_match: models.BooleanField = models.BooleanField(
+        default=False,
+        help_text="Whether prediction was an exact score match (6 base points)"
     )
 
     created_at: models.DateTimeField = models.DateTimeField(

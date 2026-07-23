@@ -22,6 +22,9 @@ class User(AbstractUser):
 
     Additional fields:
     - predicted_champion: The team this user predicts will win the tournament
+    - total_points: Cached total points for leaderboard ranking
+    - exact_match_count: Number of exact score predictions for tiebreaker
+    - jokers_used: Number of jokers used on scored predictions for tiebreaker
     """
 
     predicted_champion: models.ForeignKey = models.ForeignKey(
@@ -31,6 +34,21 @@ class User(AbstractUser):
         blank=True,
         related_name="champion_predictions",
         help_text="The team this user predicts will win the tournament",
+    )
+
+    total_points: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Cached total points from all scored predictions (including champion bonus)"
+    )
+
+    exact_match_count: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Number of predictions with exact score match (first tiebreaker)"
+    )
+
+    jokers_used: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Number of jokers used on scored predictions (second tiebreaker)"
     )
 
     class Meta:

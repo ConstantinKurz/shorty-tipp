@@ -7,10 +7,12 @@ from matches.models import Match, Team
 class TeamAdmin(admin.ModelAdmin):
     """Admin interface for Team model."""
 
-    list_display = ['name', 'fifa_code', 'points', 'is_champion']
-    list_filter = ['is_champion']
+    list_display = ['name', 'fifa_code', 'odds_category', 'points', 'is_champion']
+    list_display_links = ['name']
+    list_filter = ['is_champion', 'odds_category']
     search_fields = ['name', 'fifa_code']
     ordering = ['name']
+    list_editable = ['odds_category']
 
 
 @admin.register(Match)
