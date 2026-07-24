@@ -351,4 +351,3 @@ class TestMatchPredictionModel:
         # Predictions should be deleted
         assert not MatchPrediction.objects.filter(id=pred1_id).exists()
         assert not MatchPrediction.objects.filter(id=pred2_id).exists()
-

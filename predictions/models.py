@@ -45,12 +45,11 @@ class MatchPrediction(models.Model):
     points_earned: models.IntegerField = models.IntegerField(
         null=True,
         blank=True,
-        help_text="Points earned after match result entered (calculated by ScoringService)"
+        help_text="Points earned after match result entered (calculated by ScoringService)",
     )
 
     is_exact_match: models.BooleanField = models.BooleanField(
-        default=False,
-        help_text="Whether prediction was an exact score match (6 base points)"
+        default=False, help_text="Whether prediction was an exact score match (6 base points)"
     )
 
     created_at: models.DateTimeField = models.DateTimeField(
@@ -72,4 +71,3 @@ class MatchPrediction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.username}: {self.match} ({self.predicted_goals_home}-{self.predicted_goals_away})"
-

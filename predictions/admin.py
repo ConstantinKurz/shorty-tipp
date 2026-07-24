@@ -30,4 +30,3 @@ class MatchPredictionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     def predicted_score(self, obj: MatchPrediction) -> str:
         """Display predicted score in list view."""
         return f"{obj.predicted_goals_home}-{obj.predicted_goals_away}"
-

@@ -32,6 +32,9 @@
         }
     </script>
     
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    
     <!-- Dark mode initialization (runs before render to prevent flash) -->
     <script>
         (function() {
@@ -62,6 +65,9 @@
                 ⚽ WM 2026
             </a>
             <nav class="flex items-center gap-4 text-sm">
+                <a href="{% url 'predictions:prediction-list' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
+                    Tipps
+                </a>
                 <a href="{% url 'ranking' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'ranking' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Ranking
                 </a>
