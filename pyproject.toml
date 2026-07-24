@@ -22,6 +22,9 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["tipapp", "users", "matches", "predictions", "scoring"]
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "tipapp.settings.test"
 python_files = ["test_*.py", "*_test.py", "tests.py"]

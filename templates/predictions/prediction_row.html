@@ -1,4 +1,7 @@
-<div id="match-{{ match.id }}" class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600">
+<div id="match-{{ match.id }}" 
+     class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600"
+     data-match-stage="{{ match.round }}"
+     data-kickoff-timestamp="{{ match.kickoff|date:'U' }}">
     <form class="prediction-form" hx-post="{% url 'predictions:prediction-save' match.id %}" hx-target="#match-{{ match.id }}" hx-swap="outerHTML">
         {% csrf_token %}
         
@@ -81,28 +84,33 @@
             </div>
         </div>
 
-        <!-- Result and Points (if match finished) -->
-        {% if match.status == 'finished' and match.goals_home is not None and match.goals_away is not None %}
-            <div class="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <div class="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-                    <span>Ergebnis:</span>
-                    <span class="font-bold text-zinc-900 dark:text-white">
+        <!-- Match Result Section - always visible -->
+        <div class="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-2 text-sm">
+            <div class="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+                <span>Ergebnis:</span>
+                {% if match.goals_home is not None and match.goals_away is not None %}
+                    <span class="font-bold {% if match.status == 'live' %}text-amber-500 animate-pulse{% else %}text-zinc-900 dark:text-white{% endif %}">
                         {{ match.goals_home }}:{{ match.goals_away }}
+                        {% if match.status == 'live' %}
+                            <span class="ml-1 text-xs">🔴 Live</span>
+                        {% endif %}
                     </span>
-                </div>
-                {% if prediction and prediction.points_earned is not None %}
-                    <div class="flex items-center gap-1 {% if prediction.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-500{% endif %} font-medium">
-                        {% if prediction.is_exact_match %}
-                            <span>🎯</span>
-                        {% endif %}
-                        <span>+{{ prediction.points_earned }} Punkte</span>
-                        {% if prediction.joker_active %}
-                            <span class="text-yellow-500">(⭐ x2)</span>
-                        {% endif %}
-                    </div>
+                {% else %}
+                    <span class="font-medium text-zinc-400 dark:text-zinc-500">-:-</span>
                 {% endif %}
             </div>
-        {% endif %}
+            {% if prediction and prediction.points_earned is not None %}
+                <div class="flex items-center gap-1 {% if prediction.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-500{% endif %} font-medium">
+                    {% if prediction.is_exact_match %}
+                        <span>🎯</span>
+                    {% endif %}
+                    <span>+{{ prediction.points_earned }} Punkte</span>
+                    {% if prediction.joker_active %}
+                        <span class="text-yellow-500">(⭐ x2)</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
 
         <!-- Round Badge -->
         <div class="mt-2 flex items-center gap-2">
@@ -112,24 +120,3 @@
         </div>
     </form>
 </div>
-
-<script>
-(function() {
-    const row = document.getElementById('match-{{ match.id }}');
-    if (!row) return;
-    
-    const inputs = row.querySelectorAll('.prediction-input');
-    inputs.forEach(input => {
-        input.addEventListener('change', function() {
-            const form = this.closest('.prediction-form');
-            const homeInput = form.querySelector('[name="predicted_goals_home"]');
-            const awayInput = form.querySelector('[name="predicted_goals_away"]');
-            
-            // Only trigger save when BOTH fields have values
-            if (homeInput.value !== '' && awayInput.value !== '') {
-                htmx.trigger(form, 'submit');
-            }
-        });
-    });
-})();
-</script>

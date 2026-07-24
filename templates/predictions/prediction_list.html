@@ -9,22 +9,60 @@
         <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <!-- Header -->
             <div class="bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-4">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between flex-wrap gap-2">
                     <h1 class="text-2xl font-bold text-white flex items-center gap-2">
                         🎯 Meine Tipps
                     </h1>
-                    <div class="text-white text-sm bg-white/20 rounded-full px-3 py-1">
-                        Gruppenphase: {{ group_stage_count }}/{{ group_stage_limit }}
+                    <div class="flex items-center gap-3">
+                        <!-- Stage Filter -->
+                        <div class="relative" id="filter-container">
+                            <button type="button" 
+                                    id="filter-toggle"
+                                    class="text-white text-sm bg-white/20 hover:bg-white/30 rounded-full px-3 py-1 flex items-center gap-1 transition-colors">
+                                <span id="filter-label">🔽 Filter</span>
+                            </button>
+                            <div id="filter-dropdown" 
+                                 class="hidden absolute right-0 top-full mt-1 z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-40">
+                                <button type="button" data-stage="all" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Alle Spiele
+                                </button>
+                                <button type="button" data-stage="group" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Gruppenphase
+                                </button>
+                                <button type="button" data-stage="r32" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Achtelfinale (R32)
+                                </button>
+                                <button type="button" data-stage="r16" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Achtelfinale (R16)
+                                </button>
+                                <button type="button" data-stage="qf" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Viertelfinale
+                                </button>
+                                <button type="button" data-stage="sf" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Halbfinale
+                                </button>
+                                <button type="button" data-stage="3rd" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Spiel um Platz 3
+                                </button>
+                                <button type="button" data-stage="final" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                                    Finale
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Group Stage Counter -->
+                        <div class="text-white text-sm bg-white/20 rounded-full px-3 py-1">
+                            Gruppenphase: {{ group_stage_count }}/{{ group_stage_limit }}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Matches List -->
-            <div class="p-4 sm:p-6 space-y-6">
+            <div class="p-4 sm:p-6 space-y-6" id="match-list">
                 {% for date_key, matches in matches_by_date.items %}
                     {% with first_match=matches.0.match %}
                     <!-- Date Header -->
-                    <div class="flex items-center gap-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    <div class="date-header flex items-center gap-3 text-sm font-medium text-zinc-500 dark:text-zinc-400" data-date="{{ date_key }}">
                         <div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
                         <span>{{ first_match.kickoff|date:"l, j. F Y" }}</span>
                         <div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
@@ -32,7 +70,7 @@
                     {% endwith %}
 
                     <!-- Matches for this date -->
-                    <div class="space-y-3">
+                    <div class="space-y-3 date-group" data-date="{{ date_key }}">
                         {% for item in matches %}
                             {% include "predictions/prediction_row.html" with match=item.match prediction=item.prediction form=item.form is_locked=item.is_locked can_add_joker=item.can_add_joker joker_count=item.joker_count joker_limit=item.joker_limit is_group_stage=item.is_group_stage %}
                         {% endfor %}
@@ -44,7 +82,180 @@
                     </div>
                 {% endfor %}
             </div>
+            
+            <!-- HTMX Polling for live match updates -->
+            <div hx-get="{% url 'predictions:prediction-updates' %}" 
+                 hx-trigger="load, every 10s" 
+                 hx-swap="none"
+                 class="hidden">
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    // Stage filter labels (German)
+    const stageLabels = {
+        'all': 'Alle Spiele',
+        'group': 'Gruppenphase',
+        'r32': 'R32',
+        'r16': 'R16',
+        'qf': 'Viertelfinale',
+        'sf': 'Halbfinale',
+        '3rd': 'Platz 3',
+        'final': 'Finale'
+    };
+
+    // Filter dropdown toggle
+    const filterToggle = document.getElementById('filter-toggle');
+    const filterDropdown = document.getElementById('filter-dropdown');
+    const filterLabel = document.getElementById('filter-label');
+    
+    if (filterToggle && filterDropdown) {
+        filterToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filterDropdown.classList.toggle('hidden');
+        });
+
+        // Close on outside click
+        document.addEventListener('click', function(e) {
+            if (!filterDropdown.contains(e.target) && e.target !== filterToggle) {
+                filterDropdown.classList.add('hidden');
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                filterDropdown.classList.add('hidden');
+            }
+        });
+    }
+
+    // Filter option click handlers
+    document.querySelectorAll('.filter-option').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const stage = this.dataset.stage;
+            applyFilter(stage);
+            filterDropdown.classList.add('hidden');
+        });
+    });
+
+    function applyFilter(stage) {
+        // Update URL parameter
+        const url = new URL(window.location);
+        if (stage === 'all') {
+            url.searchParams.delete('stage');
+        } else {
+            url.searchParams.set('stage', stage);
+        }
+        window.history.pushState({}, '', url);
+
+        // Update filter label
+        if (stage === 'all') {
+            filterLabel.textContent = '🔽 Filter';
+        } else {
+            filterLabel.textContent = '🔽 ' + (stageLabels[stage] || stage);
+        }
+
+        // Filter matches
+        document.querySelectorAll('.match-row').forEach(function(row) {
+            const rowStage = row.dataset.matchStage;
+            if (stage === 'all' || rowStage === stage) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Hide date headers that have no visible matches
+        document.querySelectorAll('.date-group').forEach(function(group) {
+            const visibleMatches = group.querySelectorAll('.match-row:not([style*="display: none"])');
+            const dateKey = group.dataset.date;
+            const header = document.querySelector('.date-header[data-date="' + dateKey + '"]');
+            if (visibleMatches.length === 0) {
+                group.style.display = 'none';
+                if (header) header.style.display = 'none';
+            } else {
+                group.style.display = '';
+                if (header) header.style.display = '';
+            }
+        });
+    }
+
+    // Apply filter on page load based on URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const stageParam = urlParams.get('stage');
+    if (stageParam && stageLabels[stageParam]) {
+        applyFilter(stageParam);
+    }
+
+    // Auto-scroll to nearest upcoming match
+    function scrollToNearestMatch() {
+        const now = Date.now() / 1000; // Convert to seconds
+        const matchRows = document.querySelectorAll('.match-row[data-kickoff-timestamp]');
+        let nearestMatch = null;
+        let minDiff = Infinity;
+
+        matchRows.forEach(function(row) {
+            // Skip hidden matches
+            if (row.style.display === 'none') return;
+            
+            const kickoff = parseInt(row.dataset.kickoffTimestamp, 10);
+            const diff = kickoff - now;
+
+            // Find nearest future match
+            if (diff > 0 && diff < minDiff) {
+                minDiff = diff;
+                nearestMatch = row;
+            }
+        });
+
+        // If no future matches, scroll to last visible match
+        if (!nearestMatch) {
+            const visibleMatches = document.querySelectorAll('.match-row:not([style*="display: none"])');
+            if (visibleMatches.length > 0) {
+                nearestMatch = visibleMatches[visibleMatches.length - 1];
+            }
+        }
+
+        // Smooth scroll to match with offset for header
+        if (nearestMatch) {
+            const offset = 120; // Account for fixed header
+            const elementPosition = nearestMatch.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Run auto-scroll on page load (after a short delay for rendering)
+    setTimeout(scrollToNearestMatch, 100);
+
+    // Auto-save predictions when both fields have values
+    document.addEventListener('input', function(e) {
+        if (!e.target.classList.contains('prediction-input')) return;
+        
+        const form = e.target.closest('.prediction-form');
+        if (!form) return;
+        
+        const homeInput = form.querySelector('[name="predicted_goals_home"]');
+        const awayInput = form.querySelector('[name="predicted_goals_away"]');
+        
+        // Clear any existing timer on this form
+        if (form.debounceTimer) clearTimeout(form.debounceTimer);
+        
+        // Wait 500ms after last input before saving
+        form.debounceTimer = setTimeout(function() {
+            if (homeInput.value !== '' && awayInput.value !== '') {
+                htmx.trigger(form, 'submit');
+            }
+        }, 500);
+    });
+})();
+</script>
 {% endblock %}

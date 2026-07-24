@@ -331,3 +331,61 @@ class PredictionJokerView(LoginRequiredMixin, View):
 
         context = _get_match_row_context(user, match, prediction)
         return render(request, "predictions/prediction_row.html", context)
+
+
+class PredictionUpdatesView(LoginRequiredMixin, View):
+    """
+    Return match updates for HTMX polling.
+
+    Returns finished matches that may have updated results.
+    Uses HTMX OOB swap to update only changed match rows.
+    """
+
+    def get(self, request: HttpRequest) -> HttpResponse:
+        """
+        Handle GET request for match updates.
+
+        Args:
+            request: The HTTP request.
+
+        Returns:
+            HTML fragments with hx-swap-oob for finished matches, or empty response.
+        """
+        # Find finished matches - these may have recently updated results
+        finished_matches = Match.objects.filter(
+            status="finished",
+        ).select_related("team_home", "team_away")
+
+        if not finished_matches.exists():
+            # No finished matches, return empty response
+            return HttpResponse("", content_type="text/html")
+
+        # Get user's predictions for finished matches
+        user: User = request.user  # type: ignore[assignment]
+        predictions = MatchPrediction.objects.filter(
+            user=user,
+            match__in=finished_matches,
+        ).select_related("match")
+        prediction_map = {p.match.pk: p for p in predictions}
+
+        # Build HTML fragments for finished matches with OOB swap
+        html_parts = []
+        for match in finished_matches:
+            prediction = prediction_map.get(match.pk)
+            context = _get_match_row_context(user, match, prediction)
+
+            row_html = render(
+                request,
+                "predictions/prediction_row.html",
+                context,
+            ).content.decode("utf-8")
+
+            # Add hx-swap-oob attribute to the row
+            row_html = row_html.replace(
+                f'id="match-{match.pk}"',
+                f'id="match-{match.pk}" hx-swap-oob="true"',
+                1,
+            )
+            html_parts.append(row_html)
+
+        return HttpResponse("".join(html_parts), content_type="text/html")

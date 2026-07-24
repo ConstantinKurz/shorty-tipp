@@ -249,11 +249,59 @@ make check
 
 ## Test Data Seeding
 
-**Note**: Comprehensive test data seeding (matches, predictions, ranking scenarios) will be implemented in a future change after the Match and Prediction models are created. For now, use the admin interface or Django shell to create test data manually.
+For development and testing, use the management command to create comprehensive WM 2026 test data:
 
-The custom user model is ready for use:
-- Superuser can be created with `make createsuperuser`
-- pytest fixtures (`admin_user`, `regular_user`) are available for automated tests
+```bash
+python manage.py create_wm2026_testdata --clear
+```
+
+This creates:
+- **48 real teams** from WM 2026 (12 groups × 4 teams, Groups A-L)
+- **104 matches** (72 group stage + 32 knockout: 16 R32 + 8 R16 + 4 QF + 2 SF + 1 3rd + 1 Final)
+- **8 test users** (`tipper1` through `tipper8`, password: `testpass123`)
+- **~65 predictions per user** following all game rules:
+  - 36 group stage predictions per user (randomly selected from 72)
+  - Jokers distributed per rules (0 in group, 3 in R32, 3 in R16, 2 in QF, 2 in SF/Final)
+- **~24 finished matches** with calculated scores
+
+### Command Options
+
+| Option | Description |
+|--------|-------------|
+| `--clear` | Delete all existing test data before creating new data |
+| `--users N` | Number of test users to create (default: 8, max: 20) |
+
+### Example Usage
+
+```bash
+# Create default test data (8 users)
+python manage.py create_wm2026_testdata --clear
+
+# Create test data with 5 users
+python manage.py create_wm2026_testdata --clear --users 5
+```
+
+### Test User Credentials
+
+All test users have the password `testpass123`:
+- `tipper1` - Optimistic prediction pattern (high scores)
+- `tipper2` - Pessimistic pattern (low scores)
+- `tipper3` - Chaotic pattern (random)
+- `tipper4` - Realistic pattern (balanced)
+- `tipper5` - Home-team bias
+- `tipper6-8` - Mixed patterns
+
+**Note**: This command is for development/testing only. Do not run on production.
+
+## Predictions Page Features
+
+The predictions page (`/predictions/`) includes:
+
+- **Single scrollable list**: All matches displayed chronologically
+- **Stage filter**: Filter by tournament round (Group, R32, R16, QF, SF, Final)
+- **Auto-scroll**: Page automatically scrolls to the nearest upcoming match
+- **Live updates**: Match results update every 60 seconds via HTMX polling
+- **Joker management**: Toggle jokers on knockout matches (within limits)
 
 ## Contributing
 
