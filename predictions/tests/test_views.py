@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
+from predictions.views import get_phase_stats
 
 
 @pytest.fixture
@@ -502,3 +503,402 @@ class TestPointsDisplay:
 
         content = response.content.decode()
         assert "+6 Punkte" in content
+
+
+class TestGetPhaseStats:
+    """Tests for get_phase_stats() helper function."""
+
+    def test_returns_all_phases(self, regular_user, db):
+        """Should return stats for all 7 tournament phases."""
+        stats = get_phase_stats(regular_user)
+
+        expected_phases = ["group", "r32", "r16", "qf", "sf", "3rd", "final"]
+        assert list(stats.keys()) == expected_phases
+
+    def test_returns_correct_structure(self, regular_user, db):
+        """Each phase should have predictions, jokers, total_matches, joker_limit."""
+        stats = get_phase_stats(regular_user)
+
+        for _phase, data in stats.items():
+            assert "predictions" in data
+            assert "jokers" in data
+            assert "total_matches" in data
+            assert "joker_limit" in data
+
+    def test_counts_matches_per_phase(self, regular_user, teams, db):
+        """Should count total matches per phase (group uses limit of 36)."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() + timedelta(days=1)
+
+        # Create matches in different phases
+        Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time, round="group")
+        Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=1), round="group")
+        Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=2), round="r32")
+
+        stats = get_phase_stats(regular_user)
+
+        # Group stage shows prediction limit (36) instead of actual match count
+        assert stats["group"]["total_matches"] == 36
+        assert stats["r32"]["total_matches"] == 1
+        assert stats["r16"]["total_matches"] == 0
+
+    def test_counts_predictions_per_phase(self, regular_user, teams, db):
+        """Should count user predictions per phase."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() + timedelta(days=1)
+
+        # Create matches
+        group_match = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time, round="group")
+        r32_match = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=1), round="r32")
+
+        # Create predictions
+        MatchPrediction.objects.create(user=regular_user, match=group_match, predicted_goals_home=1, predicted_goals_away=0)
+        MatchPrediction.objects.create(user=regular_user, match=r32_match, predicted_goals_home=2, predicted_goals_away=1)
+
+        stats = get_phase_stats(regular_user)
+
+        assert stats["group"]["predictions"] == 1
+        assert stats["r32"]["predictions"] == 1
+        assert stats["r16"]["predictions"] == 0
+
+    def test_counts_jokers_per_phase(self, regular_user, teams, db):
+        """Should count active jokers per phase."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() + timedelta(days=30)
+
+        # Create knockout matches
+        r32_match1 = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time, round="r32")
+        r32_match2 = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=1), round="r32")
+
+        # Create predictions with jokers
+        MatchPrediction.objects.create(user=regular_user, match=r32_match1, predicted_goals_home=1, predicted_goals_away=0, joker_active=True)
+        MatchPrediction.objects.create(user=regular_user, match=r32_match2, predicted_goals_home=2, predicted_goals_away=1, joker_active=False)
+
+        stats = get_phase_stats(regular_user)
+
+        assert stats["r32"]["jokers"] == 1
+
+    def test_group_stage_has_zero_joker_limit(self, regular_user, db):
+        """Group stage should have joker_limit of 0."""
+        stats = get_phase_stats(regular_user)
+
+        assert stats["group"]["joker_limit"] == 0
+
+    def test_knockout_phases_have_joker_limits(self, regular_user, db):
+        """Knockout phases should have correct joker limits."""
+        stats = get_phase_stats(regular_user)
+
+        assert stats["r32"]["joker_limit"] == 3
+        assert stats["r16"]["joker_limit"] == 3
+        assert stats["qf"]["joker_limit"] == 2
+        assert stats["sf"]["joker_limit"] == 2
+        assert stats["3rd"]["joker_limit"] == 2
+        assert stats["final"]["joker_limit"] == 2
+
+
+class TestPhaseStatsInContext:
+    """Tests for phase_stats in view context."""
+
+    def test_context_contains_phase_stats(self, client, regular_user, teams, db):
+        """View context should include phase_stats."""
+        team_a, team_b, _, _ = teams
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1),
+            round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:prediction-list")
+        response = client.get(url)
+
+        assert "phase_stats" in response.context
+        assert "phase_stats_json" in response.context
+        assert "tournament_phases" in response.context
+
+    def test_phase_stats_json_is_valid(self, client, regular_user, teams, db):
+        """phase_stats_json should be valid JSON."""
+        import json
+
+        team_a, team_b, _, _ = teams
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1),
+            round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:prediction-list")
+        response = client.get(url)
+
+        # Should not raise
+        parsed = json.loads(response.context["phase_stats_json"])
+        assert "group" in parsed
+
+
+class TestPhaseStatsView:
+    """Tests for PhaseStatsView API endpoint."""
+
+    def test_requires_authentication(self, client, db):
+        """GET /predictions/phase-stats/ should require login."""
+        url = reverse("predictions:phase-stats")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_returns_json(self, client, regular_user, db):
+        """Should return valid JSON response."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:phase-stats")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+
+        # Should parse as JSON
+        data = json.loads(response.content)
+        assert "group" in data
+        assert "r32" in data
+        assert "final" in data
+
+    def test_returns_correct_stats(self, client, regular_user, teams, db):
+        """Should return accurate prediction counts."""
+        import json
+
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() + timedelta(days=1)
+
+        # Create matches
+        group_match = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time, round="group")
+        r32_match = Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(days=30), round="r32")
+
+        # Create predictions
+        MatchPrediction.objects.create(user=regular_user, match=group_match, predicted_goals_home=1, predicted_goals_away=0)
+        MatchPrediction.objects.create(user=regular_user, match=r32_match, predicted_goals_home=2, predicted_goals_away=1, joker_active=True)
+
+        client.force_login(regular_user)
+        url = reverse("predictions:phase-stats")
+        response = client.get(url)
+
+        data = json.loads(response.content)
+
+        assert data["group"]["predictions"] == 1
+        assert data["group"]["total_matches"] == 36  # Group stage uses limit, not actual matches
+        assert data["r32"]["predictions"] == 1
+        assert data["r32"]["total_matches"] == 1
+        assert data["r32"]["jokers"] == 1
+
+
+class TestGetPollingInterval:
+    """Tests for get_polling_interval() function."""
+
+    def test_returns_idle_interval_when_no_matches(self, db):
+        """Should return 60s when no matches exist."""
+        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_IDLE
+
+    def test_returns_idle_interval_when_no_active_matches(self, teams, db):
+        """Should return 60s when only future matches exist."""
+        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1),
+            round="group",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_IDLE
+
+    def test_returns_active_interval_during_match(self, teams, db):
+        """Should return 10s when match started recently."""
+        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        # Match kicked off 30 minutes ago
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=30),
+            round="group",
+            status="scheduled",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_ACTIVE
+
+    def test_returns_active_interval_during_extra_time(self, teams, db):
+        """Should return 10s when match is in extra time (120 min)."""
+        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        # Match kicked off 120 minutes ago (extra time)
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=120),
+            round="r32",
+            status="scheduled",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_ACTIVE
+
+    def test_returns_active_interval_during_penalties(self, teams, db):
+        """Should return 10s when match could be in penalty shootout (150 min)."""
+        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        # Match kicked off 150 minutes ago (penalties)
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=150),
+            round="qf",
+            status="scheduled",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_ACTIVE
+
+    def test_returns_idle_interval_after_match_window(self, teams, db):
+        """Should return 60s when match started over 160 minutes ago."""
+        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        # Match kicked off 180 minutes ago (well past any match duration)
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=180),
+            round="group",
+            status="scheduled",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_IDLE
+
+    def test_returns_idle_interval_for_finished_match_in_window(self, teams, db):
+        """Should return 60s when match in window is already finished."""
+        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+
+        team_a, team_b, _, _ = teams
+        # Match kicked off 30 min ago but already marked finished
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=30),
+            round="group",
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_IDLE
+
+    def test_multiple_matches_one_active(self, teams, db):
+        """Should return 10s when at least one match is active."""
+        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+
+        team_a, team_b, team_c, team_d = teams
+
+        # Future match
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1),
+            round="group",
+        )
+        # Finished match
+        Match.objects.create(
+            team_home=team_c,
+            team_away=team_d,
+            kickoff=timezone.now() - timedelta(hours=3),
+            round="group",
+            status="finished",
+            goals_home=1,
+            goals_away=1,
+        )
+        # Active match
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_c,
+            kickoff=timezone.now() - timedelta(minutes=45),
+            round="group",
+            status="scheduled",
+        )
+
+        interval = get_polling_interval()
+
+        assert interval == POLLING_INTERVAL_ACTIVE
+
+
+class TestPredictionUpdatesPollingInterval:
+    """Tests for polling interval in PredictionUpdatesView response."""
+
+    def test_returns_polling_interval_header(self, client, regular_user, db):
+        """Should return HX-Trigger header with polling interval."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:prediction-updates")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "HX-Trigger" in response
+
+        trigger = json.loads(response["HX-Trigger"])
+        assert "pollingInterval" in trigger
+        assert isinstance(trigger["pollingInterval"], int)
+
+    def test_returns_active_interval_during_match(self, client, regular_user, teams, db):
+        """Should return 10s polling interval when match is active."""
+        import json
+
+        from predictions.views import POLLING_INTERVAL_ACTIVE
+
+        team_a, team_b, _, _ = teams
+        # Active match
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(minutes=30),
+            round="group",
+            status="scheduled",
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:prediction-updates")
+        response = client.get(url)
+
+        trigger = json.loads(response["HX-Trigger"])
+        assert trigger["pollingInterval"] == POLLING_INTERVAL_ACTIVE
+
+    def test_returns_idle_interval_when_no_active_match(self, client, regular_user, db):
+        """Should return 60s polling interval when no active matches."""
+        import json
+
+        from predictions.views import POLLING_INTERVAL_IDLE
+
+        client.force_login(regular_user)
+        url = reverse("predictions:prediction-updates")
+        response = client.get(url)
+
+        trigger = json.loads(response["HX-Trigger"])
+        assert trigger["pollingInterval"] == POLLING_INTERVAL_IDLE

@@ -6,58 +6,22 @@
 <div class="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-800">
     <div class="max-w-4xl mx-auto px-4 py-8">
         <!-- Header Card -->
-        <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+        <div class="bg-white dark:bg-zinc-800 rounded-t-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 border-b-0">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-4">
+            <div class="bg-gradient-to-r from-emerald-500 to-sky-500 px-6 py-4 rounded-t-2xl">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                     <h1 class="text-2xl font-bold text-white flex items-center gap-2">
                         🎯 Meine Tipps
                     </h1>
-                    <div class="flex items-center gap-3">
-                        <!-- Stage Filter -->
-                        <div class="relative" id="filter-container">
-                            <button type="button" 
-                                    id="filter-toggle"
-                                    class="text-white text-sm bg-white/20 hover:bg-white/30 rounded-full px-3 py-1 flex items-center gap-1 transition-colors">
-                                <span id="filter-label">🔽 Filter</span>
-                            </button>
-                            <div id="filter-dropdown" 
-                                 class="hidden absolute right-0 top-full mt-1 z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-40">
-                                <button type="button" data-stage="all" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Alle Spiele
-                                </button>
-                                <button type="button" data-stage="group" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Gruppenphase
-                                </button>
-                                <button type="button" data-stage="r32" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Achtelfinale (R32)
-                                </button>
-                                <button type="button" data-stage="r16" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Achtelfinale (R16)
-                                </button>
-                                <button type="button" data-stage="qf" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Viertelfinale
-                                </button>
-                                <button type="button" data-stage="sf" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Halbfinale
-                                </button>
-                                <button type="button" data-stage="3rd" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Spiel um Platz 3
-                                </button>
-                                <button type="button" data-stage="final" class="filter-option w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                    Finale
-                                </button>
-                            </div>
-                        </div>
-                        <!-- Group Stage Counter -->
-                        <div class="text-white text-sm bg-white/20 rounded-full px-3 py-1">
-                            Gruppenphase: {{ group_stage_count }}/{{ group_stage_limit }}
-                        </div>
-                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Matches List -->
+        <!-- Phase Navigation - Sticky outside the card -->
+        {% include "predictions/partials/phase_nav.html" %}
+
+        <!-- Matches List Card -->
+        <div class="bg-white dark:bg-zinc-800 rounded-b-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 border-t-0">
             <div class="p-4 sm:p-6 space-y-6" id="match-list">
                 {% for date_key, matches in matches_by_date.items %}
                     {% with first_match=matches.0.match %}
@@ -85,134 +49,172 @@
             
             <!-- HTMX Polling for live match updates -->
             <div hx-get="{% url 'predictions:prediction-updates' %}" 
-                 hx-trigger="load, every 10s" 
+                 hx-trigger="load, every {{ polling_interval }}s" 
                  hx-swap="none"
                  class="hidden">
             </div>
         </div>
     </div>
-</div>
 
 <script>
 (function() {
-    // Stage filter labels (German)
-    const stageLabels = {
-        'all': 'Alle Spiele',
-        'group': 'Gruppenphase',
-        'r32': 'R32',
-        'r16': 'R16',
-        'qf': 'Viertelfinale',
-        'sf': 'Halbfinale',
-        '3rd': 'Platz 3',
-        'final': 'Finale'
+    // Phase Navigation Module
+    const PhaseNav = {
+        currentPhase: 'group',
+        stats: {},
+        
+        // Phase labels in German
+        phaseLabels: {
+            'group': 'Gruppenphase',
+            'r32': 'Achtelfinale (R32)',
+            'r16': 'Achtelfinale (R16)',
+            'qf': 'Viertelfinale',
+            'sf': 'Halbfinale',
+            '3rd': 'Spiel um Platz 3',
+            'final': 'Finale'
+        },
+        
+        init() {
+            const navEl = document.getElementById('phase-nav');
+            if (!navEl) return;
+            
+            // Load stats from data attribute
+            try {
+                this.stats = JSON.parse(navEl.dataset.phaseStats);
+            } catch (e) {
+                console.error('Failed to parse phase stats:', e);
+                return;
+            }
+            
+            // Bind tab click events
+            document.querySelectorAll('.phase-tab').forEach(tab => {
+                tab.addEventListener('click', () => this.switchPhase(tab.dataset.phase));
+            });
+            
+            // Restore phase from URL parameter
+            const urlPhase = new URLSearchParams(location.search).get('phase');
+            if (urlPhase && this.stats[urlPhase]) {
+                this.switchPhase(urlPhase, false);
+            } else {
+                // Apply default phase (group)
+                this.switchPhase('group', false);
+            }
+        },
+        
+        switchPhase(phase, updateUrl = true) {
+            this.currentPhase = phase;
+            
+            // Update tab visual state
+            document.querySelectorAll('.phase-tab').forEach(tab => {
+                const isActive = tab.dataset.phase === phase;
+                tab.classList.toggle('bg-emerald-500', isActive);
+                tab.classList.toggle('text-white', isActive);
+                tab.classList.toggle('bg-zinc-100', !isActive);
+                tab.classList.toggle('dark:bg-zinc-700', !isActive);
+                tab.classList.toggle('text-zinc-600', !isActive);
+                tab.classList.toggle('dark:text-zinc-300', !isActive);
+            });
+            
+            // Scroll active tab into view
+            const activeTab = document.querySelector(`.phase-tab[data-phase="${phase}"]`);
+            if (activeTab) {
+                activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+            
+            // Filter matches
+            document.querySelectorAll('.match-row').forEach(row => {
+                row.style.display = row.dataset.matchStage === phase ? '' : 'none';
+            });
+            
+            // Update date header visibility
+            this.updateDateHeaders();
+            
+            // Update progress display
+            this.updateProgress(phase);
+            
+            // Update URL
+            if (updateUrl) {
+                const url = new URL(location);
+                url.searchParams.set('phase', phase);
+                history.pushState({}, '', url);
+            }
+        },
+        
+        updateDateHeaders() {
+            document.querySelectorAll('.date-group').forEach(group => {
+                const visibleMatches = group.querySelectorAll('.match-row:not([style*="display: none"])');
+                const dateKey = group.dataset.date;
+                const header = document.querySelector(`.date-header[data-date="${dateKey}"]`);
+                
+                if (visibleMatches.length === 0) {
+                    group.style.display = 'none';
+                    if (header) header.style.display = 'none';
+                } else {
+                    group.style.display = '';
+                    if (header) header.style.display = '';
+                }
+            });
+        },
+        
+        updateProgress(phase) {
+            const stat = this.stats[phase];
+            if (!stat) return;
+            
+            const predictionsText = document.getElementById('progress-predictions-text');
+            const jokersEl = document.getElementById('progress-jokers');
+            const jokersText = document.getElementById('progress-jokers-text');
+            
+            if (predictionsText) {
+                predictionsText.textContent = `${stat.predictions}/${stat.total_matches} Tipps`;
+            }
+            
+            if (jokersEl && jokersText) {
+                if (phase === 'group') {
+                    jokersEl.style.display = 'none';
+                } else {
+                    jokersEl.style.display = 'flex';
+                    jokersText.textContent = `${stat.jokers}/${stat.joker_limit} Joker`;
+                }
+            }
+        },
+        
+        // Update stats when predictions change (called after HTMX swaps)
+        refreshStats(phase, delta) {
+            if (this.stats[phase]) {
+                this.stats[phase].predictions += delta.predictions || 0;
+                this.stats[phase].jokers += delta.jokers || 0;
+                this.updateProgress(this.currentPhase);
+            }
+        },
+        
+        getCurrentPhase() {
+            return this.currentPhase;
+        }
     };
-
-    // Filter dropdown toggle
-    const filterToggle = document.getElementById('filter-toggle');
-    const filterDropdown = document.getElementById('filter-dropdown');
-    const filterLabel = document.getElementById('filter-label');
     
-    if (filterToggle && filterDropdown) {
-        filterToggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            filterDropdown.classList.toggle('hidden');
-        });
-
-        // Close on outside click
-        document.addEventListener('click', function(e) {
-            if (!filterDropdown.contains(e.target) && e.target !== filterToggle) {
-                filterDropdown.classList.add('hidden');
-            }
-        });
-
-        // Close on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                filterDropdown.classList.add('hidden');
-            }
-        });
-    }
-
-    // Filter option click handlers
-    document.querySelectorAll('.filter-option').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const stage = this.dataset.stage;
-            applyFilter(stage);
-            filterDropdown.classList.add('hidden');
-        });
-    });
-
-    function applyFilter(stage) {
-        // Update URL parameter
-        const url = new URL(window.location);
-        if (stage === 'all') {
-            url.searchParams.delete('stage');
-        } else {
-            url.searchParams.set('stage', stage);
-        }
-        window.history.pushState({}, '', url);
-
-        // Update filter label
-        if (stage === 'all') {
-            filterLabel.textContent = '🔽 Filter';
-        } else {
-            filterLabel.textContent = '🔽 ' + (stageLabels[stage] || stage);
-        }
-
-        // Filter matches
-        document.querySelectorAll('.match-row').forEach(function(row) {
-            const rowStage = row.dataset.matchStage;
-            if (stage === 'all' || rowStage === stage) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-
-        // Hide date headers that have no visible matches
-        document.querySelectorAll('.date-group').forEach(function(group) {
-            const visibleMatches = group.querySelectorAll('.match-row:not([style*="display: none"])');
-            const dateKey = group.dataset.date;
-            const header = document.querySelector('.date-header[data-date="' + dateKey + '"]');
-            if (visibleMatches.length === 0) {
-                group.style.display = 'none';
-                if (header) header.style.display = 'none';
-            } else {
-                group.style.display = '';
-                if (header) header.style.display = '';
-            }
-        });
-    }
-
-    // Apply filter on page load based on URL parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const stageParam = urlParams.get('stage');
-    if (stageParam && stageLabels[stageParam]) {
-        applyFilter(stageParam);
-    }
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => PhaseNav.init());
+    
+    // Expose for HTMX integration
+    window.PhaseNav = PhaseNav;
 
     // Auto-scroll to nearest upcoming match
     function scrollToNearestMatch() {
-        const now = Date.now() / 1000; // Convert to seconds
-        const matchRows = document.querySelectorAll('.match-row[data-kickoff-timestamp]');
+        const now = Date.now() / 1000;
+        const matchRows = document.querySelectorAll('.match-row[data-kickoff-timestamp]:not([style*="display: none"])');
         let nearestMatch = null;
         let minDiff = Infinity;
 
         matchRows.forEach(function(row) {
-            // Skip hidden matches
-            if (row.style.display === 'none') return;
-            
             const kickoff = parseInt(row.dataset.kickoffTimestamp, 10);
             const diff = kickoff - now;
 
-            // Find nearest future match
             if (diff > 0 && diff < minDiff) {
                 minDiff = diff;
                 nearestMatch = row;
             }
         });
 
-        // If no future matches, scroll to last visible match
         if (!nearestMatch) {
             const visibleMatches = document.querySelectorAll('.match-row:not([style*="display: none"])');
             if (visibleMatches.length > 0) {
@@ -220,9 +222,8 @@
             }
         }
 
-        // Smooth scroll to match with offset for header
         if (nearestMatch) {
-            const offset = 120; // Account for fixed header
+            const offset = 180; // Account for sticky header
             const elementPosition = nearestMatch.getBoundingClientRect().top;
             const offsetPosition = elementPosition + window.pageYOffset - offset;
 
@@ -233,8 +234,8 @@
         }
     }
 
-    // Run auto-scroll on page load (after a short delay for rendering)
-    setTimeout(scrollToNearestMatch, 100);
+    // Run auto-scroll after phase switch settles
+    setTimeout(scrollToNearestMatch, 200);
 
     // Auto-save predictions when both fields have values
     document.addEventListener('input', function(e) {
@@ -246,15 +247,96 @@
         const homeInput = form.querySelector('[name="predicted_goals_home"]');
         const awayInput = form.querySelector('[name="predicted_goals_away"]');
         
-        // Clear any existing timer on this form
         if (form.debounceTimer) clearTimeout(form.debounceTimer);
         
-        // Wait 500ms after last input before saving
         form.debounceTimer = setTimeout(function() {
             if (homeInput.value !== '' && awayInput.value !== '') {
                 htmx.trigger(form, 'submit');
             }
         }, 500);
+    });
+    
+    // Handle browser back/forward
+    window.addEventListener('popstate', function() {
+        const urlPhase = new URLSearchParams(location.search).get('phase');
+        if (urlPhase && window.PhaseNav) {
+            window.PhaseNav.switchPhase(urlPhase, false);
+        }
+    });
+    
+    // HTMX Integration - re-apply phase filter after swaps and refresh stats
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        const target = event.detail.target;
+        
+        // If a match row was swapped, ensure it respects current filter
+        if (target && target.classList && target.classList.contains('match-row')) {
+            const currentPhase = window.PhaseNav ? window.PhaseNav.getCurrentPhase() : 'group';
+            const rowPhase = target.dataset.matchStage;
+            
+            // Hide if not in current phase
+            if (rowPhase !== currentPhase) {
+                target.style.display = 'none';
+            }
+            
+            // Update date headers
+            if (window.PhaseNav) {
+                window.PhaseNav.updateDateHeaders();
+            }
+        }
+    });
+    
+    // Refresh stats from server after successful prediction changes
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        const xhr = event.detail.xhr;
+        const path = event.detail.pathInfo && event.detail.pathInfo.requestPath;
+        
+        // Check if this was a successful prediction save/delete/joker toggle
+        if (xhr && xhr.status === 200 && path && window.PhaseNav) {
+            // Only refresh stats for prediction-related endpoints
+            if (path.includes('/save/') || path.includes('/delete/') || path.includes('/joker/')) {
+                // Fetch fresh stats from server
+                fetch('{% url "predictions:phase-stats" %}')
+                    .then(response => response.json())
+                    .then(newStats => {
+                        window.PhaseNav.stats = newStats;
+                        window.PhaseNav.updateProgress(window.PhaseNav.getCurrentPhase());
+                    })
+                    .catch(err => console.error('Failed to refresh phase stats:', err));
+            }
+        }
+    });
+
+    // Dynamic Polling Module - adjusts polling interval based on active matches
+    const DynamicPolling = {
+        currentInterval: {{ polling_interval }},
+        pollingElement: null,
+
+        init() {
+            this.pollingElement = document.querySelector('[hx-get*="prediction-updates"]');
+        },
+
+        updateInterval(newInterval) {
+            if (newInterval === this.currentInterval || !this.pollingElement) return;
+            
+            this.currentInterval = newInterval;
+            
+            // Update HTMX trigger attribute
+            this.pollingElement.setAttribute('hx-trigger', `load, every ${newInterval}s`);
+            
+            // Re-process the element so HTMX picks up new interval
+            htmx.process(this.pollingElement);
+        }
+    };
+
+    // Initialize polling module
+    document.addEventListener('DOMContentLoaded', () => DynamicPolling.init());
+
+    // Listen for pollingInterval event from server (HX-Trigger header)
+    document.body.addEventListener('pollingInterval', function(event) {
+        const newInterval = event.detail.value;
+        if (newInterval && DynamicPolling.currentInterval !== newInterval) {
+            DynamicPolling.updateInterval(newInterval);
+        }
     });
 })();
 </script>

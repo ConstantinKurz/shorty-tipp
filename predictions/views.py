@@ -5,9 +5,12 @@ Provides views for listing, saving, deleting predictions and toggling jokers.
 All views use HTMX for seamless inline updates without full page reloads.
 """
 
+import json
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -21,6 +24,92 @@ from predictions.services import PredictionLimitService
 
 if TYPE_CHECKING:
     from users.models import User
+
+
+# Tournament phases in display order
+TOURNAMENT_PHASES = ["group", "r32", "r16", "qf", "sf", "3rd", "final"]
+
+# Polling configuration
+POLLING_INTERVAL_ACTIVE = 1  # seconds - during active matches
+POLLING_INTERVAL_IDLE = 60  # seconds - no active matches
+MATCH_ACTIVE_WINDOW_MINUTES = 160  # kickoff + 160 min covers extra time + penalties
+
+
+def get_polling_interval() -> int:
+    """
+    Determine polling interval based on active match windows.
+
+    Active window: from kickoff until kickoff + 160 minutes.
+    This covers regulation (90 min), extra time (30 min), and breaks (~40 min).
+
+    Returns:
+        Polling interval in seconds (10 during matches, 60 otherwise).
+    """
+    now = timezone.now()
+    window_end = now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES)
+
+    # Match is "active" if kickoff is in the past but within the active window
+    active_match_exists = Match.objects.filter(
+        kickoff__lte=now,  # Started
+        kickoff__gt=window_end,  # Within active window
+    ).exclude(status="finished").exists()
+
+    return POLLING_INTERVAL_ACTIVE if active_match_exists else POLLING_INTERVAL_IDLE
+
+
+def get_phase_stats(user: "User") -> dict[str, dict[str, Any]]:
+    """
+    Calculate prediction and joker counts per tournament phase.
+
+    Args:
+        user: The authenticated user to get stats for.
+
+    Returns:
+        Dict mapping phase code to stats dict containing:
+        - predictions: Number of predictions user has made
+        - jokers: Number of active jokers user has set
+        - total_matches: Total matches in this phase
+        - joker_limit: Maximum jokers allowed for this phase
+    """
+    stats: dict[str, dict[str, Any]] = {}
+
+    # Get match counts per phase in one query
+    match_counts = dict(
+        Match.objects.values("round").annotate(count=Count("id")).values_list("round", "count")
+    )
+
+    # Get prediction counts per phase in one query
+    prediction_data = (
+        MatchPrediction.objects.filter(user=user)
+        .values("match__round")
+        .annotate(
+            count=Count("id"),
+            joker_count=Count("id", filter=Q(joker_active=True)),
+        )
+    )
+    # Build lookup: phase -> (count, joker_count)
+    prediction_counts: dict[str, tuple[int, int]] = {
+        row["match__round"]: (row["count"], row["joker_count"])
+        for row in prediction_data
+    }
+
+    for phase in TOURNAMENT_PHASES:
+        pred_count, joker_count = prediction_counts.get(phase, (0, 0))
+
+        # For group stage, use prediction limit (36) instead of total matches (72)
+        if phase == "group":
+            display_total = PredictionLimitService.GROUP_STAGE_LIMIT
+        else:
+            display_total = match_counts.get(phase, 0)
+
+        stats[phase] = {
+            "predictions": pred_count,
+            "jokers": joker_count,
+            "total_matches": display_total,
+            "joker_limit": PredictionLimitService.get_joker_limit_for_round(phase),
+        }
+
+    return stats
 
 
 class PredictionListView(LoginRequiredMixin, TemplateView):
@@ -94,6 +183,14 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
         context["matches_by_date"] = matches_by_date
         context["group_stage_count"] = PredictionLimitService.get_group_stage_prediction_count(user)
         context["group_stage_limit"] = PredictionLimitService.GROUP_STAGE_LIMIT
+
+        # Phase navigation stats
+        context["phase_stats"] = get_phase_stats(user)
+        context["phase_stats_json"] = json.dumps(context["phase_stats"])
+        context["tournament_phases"] = TOURNAMENT_PHASES
+
+        # Polling interval (dynamic based on active matches)
+        context["polling_interval"] = get_polling_interval()
 
         return context
 
@@ -339,6 +436,7 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
 
     Returns finished matches that may have updated results.
     Uses HTMX OOB swap to update only changed match rows.
+    Also returns updated polling interval via HX-Trigger header.
     """
 
     def get(self, request: HttpRequest) -> HttpResponse:
@@ -350,15 +448,21 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
 
         Returns:
             HTML fragments with hx-swap-oob for finished matches, or empty response.
+            HX-Trigger header with updated polling interval.
         """
+        # Calculate current polling interval
+        polling_interval = get_polling_interval()
+
         # Find finished matches - these may have recently updated results
         finished_matches = Match.objects.filter(
             status="finished",
         ).select_related("team_home", "team_away")
 
         if not finished_matches.exists():
-            # No finished matches, return empty response
-            return HttpResponse("", content_type="text/html")
+            # No finished matches, return empty response with polling interval
+            response = HttpResponse("", content_type="text/html")
+            response["HX-Trigger"] = json.dumps({"pollingInterval": polling_interval})
+            return response
 
         # Get user's predictions for finished matches
         user: User = request.user  # type: ignore[assignment]
@@ -388,4 +492,28 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
             )
             html_parts.append(row_html)
 
-        return HttpResponse("".join(html_parts), content_type="text/html")
+        response = HttpResponse("".join(html_parts), content_type="text/html")
+        response["HX-Trigger"] = json.dumps({"pollingInterval": polling_interval})
+        return response
+
+
+class PhaseStatsView(LoginRequiredMixin, View):
+    """
+    Return phase statistics as JSON for HTMX/JavaScript updates.
+
+    Called after prediction saves/deletes/joker toggles to refresh stats.
+    """
+
+    def get(self, request: HttpRequest) -> HttpResponse:
+        """
+        Handle GET request for phase statistics.
+
+        Args:
+            request: The HTTP request.
+
+        Returns:
+            JSON response with phase statistics.
+        """
+        user: User = request.user  # type: ignore[assignment]
+        stats = get_phase_stats(user)
+        return HttpResponse(json.dumps(stats), content_type="application/json")

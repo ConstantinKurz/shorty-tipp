@@ -1,0 +1,83 @@
+<!-- Phase Navigation - Sticky bar with tournament phase tabs and progress display -->
+<div class="sticky-phase-nav sticky top-[52px] z-40 bg-white dark:bg-zinc-800 border-y border-zinc-200 dark:border-zinc-700 px-4 sm:px-6 py-3 shadow-sm"
+     id="phase-nav"
+     data-phase-stats='{{ phase_stats_json }}'>
+    
+    <!-- Phase Tabs -->
+    <div class="phase-tabs flex gap-1.5 overflow-x-auto scrollbar-hide pb-2" style="-webkit-overflow-scrolling: touch;">
+        {% for phase in tournament_phases %}
+            <button type="button"
+                    data-phase="{{ phase }}"
+                    class="phase-tab flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors duration-100 touch-manipulation
+                           {% if phase == 'group' %}
+                               bg-emerald-500 dark:bg-emerald-600 text-white shadow-sm
+                           {% else %}
+                               bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:text-emerald-700 dark:hover:text-emerald-400 active:scale-95
+                           {% endif %}"
+                    style="min-height: 44px; min-width: 44px;">
+                {% if phase == 'group' %}Gruppe
+                {% elif phase == 'r32' %}R32
+                {% elif phase == 'r16' %}R16
+                {% elif phase == 'qf' %}R8
+                {% elif phase == 'sf' %}R4
+                {% elif phase == '3rd' %}3.Platz
+                {% elif phase == 'final' %}Finale
+                {% endif %}
+            </button>
+        {% endfor %}
+    </div>
+    
+    <!-- Progress Display -->
+    <div class="phase-progress flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <span id="progress-predictions" class="flex items-center gap-1.5">
+            <span class="text-emerald-500">📝</span>
+            <span id="progress-predictions-text">{{ phase_stats.group.predictions }}/{{ phase_stats.group.total_matches }} Tipps</span>
+        </span>
+        <span id="progress-jokers" class="items-center gap-1.5" style="display: none;">
+            <span class="text-yellow-500">⭐</span>
+            <span id="progress-jokers-text">0/0 Joker</span>
+        </span>
+    </div>
+</div>
+
+<style>
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Prevent text selection on tabs for better touch UX */
+.phase-tab {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Active state styling for immediate visual feedback */
+.phase-tab.bg-emerald-500,
+.phase-tab.dark\\:bg-emerald-600 {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+/* Mobile-optimized tab sizing */
+@media (max-width: 640px) {
+    .phase-tab {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+    
+    .phase-progress {
+        font-size: 0.8125rem;
+    }
+}
+
+/* Ensure proper spacing on very small screens */
+@media (max-width: 375px) {
+    .phase-tab {
+        padding: 0.5rem 0.625rem;
+    }
+}
+</style>
