@@ -26,7 +26,14 @@ class User(AbstractUser):
     - exact_match_count: Number of exact score predictions for tiebreaker
     - jokers_used: Number of jokers used on scored predictions for tiebreaker
     - country_code: ISO 3166-1 alpha-2 country code for user's flag
+    - theme_preference: User's preferred color theme (light, dark, system)
     """
+
+    THEME_CHOICES = [
+        ("light", "Light"),
+        ("dark", "Dark"),
+        ("system", "System"),
+    ]
 
     country_code: models.CharField = models.CharField(
         max_length=2,
@@ -57,6 +64,13 @@ class User(AbstractUser):
     jokers_used: models.IntegerField = models.IntegerField(
         default=0,
         help_text="Number of jokers used on scored predictions (second tiebreaker)"
+    )
+
+    theme_preference: models.CharField = models.CharField(
+        max_length=10,
+        choices=THEME_CHOICES,
+        default="system",
+        help_text="User's preferred color theme"
     )
 
     class Meta:

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen - WM 2026 Tippspiel{% endblock %}
+
+{% block content %}
+<main class="max-w-2xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6 text-zinc-900 dark:text-white">Einstellungen</h1>
+    
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200{% else %}bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <form method="post" class="space-y-8">
+        {% csrf_token %}
+        
+        <!-- Profile Section -->
+        <section class="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-700">
+            <h2 class="text-lg font-semibold mb-4 text-zinc-900 dark:text-white">Profil</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="id_username" class="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">Username</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}
+                        <p class="text-red-600 dark:text-red-400 text-sm mt-1">{{ form.username.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">{{ form.username.help_text }}</p>
+                </div>
+                
+                <div>
+                    <label for="id_email" class="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">E-Mail</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                        <p class="text-red-600 dark:text-red-400 text-sm mt-1">{{ form.email.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        
+        <!-- Champion Prediction Section -->
+        <section class="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-700">
+            <h2 class="text-lg font-semibold mb-4 text-zinc-900 dark:text-white">Weltmeister-Tipp</h2>
+            
+            {% if can_change_champion %}
+                <div>
+                    <label for="id_predicted_champion" class="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">Dein Tipp</label>
+                    {{ form.predicted_champion }}
+                    {% if form.predicted_champion.errors %}
+                        <p class="text-red-600 dark:text-red-400 text-sm mt-1">{{ form.predicted_champion.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Kann nur vor dem ersten Spiel geändert werden.</p>
+                </div>
+            {% else %}
+                <div class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                    <span>🔒</span>
+                    <span>
+                        {% if user.predicted_champion %}
+                            Dein Tipp: <strong class="text-zinc-900 dark:text-white">{{ user.predicted_champion.name }}</strong>
+                        {% else %}
+                            Kein Tipp abgegeben (nicht mehr änderbar)
+                        {% endif %}
+                    </span>
+                </div>
+            {% endif %}
+        </section>
+        
+        <!-- Theme Section -->
+        <section class="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-700">
+            <h2 class="text-lg font-semibold mb-4 text-zinc-900 dark:text-white">Darstellung</h2>
+            
+            <fieldset>
+                <legend class="sr-only">Theme wählen</legend>
+                <div class="flex flex-wrap gap-4 sm:gap-6">
+                    {% for radio in form.theme_preference %}
+                    <label class="flex items-center gap-2 cursor-pointer text-zinc-700 dark:text-zinc-300">
+                        <input type="radio" 
+                               name="{{ form.theme_preference.name }}" 
+                               value="{{ radio.data.value }}"
+                               {% if radio.data.selected %}checked{% endif %}
+                               class="w-4 h-4 text-emerald-600 bg-white dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600 focus:ring-emerald-500 focus:ring-2">
+                        <span>{{ radio.choice_label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+            {% if form.theme_preference.errors %}
+                <p class="text-red-600 dark:text-red-400 text-sm mt-2">{{ form.theme_preference.errors.0 }}</p>
+            {% endif %}
+        </section>
+        
+        <!-- Submit -->
+        <div class="flex justify-end">
+            <button type="submit" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900">
+                Speichern
+            </button>
+        </div>
+    </form>
+</main>
+
+{% block extra_js %}
+<script>
+// Sync theme preference after form submit
+document.addEventListener('DOMContentLoaded', function() {
+    const themeRadios = document.querySelectorAll('input[name="theme_preference"]');
+    const checkedRadio = document.querySelector('input[name="theme_preference"]:checked');
+    
+    if (checkedRadio) {
+        applyTheme(checkedRadio.value);
+    }
+    
+    // Live preview when changing theme
+    themeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            applyTheme(this.value);
+        });
+    });
+    
+    function applyTheme(theme) {
+        const html = document.documentElement;
+        
+        if (theme === 'dark') {
+            html.classList.add('dark');
+            localStorage.setItem('darkMode', 'true');
+        } else if (theme === 'light') {
+            html.classList.remove('dark');
+            localStorage.setItem('darkMode', 'false');
+        } else {
+            // System preference
+            localStorage.removeItem('darkMode');
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

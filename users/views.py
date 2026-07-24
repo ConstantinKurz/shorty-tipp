@@ -4,10 +4,16 @@ User views for the tipapp application.
 
 from typing import Any
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import TemplateView
+from django.views.generic.edit import UpdateView
 
+from matches.models import Match, Team
 from scoring.services import RankingService
+from users.forms import UserSettingsForm
 from users.models import User
 
 
@@ -61,3 +67,48 @@ class RankingView(LoginRequiredMixin, TemplateView):
 
         context["leaderboard"] = leaderboard
         return context
+
+
+class UserSettingsView(LoginRequiredMixin, UpdateView):
+    """
+    View for users to manage their profile settings.
+
+    Allows users to update:
+    - Username (max 20 characters)
+    - Email address
+    - Predicted World Cup champion (before first match only)
+    - Theme preference (light/dark/system)
+    """
+
+    model = User
+    form_class = UserSettingsForm
+    template_name = "users/settings.html"
+    success_url = reverse_lazy("users:settings")
+
+    def get_object(self, queryset: Any = None) -> User:
+        """Return the current logged-in user."""
+        return self.request.user  # type: ignore[return-value]
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Add teams and champion lock status to context."""
+        context = super().get_context_data(**kwargs)
+        context["teams"] = Team.objects.all().order_by("name")
+        context["can_change_champion"] = self.can_change_champion()
+        return context
+
+    def can_change_champion(self) -> bool:
+        """
+        Check if champion prediction can still be changed.
+
+        Returns True if no matches exist or if the first match
+        hasn't started yet.
+        """
+        first_match = Match.objects.order_by("kickoff").first()
+        if not first_match:
+            return True
+        return timezone.now() < first_match.kickoff
+
+    def form_valid(self, form: UserSettingsForm) -> Any:
+        """Save form and show success message."""
+        messages.success(self.request, "Einstellungen gespeichert!")
+        return super().form_valid(form)

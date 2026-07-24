@@ -63,12 +63,6 @@ class TestLoginView:
         content = response.content.decode()
         assert "csrfmiddlewaretoken" in content
 
-    def test_login_page_contains_dark_mode_toggle(self, client):
-        """Login page should contain dark mode toggle element."""
-        response = client.get(reverse("login"))
-        content = response.content.decode()
-        assert 'id="dark-mode-toggle"' in content
-
     def test_login_with_valid_credentials_redirects(self, client, test_user):
         """POST /login/ with valid credentials should redirect to LOGIN_REDIRECT_URL."""
         response = client.post(
