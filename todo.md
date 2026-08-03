@@ -1,7 +1,9 @@
 - User Page
 - Home Page mit Ranking und nächste Spiele
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
-- UI polishing
+- UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
 - Scraper / Vllt kann man das Polling von Matches mit match statusvon der uefa abdecken
 - RegelnPage
 - Forum
+- css klassen
+- python klassen in eigenen dateien schreiben?

@@ -902,3 +902,248 @@ class TestPredictionUpdatesPollingInterval:
 
         trigger = json.loads(response["HX-Trigger"])
         assert trigger["pollingInterval"] == POLLING_INTERVAL_IDLE
+
+
+class TestMatchPredictionsView:
+    """Tests for MatchPredictionsView - viewing all predictions for a match."""
+
+    def test_requires_authentication(self, client, future_match):
+        """GET /predictions/match/<id>/predictions/ should require login."""
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_returns_404_for_invalid_match(self, client, regular_user):
+        """Should return 404 for non-existent match ID."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[99999])
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_returns_predictions_partial(self, client, regular_user, future_match):
+        """Should return match predictions partial template."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+        assert response.status_code == 200
+        template_names = [t.name for t in response.templates]
+        assert "predictions/partials/match_predictions.html" in template_names
+
+    def test_shows_all_predictions_for_match(
+        self, client, regular_user, multiple_users, future_match
+    ):
+        """Should include all users' predictions for the match."""
+        # Create predictions from multiple users
+        for idx, user in enumerate(multiple_users):
+            MatchPrediction.objects.create(
+                user=user,
+                match=future_match,
+                predicted_goals_home=idx,
+                predicted_goals_away=idx + 1,
+            )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # All 3 predictions should be visible
+        for user in multiple_users:
+            assert user.username in content
+
+    def test_predictions_ordered_by_points_then_username(
+        self, client, regular_user, multiple_users, past_match
+    ):
+        """Predictions should be ordered by points (desc), then username (asc)."""
+        # Create predictions with different points
+        MatchPrediction.objects.create(
+            user=multiple_users[0],  # user1
+            match=past_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,  # Exact match
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[1],  # user2
+            match=past_match,
+            predicted_goals_home=3,
+            predicted_goals_away=0,
+            points_earned=0,
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[2],  # user3
+            match=past_match,
+            predicted_goals_home=1,
+            predicted_goals_away=0,
+            points_earned=3,  # Correct tendency
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # user1 (6pts) should come before user3 (3pts) before user2 (0pts)
+        pos1 = content.find("user1")
+        pos3 = content.find("user3")
+        pos2 = content.find("user2")
+        assert pos1 < pos3 < pos2
+
+    def test_current_user_prediction_highlighted(
+        self, client, regular_user, future_match
+    ):
+        """Current user's prediction should have highlight styling."""
+        MatchPrediction.objects.create(
+            user=regular_user,
+            match=future_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # Check for highlight class (emerald background)
+        assert "bg-emerald-50" in content or "bg-emerald-900" in content
+
+    def test_shows_joker_indicator(self, client, regular_user, knockout_match):
+        """Should show joker star indicator for joker predictions."""
+        MatchPrediction.objects.create(
+            user=regular_user,
+            match=knockout_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            joker_active=True,
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[knockout_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        assert "⭐" in content
+
+    def test_shows_empty_state_when_no_predictions(
+        self, client, regular_user, future_match
+    ):
+        """Should show 'Kein Tipp' status when user has not submitted a prediction."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        assert "Kein Tipp" in content
+
+    def test_shows_match_result_if_available(self, client, regular_user, past_match):
+        """Should display match result when available."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # Result should be 2:1
+        assert "2" in content and "1" in content
+
+    def test_url_reverse_lookup(self, future_match):
+        """URL should be reversible with match ID."""
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        assert f"/predictions/match/{future_match.id}/predictions/" in url
+
+    def test_olympic_ranking_with_ties(
+        self, client, regular_user, multiple_users, past_match
+    ):
+        """Should assign shared ranks for tied users (Olympic ranking)."""
+        # Create predictions with various points: 6, 3, 3, 0
+        MatchPrediction.objects.create(
+            user=multiple_users[0],  # user1
+            match=past_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,  # Rank 1
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[1],  # user2
+            match=past_match,
+            predicted_goals_home=1,
+            predicted_goals_away=0,
+            points_earned=3,  # Rank 2 (tied)
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[2],  # user3
+            match=past_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
+            points_earned=3,  # Rank 2 (tied)
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # user1 should be rank 1, user2 and user3 should both be rank 2
+        # Find rank numbers by checking for "1.", "2.", "4." patterns
+        assert "1." in content  # user1 with 6 points
+        # Both user2 and user3 should show rank 2
+        rank_2_count = content.count("2.")
+        assert rank_2_count >= 2  # At least the two tied users
+        # Next rank after tie should be 4, not 3
+        assert "4." in content  # regular_user (no prediction = 0 points)
+
+    def test_olympic_ranking_skips_after_tie(
+        self, client, regular_user, multiple_users, past_match
+    ):
+        """After a tie, next rank should skip (1, 2, 2, 4 not 1, 2, 2, 3)."""
+        # Create 4 predictions: 6, 3, 3, 1 points
+        MatchPrediction.objects.create(
+            user=multiple_users[0],
+            match=past_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,  # Rank 1
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[1],
+            match=past_match,
+            predicted_goals_home=1,
+            predicted_goals_away=0,
+            points_earned=3,  # Rank 2
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[2],
+            match=past_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
+            points_earned=3,  # Rank 2
+        )
+        MatchPrediction.objects.create(
+            user=regular_user,
+            match=past_match,
+            predicted_goals_home=0,
+            predicted_goals_away=0,
+            points_earned=1,  # Rank 4 (skips 3)
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+        content = response.content.decode()
+
+        # Should have ranks: 1, 2, 2, 4 (not 1, 2, 2, 3)
+        assert "1." in content
+        assert "2." in content
+        assert "4." in content
+        # Should NOT have rank 3 between the tie and next person
+        lines = content.split("\n")
+        # Count rank appearances more carefully
+        rank_pattern = r'>\s*(\d+)\.\s*<'
+        import re
+        ranks = [int(m.group(1)) for m in re.finditer(rank_pattern, content)]
+        # Should be [1, 2, 2, 4] for the four users
+        assert 1 in ranks
+        assert ranks.count(2) == 2
+        assert 3 not in ranks  # Rank 3 is skipped
+        assert 4 in ranks

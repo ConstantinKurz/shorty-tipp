@@ -99,24 +99,38 @@
                     <span class="font-medium text-zinc-400 dark:text-zinc-500">-:-</span>
                 {% endif %}
             </div>
-            {% if prediction and prediction.points_earned is not None %}
-                <div class="flex items-center gap-1 {% if prediction.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-500{% endif %} font-medium">
-                    {% if prediction.is_exact_match %}
-                        <span>🎯</span>
-                    {% endif %}
-                    <span>+{{ prediction.points_earned }} Punkte</span>
-                    {% if prediction.joker_active %}
-                        <span class="text-yellow-500">(⭐ x2)</span>
-                    {% endif %}
-                </div>
+            {% if prediction %}
+                {% if prediction.points_earned is not None %}
+                    <div class="flex items-center gap-1 {% if prediction.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-500{% endif %} font-medium">
+                        {% if prediction.is_exact_match %}
+                            <span>🎯</span>
+                        {% endif %}
+                        <span>+{{ prediction.points_earned }} Punkte</span>
+                        {% if prediction.joker_active %}
+                            <span class="text-yellow-500">(⭐ x2)</span>
+                        {% endif %}
+                    </div>
+                {% elif match.goals_home is not None and match.goals_away is not None %}
+                    <div class="flex items-center gap-1 text-zinc-500 font-medium">
+                        <span>0 Punkte</span>
+                    </div>
+                {% endif %}
             {% endif %}
         </div>
 
-        <!-- Round Badge -->
-        <div class="mt-2 flex items-center gap-2">
+        <!-- Round Badge + View Predictions Button -->
+        <div class="mt-2 flex items-center justify-between">
             <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
                 {{ match.get_round_display }}
             </span>
+            <button type="button"
+                    hx-get="{% url 'predictions:match-predictions' match.id %}"
+                    hx-target="#bottom-sheet-content"
+                    hx-swap="innerHTML"
+                    hx-on="htmx:afterRequest: openBottomSheet()"
+                    class="text-xs px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors">
+                👥 Alle Tipps
+            </button>
         </div>
     </form>
 </div>

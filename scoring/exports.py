@@ -56,11 +56,11 @@ def generate_leaderboard_pdf(leaderboard: list[dict], title: str = "WM 2026 Lead
         ImportError: If reportlab is not installed
     """
     try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import cm
-        from reportlab.platypus import (
+        from reportlab.lib import colors  # type: ignore
+        from reportlab.lib.pagesizes import A4  # type: ignore
+        from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
+        from reportlab.lib.units import cm  # type: ignore
+        from reportlab.platypus import (  # type: ignore
             Paragraph,
             SimpleDocTemplate,
             Spacer,

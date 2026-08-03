@@ -9,8 +9,11 @@ import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import models
 from django.db.models import Count, Q
+from django.db.models.functions import Lower
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -517,3 +520,88 @@ class PhaseStatsView(LoginRequiredMixin, View):
         user: User = request.user  # type: ignore[assignment]
         stats = get_phase_stats(user)
         return HttpResponse(json.dumps(stats), content_type="application/json")
+
+
+class MatchPredictionsView(LoginRequiredMixin, View):
+    """
+    Return all predictions for a match (HTMX partial).
+
+    Displays predictions from all users for the given match.
+    Used in the bottom sheet overlay.
+    """
+
+    def get(self, request: HttpRequest, match_id: int) -> HttpResponse:
+        """
+        Handle GET request to retrieve all predictions for a match.
+
+        Args:
+            request: The HTTP request.
+            match_id: The ID of the match.
+
+        Returns:
+            HTML partial with all predictions for the match.
+        """
+        match = get_object_or_404(
+            Match.objects.select_related("team_home", "team_away"),
+            pk=match_id,
+        )
+
+        # Get all users (excluding inactive/is_active=False if desired, but User.objects.filter(is_active=True))
+        # and fetch their predictions for this match if they exist.
+        User = get_user_model()
+        users = User.objects.filter(is_active=True)
+
+        # Prefetch prediction for this specific match
+        predictions_by_user = {
+            p.user_id: p
+            for p in MatchPrediction.objects.filter(match=match).select_related("user")
+        }
+
+        # Build list of user prediction items
+        user_predictions = []
+        for user in users:
+            pred = predictions_by_user.get(user.id)
+            user_predictions.append({
+                "user": user,
+                "prediction": pred,
+                "predicted_goals_home": pred.predicted_goals_home if pred else None,
+                "predicted_goals_away": pred.predicted_goals_away if pred else None,
+                "joker_active": pred.joker_active if pred else False,
+                "points_earned": pred.points_earned if pred else None,
+                "has_predicted": pred is not None,
+            })
+
+        # Sort: users with predictions first, ordered by points (desc, treating None as -1), then username
+        def sort_key(item: dict[str, Any]) -> tuple[int, int, str]:
+            pred = item["prediction"]
+            has_points = pred is not None and pred.points_earned is not None
+            pts = pred.points_earned if has_points else -1
+            # Sort order: highest points first (-pts), then has_predicted (False comes after True), then lower username
+            has_pred_rank = 0 if item["has_predicted"] else 1
+            return (-pts, has_pred_rank, item["user"].username.lower())
+
+        user_predictions.sort(key=sort_key)
+
+        # Calculate Olympic-style ranks (shared ranks for same points)
+        current_rank = 1
+        for i, item in enumerate(user_predictions):
+            if i > 0:
+                prev = user_predictions[i - 1]
+                # Check if this user has same points/status as previous
+                same_rank = (
+                    item["points_earned"] == prev["points_earned"]
+                    and item["has_predicted"] == prev["has_predicted"]
+                )
+                if not same_rank:
+                    current_rank = i + 1  # Skip to actual position (Olympic ranking)
+            item["rank"] = current_rank
+
+        return render(
+            request,
+            "predictions/partials/match_predictions.html",
+            {
+                "match": match,
+                "user_predictions": user_predictions,
+                "current_user": request.user,
+            },
+        )

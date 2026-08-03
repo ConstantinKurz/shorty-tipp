@@ -91,6 +91,25 @@
     
     {% block content %}{% endblock %}
     
+    <!-- Bottom Sheet Container -->
+    <div id="bottom-sheet-backdrop" 
+         class="fixed inset-0 bg-black/50 z-40 hidden"
+         onclick="closeBottomSheet()"></div>
+    
+    <div id="bottom-sheet" 
+         class="fixed inset-x-0 bottom-0 z-50 transform translate-y-full transition-transform duration-300 ease-out">
+        <div class="bg-white dark:bg-zinc-800 rounded-t-2xl max-h-[70vh] overflow-hidden flex flex-col shadow-2xl">
+            <!-- Handle bar -->
+            <div class="flex justify-center py-3 cursor-grab" id="bottom-sheet-handle">
+                <div class="w-10 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-full"></div>
+            </div>
+            <!-- Content loaded via HTMX -->
+            <div id="bottom-sheet-content" class="overflow-y-auto px-4 pb-6">
+                <!-- Dynamic content here -->
+            </div>
+        </div>
+    </div>
+    
     <!-- Dark mode toggle script -->
     <script>
         function toggleDarkMode() {
@@ -127,6 +146,57 @@
         
         // Update icon on page load
         document.addEventListener('DOMContentLoaded', updateToggleIcon);
+    </script>
+    
+    <!-- Bottom Sheet Script -->
+    <script>
+        function openBottomSheet() {
+            document.getElementById('bottom-sheet-backdrop').classList.remove('hidden');
+            document.getElementById('bottom-sheet').classList.remove('translate-y-full');
+            document.body.classList.add('overflow-hidden');
+        }
+        
+        function closeBottomSheet() {
+            document.getElementById('bottom-sheet').classList.add('translate-y-full');
+            document.getElementById('bottom-sheet-backdrop').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+        
+        // Swipe down to close (touch devices)
+        (function() {
+            const sheet = document.getElementById('bottom-sheet');
+            if (!sheet) return;
+            
+            let touchStartY = 0;
+            let touchCurrentY = 0;
+            
+            sheet.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+            
+            sheet.addEventListener('touchmove', (e) => {
+                touchCurrentY = e.touches[0].clientY;
+            }, { passive: true });
+            
+            sheet.addEventListener('touchend', () => {
+                const diff = touchCurrentY - touchStartY;
+                if (diff > 80) {
+                    closeBottomSheet();
+                }
+                touchStartY = 0;
+                touchCurrentY = 0;
+            }, { passive: true });
+        })();
+        
+        // ESC key to close
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const backdrop = document.getElementById('bottom-sheet-backdrop');
+                if (backdrop && !backdrop.classList.contains('hidden')) {
+                    closeBottomSheet();
+                }
+            }
+        });
     </script>
 </body>
 </html>
