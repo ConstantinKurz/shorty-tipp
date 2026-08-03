@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import models
-from django.db.models import Count, Q
-from django.db.models.functions import Lower
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -528,6 +527,8 @@ class MatchPredictionsView(LoginRequiredMixin, View):
 
     Displays predictions from all users for the given match.
     Used in the bottom sheet overlay.
+    Includes aggregated user statistics: champion prediction, exact count,
+    jokers used, and total points.
     """
 
     def get(self, request: HttpRequest, match_id: int) -> HttpResponse:
@@ -546,21 +547,37 @@ class MatchPredictionsView(LoginRequiredMixin, View):
             pk=match_id,
         )
 
-        # Get all users (excluding inactive/is_active=False if desired, but User.objects.filter(is_active=True))
-        # and fetch their predictions for this match if they exist.
-        User = get_user_model()
-        users = User.objects.filter(is_active=True)
+        # Get sort mode from query parameter (default: match)
+        sort_mode = request.GET.get("sort", "match")
+        if sort_mode not in ("match", "total"):
+            sort_mode = "match"
 
-        # Prefetch prediction for this specific match
+        # Get all active users with aggregated statistics
+        User = get_user_model()
+        users = User.objects.filter(is_active=True).annotate(
+            stats_total_points=Coalesce(Sum("match_predictions__points_earned"), 0),
+            stats_exact_count=Count(
+                "match_predictions",
+                filter=Q(match_predictions__is_exact_match=True)
+            ),
+            stats_jokers_count=Count(
+                "match_predictions",
+                filter=Q(match_predictions__joker_active=True)
+            ),
+        ).select_related("predicted_champion")
+
+        # Prefetch predictions for this specific match
         predictions_by_user = {
-            p.user_id: p
+            p.user_id: p  # type: ignore[attr-defined]
             for p in MatchPrediction.objects.filter(match=match).select_related("user")
         }
 
-        # Build list of user prediction items
+        # Build list of user prediction items with all statistics
         user_predictions = []
         for user in users:
-            pred = predictions_by_user.get(user.id)
+            pred = predictions_by_user.get(user.id)  # type: ignore[attr-defined]
+            match_points = pred.points_earned if pred and pred.points_earned is not None else 0
+
             user_predictions.append({
                 "user": user,
                 "prediction": pred,
@@ -569,32 +586,74 @@ class MatchPredictionsView(LoginRequiredMixin, View):
                 "joker_active": pred.joker_active if pred else False,
                 "points_earned": pred.points_earned if pred else None,
                 "has_predicted": pred is not None,
+                # Aggregated statistics
+                "match_points": match_points,
+                "champion": user.predicted_champion,  # type: ignore[attr-defined]
+                "exact_count": user.stats_exact_count,  # type: ignore[attr-defined]
+                "jokers_count": user.stats_jokers_count,  # type: ignore[attr-defined]
+                "total_points": user.stats_total_points,  # type: ignore[attr-defined]
             })
 
-        # Sort: users with predictions first, ordered by points (desc, treating None as -1), then username
-        def sort_key(item: dict[str, Any]) -> tuple[int, int, str]:
-            pred = item["prediction"]
-            has_points = pred is not None and pred.points_earned is not None
-            pts = pred.points_earned if has_points else -1
-            # Sort order: highest points first (-pts), then has_predicted (False comes after True), then lower username
-            has_pred_rank = 0 if item["has_predicted"] else 1
-            return (-pts, has_pred_rank, item["user"].username.lower())
-
-        user_predictions.sort(key=sort_key)
-
-        # Calculate Olympic-style ranks (shared ranks for same points)
-        current_rank = 1
-        for i, item in enumerate(user_predictions):
-            if i > 0:
-                prev = user_predictions[i - 1]
-                # Check if this user has same points/status as previous
-                same_rank = (
-                    item["points_earned"] == prev["points_earned"]
-                    and item["has_predicted"] == prev["has_predicted"]
+        # Sort based on mode
+        if sort_mode == "total":
+            # Sort by official tiebreaker criteria:
+            # 1. Total points (desc)
+            # 2. Exact match count (desc)
+            # 3. Jokers used (asc - fewer = better)
+            # 4. Username (asc - final tiebreaker)
+            user_predictions.sort(
+                key=lambda x: (
+                    -x["total_points"],
+                    -x["exact_count"],
+                    x["jokers_count"],  # Ascending: fewer jokers used = better
+                    x["user"].username.lower(),
                 )
+            )
+        else:
+            # Sort by match points, then same tiebreakers:
+            # 1. Match points (desc)
+            # 2. Exact match count (desc)
+            # 3. Jokers used (asc - fewer = better)
+            # 4. Username (asc - final tiebreaker)
+            user_predictions.sort(
+                key=lambda x: (
+                    -x["match_points"],
+                    -x["exact_count"],
+                    x["jokers_count"],  # Ascending: fewer jokers used = better
+                    x["user"].username.lower(),
+                )
+            )
+
+        # Apply Olympic-style ranking based on sort criterion
+        current_rank = 1
+        prev_entry = None
+        users_at_rank = 0
+
+        for entry in user_predictions:
+            if prev_entry is not None:
+                # Compare tiebreaker fields (same logic both modes, different primary key)
+                if sort_mode == "total":
+                    same_rank = (
+                        entry["total_points"] == prev_entry["total_points"]
+                        and entry["exact_count"] == prev_entry["exact_count"]
+                        and entry["jokers_count"] == prev_entry["jokers_count"]
+                    )
+                else:
+                    same_rank = (
+                        entry["match_points"] == prev_entry["match_points"]
+                        and entry["exact_count"] == prev_entry["exact_count"]
+                        and entry["jokers_count"] == prev_entry["jokers_count"]
+                    )
                 if not same_rank:
-                    current_rank = i + 1  # Skip to actual position (Olympic ranking)
-            item["rank"] = current_rank
+                    current_rank += users_at_rank
+                    users_at_rank = 1
+                else:
+                    users_at_rank += 1
+            else:
+                users_at_rank = 1
+
+            entry["rank"] = current_rank
+            prev_entry = entry
 
         return render(
             request,
@@ -603,5 +662,6 @@ class MatchPredictionsView(LoginRequiredMixin, View):
                 "match": match,
                 "user_predictions": user_predictions,
                 "current_user": request.user,
+                "sort_mode": sort_mode,
             },
         )

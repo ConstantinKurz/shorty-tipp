@@ -1147,3 +1147,413 @@ class TestMatchPredictionsView:
         assert ranks.count(2) == 2
         assert 3 not in ranks  # Rank 3 is skipped
         assert 4 in ranks
+
+
+class TestMatchPredictionsViewStatistics:
+    """Tests for user statistics aggregation in MatchPredictionsView."""
+
+    def test_includes_user_statistics_in_context(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Context should include aggregated user statistics."""
+        team_a, team_b, team_c, team_d = teams
+        base_time = timezone.now() + timedelta(days=1)
+
+        # Create match for viewing
+        match = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=base_time,
+            round="group",
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[match.id])
+        response = client.get(url)
+
+        # Check context has user_predictions with statistics
+        user_preds = response.context["user_predictions"]
+        assert len(user_preds) > 0
+
+        # Each entry should have statistics keys
+        for entry in user_preds:
+            assert "total_points" in entry
+            assert "exact_count" in entry
+            assert "jokers_count" in entry
+            assert "champion" in entry
+            assert "match_points" in entry
+
+    def test_total_points_aggregation(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Should correctly sum total_points across all predictions."""
+        team_a, team_b, team_c, team_d = teams
+        base_time = timezone.now() - timedelta(days=1)
+
+        # Create past matches for user1
+        m1 = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="group", status="finished",
+            goals_home=2, goals_away=1
+        )
+        m2 = Match.objects.create(
+            team_home=team_c, team_away=team_d,
+            kickoff=base_time + timedelta(hours=2), round="group", status="finished",
+            goals_home=0, goals_away=0
+        )
+
+        # Create predictions with points for user1
+        MatchPrediction.objects.create(
+            user=multiple_users[0],  # user1
+            match=m1,
+            predicted_goals_home=2, predicted_goals_away=1,
+            points_earned=6, is_exact_match=True
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[0],  # user1
+            match=m2,
+            predicted_goals_home=1, predicted_goals_away=0,
+            points_earned=0, is_exact_match=False
+        )
+
+        # Create viewing match
+        view_match = Match.objects.create(
+            team_home=team_a, team_away=team_c,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[view_match.id])
+        response = client.get(url)
+
+        user_preds = response.context["user_predictions"]
+        user1_entry = next(e for e in user_preds if e["user"].username == "user1")
+
+        # user1 should have total_points = 6 + 0 = 6
+        assert user1_entry["total_points"] == 6
+
+    def test_exact_count_aggregation(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Should correctly count exact predictions."""
+        team_a, team_b, team_c, team_d = teams
+        base_time = timezone.now() - timedelta(days=1)
+
+        # Create matches
+        m1 = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="group", status="finished",
+            goals_home=2, goals_away=1
+        )
+        m2 = Match.objects.create(
+            team_home=team_c, team_away=team_d,
+            kickoff=base_time + timedelta(hours=2), round="group", status="finished",
+            goals_home=0, goals_away=0
+        )
+
+        # Create predictions for user1: 2 exact matches
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=m1,
+            predicted_goals_home=2, predicted_goals_away=1,
+            points_earned=6, is_exact_match=True
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=m2,
+            predicted_goals_home=0, predicted_goals_away=0,
+            points_earned=6, is_exact_match=True
+        )
+
+        view_match = Match.objects.create(
+            team_home=team_a, team_away=team_c,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[view_match.id])
+        response = client.get(url)
+
+        user_preds = response.context["user_predictions"]
+        user1_entry = next(e for e in user_preds if e["user"].username == "user1")
+
+        assert user1_entry["exact_count"] == 2
+
+    def test_jokers_count_aggregation(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Should correctly count jokers used."""
+        team_a, team_b, team_c, team_d = teams
+        base_time = timezone.now() + timedelta(days=30)
+
+        # Create knockout matches
+        m1 = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="r32"
+        )
+        m2 = Match.objects.create(
+            team_home=team_c, team_away=team_d,
+            kickoff=base_time + timedelta(hours=2), round="r32"
+        )
+
+        # Create predictions with jokers for user1
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=m1,
+            predicted_goals_home=2, predicted_goals_away=1,
+            joker_active=True
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=m2,
+            predicted_goals_home=0, predicted_goals_away=0,
+            joker_active=True
+        )
+
+        view_match = Match.objects.create(
+            team_home=team_a, team_away=team_c,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[view_match.id])
+        response = client.get(url)
+
+        user_preds = response.context["user_predictions"]
+        user1_entry = next(e for e in user_preds if e["user"].username == "user1")
+
+        assert user1_entry["jokers_count"] == 2
+
+    def test_champion_prediction_included(
+        self, client, regular_user, teams, db
+    ):
+        """Should include user's champion prediction."""
+        team_a, team_b, _, _ = teams
+
+        # Set champion prediction for regular_user
+        regular_user.predicted_champion = team_a
+        regular_user.save()
+
+        match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[match.id])
+        response = client.get(url)
+
+        user_preds = response.context["user_predictions"]
+        current_entry = next(e for e in user_preds if e["user"] == regular_user)
+
+        assert current_entry["champion"] == team_a
+        assert current_entry["champion"].name == "Germany"
+
+    def test_no_predictions_shows_zero_stats(
+        self, client, regular_user, teams, db
+    ):
+        """User with no predictions should show 0 for all stats."""
+        team_a, team_b, _, _ = teams
+
+        match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[match.id])
+        response = client.get(url)
+
+        user_preds = response.context["user_predictions"]
+        current_entry = next(e for e in user_preds if e["user"] == regular_user)
+
+        assert current_entry["total_points"] == 0
+        assert current_entry["exact_count"] == 0
+        assert current_entry["jokers_count"] == 0
+
+
+class TestMatchPredictionsViewSorting:
+    """Tests for sort mode parameter in MatchPredictionsView."""
+
+    def test_default_sort_is_match(self, client, regular_user, future_match):
+        """Without sort parameter, should default to match points."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url)
+
+        assert response.context["sort_mode"] == "match"
+
+    def test_sort_parameter_match(self, client, regular_user, future_match):
+        """?sort=match should set sort_mode to match."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url + "?sort=match")
+
+        assert response.context["sort_mode"] == "match"
+
+    def test_sort_parameter_total(self, client, regular_user, future_match):
+        """?sort=total should set sort_mode to total."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url + "?sort=total")
+
+        assert response.context["sort_mode"] == "total"
+
+    def test_invalid_sort_defaults_to_match(self, client, regular_user, future_match):
+        """Invalid sort value should default to match."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[future_match.id])
+        response = client.get(url + "?sort=invalid")
+
+        assert response.context["sort_mode"] == "match"
+
+    def test_sort_by_match_points_order(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Sort=match should order by match points descending."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() - timedelta(days=1)
+
+        # Create multiple matches
+        past_match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="group", status="finished",
+            goals_home=2, goals_away=1
+        )
+        other_match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time + timedelta(hours=2), round="group", status="finished",
+            goals_home=1, goals_away=0
+        )
+
+        # user1: 0 pts on past_match, but 6 pts on other_match (high total)
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=past_match,
+            predicted_goals_home=0, predicted_goals_away=0,
+            points_earned=0
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=other_match,
+            predicted_goals_home=1, predicted_goals_away=0,
+            points_earned=6, is_exact_match=True
+        )
+
+        # user2: 6 pts on past_match, 0 pts total other matches
+        MatchPrediction.objects.create(
+            user=multiple_users[1], match=past_match,
+            predicted_goals_home=2, predicted_goals_away=1,
+            points_earned=6, is_exact_match=True
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url + "?sort=match")
+        content = response.content.decode()
+
+        # user2 (6 match pts) should be before user1 (0 match pts)
+        pos_user2 = content.find("user2")
+        pos_user1 = content.find("user1")
+        assert pos_user2 < pos_user1
+
+    def test_sort_by_total_points_order(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Sort=total should order by total points descending."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() - timedelta(days=1)
+
+        # Create multiple matches
+        past_match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="group", status="finished",
+            goals_home=2, goals_away=1
+        )
+        other_match = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time + timedelta(hours=2), round="group", status="finished",
+            goals_home=1, goals_away=0
+        )
+
+        # user1: 0 pts on past_match, 6 pts on other_match = 6 total
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=past_match,
+            predicted_goals_home=0, predicted_goals_away=0,
+            points_earned=0
+        )
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=other_match,
+            predicted_goals_home=1, predicted_goals_away=0,
+            points_earned=6, is_exact_match=True
+        )
+
+        # user2: 3 pts on past_match = 3 total
+        MatchPrediction.objects.create(
+            user=multiple_users[1], match=past_match,
+            predicted_goals_home=1, predicted_goals_away=0,
+            points_earned=3
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url + "?sort=total")
+        content = response.content.decode()
+
+        # user1 (6 total pts) should be before user2 (3 total pts)
+        pos_user1 = content.find("user1")
+        pos_user2 = content.find("user2")
+        assert pos_user1 < pos_user2
+
+    def test_olympic_ranking_in_total_mode(
+        self, client, regular_user, multiple_users, teams, db
+    ):
+        """Olympic ranking should work correctly in total mode."""
+        team_a, team_b, team_c, team_d = teams
+        base_time = timezone.now() - timedelta(days=1)
+
+        # Create matches
+        m1 = Match.objects.create(
+            team_home=team_a, team_away=team_b,
+            kickoff=base_time, round="group", status="finished",
+            goals_home=2, goals_away=1
+        )
+        m2 = Match.objects.create(
+            team_home=team_c, team_away=team_d,
+            kickoff=base_time + timedelta(hours=2), round="group", status="finished",
+            goals_home=0, goals_away=0
+        )
+        view_match = Match.objects.create(
+            team_home=team_a, team_away=team_c,
+            kickoff=timezone.now() + timedelta(days=1), round="group"
+        )
+
+        # user1: 6 total pts
+        MatchPrediction.objects.create(
+            user=multiple_users[0], match=m1,
+            predicted_goals_home=2, predicted_goals_away=1,
+            points_earned=6, is_exact_match=True
+        )
+        # user2: 6 total pts (tie with user1)
+        MatchPrediction.objects.create(
+            user=multiple_users[1], match=m2,
+            predicted_goals_home=0, predicted_goals_away=0,
+            points_earned=6, is_exact_match=True
+        )
+        # user3: 3 total pts
+        MatchPrediction.objects.create(
+            user=multiple_users[2], match=m1,
+            predicted_goals_home=1, predicted_goals_away=0,
+            points_earned=3
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[view_match.id])
+        response = client.get(url + "?sort=total")
+
+        user_preds = response.context["user_predictions"]
+
+        # Find entries for each user
+        user1_entry = next(e for e in user_preds if e["user"].username == "user1")
+        user2_entry = next(e for e in user_preds if e["user"].username == "user2")
+        user3_entry = next(e for e in user_preds if e["user"].username == "user3")
+
+        # user1 and user2 should both be rank 1 (tied at 6 pts)
+        assert user1_entry["rank"] == 1
+        assert user2_entry["rank"] == 1
+        # user3 should be rank 3 (skips 2)
+        assert user3_entry["rank"] == 3

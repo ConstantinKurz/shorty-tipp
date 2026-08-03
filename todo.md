@@ -2,8 +2,9 @@
 - Home Page mit Ranking und nächste Spiele
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
-- Scraper / Vllt kann man das Polling von Matches mit match statusvon der uefa abdecken
+- Scraper / Vllt kann man das Polling von Matches über htmx mit match status von der uefa abdeckenß
 - RegelnPage
 - Forum
 - css klassen
 - python klassen in eigenen dateien schreiben?
+- frontend aufeinander abstimmen?
