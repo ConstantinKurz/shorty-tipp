@@ -1,6 +1,7 @@
 """Tests for RankingService."""
 
 import pytest
+from django.utils import timezone
 
 from scoring.services import RankingService
 from users.models import User
@@ -198,3 +199,296 @@ class TestEdgeCases:
 
         assert len(leaderboard) == 1
         assert leaderboard[0]["username"] == "active"
+
+
+@pytest.fixture
+def matches_by_round(db):
+    """Create matches across different tournament rounds."""
+    from matches.models import Match, Team
+
+    team_a = Team.objects.create(name="Team A", fifa_code="TEA")
+    team_b = Team.objects.create(name="Team B", fifa_code="TEB")
+
+    matches = {
+        "group": Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="group",
+            kickoff=timezone.now(),
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        ),
+        "r16": Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="r16",
+            kickoff=timezone.now(),
+            status="finished",
+            goals_home=3,
+            goals_away=0,
+        ),
+        "qf": Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="qf",
+            kickoff=timezone.now(),
+            status="finished",
+            goals_home=1,
+            goals_away=1,
+        ),
+        "final": Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="final",
+            kickoff=timezone.now(),
+            status="finished",
+            goals_home=2,
+            goals_away=2,
+        ),
+    }
+    return matches
+
+
+@pytest.fixture
+def scored_predictions(db, matches_by_round):
+    """Create users with scored predictions across rounds."""
+    from predictions.models import MatchPrediction
+
+    user_a = User.objects.create_user(username="user_a", password="test")
+    user_b = User.objects.create_user(username="user_b", password="test")
+
+    # User A predictions (exact match in group, tendency in r16)
+    MatchPrediction.objects.create(
+        user=user_a,
+        match=matches_by_round["group"],
+        predicted_goals_home=2,
+        predicted_goals_away=1,
+        points_earned=6,  # Exact match: 6 * 1 (group multiplier)
+        is_exact_match=True,
+    )
+    MatchPrediction.objects.create(
+        user=user_a,
+        match=matches_by_round["r16"],
+        predicted_goals_home=2,
+        predicted_goals_away=0,
+        points_earned=6,  # Tendency: 3 * 2 (r16 multiplier)
+        is_exact_match=False,
+    )
+    MatchPrediction.objects.create(
+        user=user_a,
+        match=matches_by_round["qf"],
+        predicted_goals_home=1,
+        predicted_goals_away=1,
+        points_earned=18,  # Exact: 6 * 3 (qf multiplier)
+        is_exact_match=True,
+    )
+
+    # User B predictions (tendency in group, exact in r16)
+    MatchPrediction.objects.create(
+        user=user_b,
+        match=matches_by_round["group"],
+        predicted_goals_home=3,
+        predicted_goals_away=1,
+        points_earned=3,  # Tendency: 3 * 1 (group multiplier)
+        is_exact_match=False,
+    )
+    MatchPrediction.objects.create(
+        user=user_b,
+        match=matches_by_round["r16"],
+        predicted_goals_home=3,
+        predicted_goals_away=0,
+        points_earned=12,  # Exact: 6 * 2 (r16 multiplier)
+        is_exact_match=True,
+    )
+    MatchPrediction.objects.create(
+        user=user_b,
+        match=matches_by_round["qf"],
+        predicted_goals_home=2,
+        predicted_goals_away=0,
+        points_earned=0,  # Wrong
+        is_exact_match=False,
+    )
+
+    return {"user_a": user_a, "user_b": user_b}
+
+
+class TestRankingServiceRoundFiltering:
+    """Test round-based filtering of leaderboards."""
+
+    def test_get_leaderboard_up_to_round_group_stage(
+        self, db, matches_by_round, scored_predictions
+    ):
+        """Test filtering by group stage only."""
+        leaderboard = RankingService.get_leaderboard_up_to_round("group")
+
+        assert len(leaderboard) == 2
+        # User A: 6 points from group
+        # User B: 3 points from group
+        assert leaderboard[0]["username"] == "user_a"
+        assert leaderboard[0]["total_points"] == 6
+        assert leaderboard[1]["username"] == "user_b"
+        assert leaderboard[1]["total_points"] == 3
+
+    def test_get_leaderboard_up_to_round_r16(
+        self, db, matches_by_round, scored_predictions
+    ):
+        """Test filtering includes group + r32 + r16."""
+        leaderboard = RankingService.get_leaderboard_up_to_round("r16")
+
+        assert len(leaderboard) == 2
+        # User B: 3 (group) + 12 (r16) = 15 total
+        # User A: 6 (group) + 6 (r16) = 12 total
+        assert leaderboard[0]["username"] == "user_b"
+        assert leaderboard[0]["total_points"] == 15
+        assert leaderboard[1]["username"] == "user_a"
+        assert leaderboard[1]["total_points"] == 12
+
+    def test_get_leaderboard_up_to_round_qf(
+        self, db, matches_by_round, scored_predictions
+    ):
+        """Test filtering through quarter-finals."""
+        leaderboard = RankingService.get_leaderboard_up_to_round("qf")
+
+        assert len(leaderboard) == 2
+        # User A: 6 (group) + 6 (r16) + 18 (qf) = 30 total
+        # User B: 3 (group) + 12 (r16) + 0 (qf) = 15 total
+        assert leaderboard[0]["username"] == "user_a"
+        assert leaderboard[0]["total_points"] == 30
+        assert leaderboard[1]["username"] == "user_b"
+        assert leaderboard[1]["total_points"] == 15
+
+    def test_get_leaderboard_up_to_round_final(
+        self, db, matches_by_round, scored_predictions
+    ):
+        """Test final round includes all matches."""
+        live = RankingService.get_current_leaderboard()
+        final = RankingService.get_leaderboard_up_to_round("final")
+
+        # Should be identical (both include all rounds)
+        assert len(live) == len(final)
+        for live_entry, final_entry in zip(live, final):
+            assert live_entry["username"] == final_entry["username"]
+            assert live_entry["total_points"] == final_entry["total_points"]
+
+    def test_get_leaderboard_up_to_round_none_returns_live(self, db, scored_predictions):
+        """Test None parameter returns all finished matches."""
+        live = RankingService.get_current_leaderboard()
+        none_result = RankingService.get_leaderboard_up_to_round(None)
+
+        assert live == none_result
+
+    def test_get_leaderboard_up_to_round_invalid_code(
+        self, db, scored_predictions
+    ):
+        """Test invalid round code returns live view."""
+        live = RankingService.get_current_leaderboard()
+        invalid = RankingService.get_leaderboard_up_to_round("invalid")
+
+        assert live == invalid
+
+    def test_get_leaderboard_up_to_round_no_finished_matches(self, db):
+        """Test round with no finished matches returns users with zero points."""
+        from matches.models import Match, Team
+
+        team_a = Team.objects.create(name="Team A", fifa_code="TAA")
+        team_b = Team.objects.create(name="Team B", fifa_code="TBB")
+
+        # Create scheduled match (not finished)
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="group",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        User.objects.create_user(username="test_user", password="test")
+
+        leaderboard = RankingService.get_leaderboard_up_to_round("group")
+        # Users should appear with 0 points when no matches are finished
+        assert len(leaderboard) == 1
+        assert leaderboard[0]["username"] == "test_user"
+        assert leaderboard[0]["total_points"] == 0
+        assert leaderboard[0]["exact_match_count"] == 0
+        assert leaderboard[0]["jokers_used"] == 0
+
+    def test_get_leaderboard_up_to_round_ranking_correctness(
+        self, db, matches_by_round
+    ):
+        """Test olympic ranking with filtered data."""
+        from predictions.models import MatchPrediction
+
+        user_c = User.objects.create_user(username="user_c", password="test")
+        user_d = User.objects.create_user(username="user_d", password="test")
+
+        # Both users predict group match
+        MatchPrediction.objects.create(
+            user=user_c,
+            match=matches_by_round["group"],
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,
+            is_exact_match=True,
+            joker_active=False,
+        )
+        MatchPrediction.objects.create(
+            user=user_d,
+            match=matches_by_round["group"],
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,
+            is_exact_match=True,
+            joker_active=True,  # Used joker
+        )
+
+        leaderboard = RankingService.get_leaderboard_up_to_round("group")
+
+        # Both have same points and exact matches, but user_c has fewer jokers used
+        assert leaderboard[0]["username"] == "user_c"
+        assert leaderboard[0]["rank"] == 1
+        assert leaderboard[0]["jokers_used"] == 0
+        assert leaderboard[1]["username"] == "user_d"
+        assert leaderboard[1]["rank"] == 2
+        assert leaderboard[1]["jokers_used"] == 1
+
+    def test_get_leaderboard_up_to_round_exact_match_count(
+        self, db, matches_by_round, scored_predictions
+    ):
+        """Test exact_match_count is calculated correctly for filtered rounds."""
+        leaderboard = RankingService.get_leaderboard_up_to_round("r16")
+
+        user_a_entry = next(e for e in leaderboard if e["username"] == "user_a")
+        user_b_entry = next(e for e in leaderboard if e["username"] == "user_b")
+
+        # User A: 1 exact in group, 0 in r16 = 1 total through r16
+        # User B: 0 exact in group, 1 in r16 = 1 total through r16
+        assert user_a_entry["exact_match_count"] == 1
+        assert user_b_entry["exact_match_count"] == 1
+
+
+class TestBackwardCompatibility:
+    """Test that refactored get_current_leaderboard maintains existing behavior."""
+
+    def test_get_current_leaderboard_backward_compatible(
+        self, db, users_with_stats
+    ):
+        """Test that refactored method maintains existing behavior."""
+        leaderboard = RankingService.get_current_leaderboard()
+
+        assert isinstance(leaderboard, list)
+        assert len(leaderboard) == 5
+
+        # Verify structure matches existing expectations
+        for entry in leaderboard:
+            assert "rank" in entry
+            assert "user_id" in entry
+            assert "username" in entry
+            assert "total_points" in entry
+            assert "exact_match_count" in entry
+            assert "jokers_used" in entry
+
+        # Verify ordering (alice highest points)
+        assert leaderboard[0]["username"] == "alice"
+        assert leaderboard[0]["total_points"] == 100
+

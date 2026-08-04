@@ -11,7 +11,10 @@ from typing import TYPE_CHECKING
 
 from django.db import transaction
 from django.db.models import F
+from django.db.models import Count, Q, Sum
 
+from matches.constants import ROUND_ORDER
+from users.models import User as UserModel
 from scoring.models import LeaderboardSnapshot
 
 if TYPE_CHECKING:
@@ -36,13 +39,13 @@ class ScoringService:
 
     # Round multipliers per WM 2026 rules section 4
     ROUND_MULTIPLIERS: dict[str, int] = {
-        "group": 1,   # Group stage
-        "r32": 2,     # Round of 32
-        "r16": 2,     # Round of 16
-        "qf": 3,      # Quarter-final
-        "sf": 3,      # Semi-final
-        "3rd": 3,     # Third place
-        "final": 3,   # Final
+        "group": 1,  # Group stage
+        "r32": 2,  # Round of 32
+        "r16": 2,  # Round of 16
+        "qf": 3,  # Quarter-final
+        "sf": 3,  # Semi-final
+        "3rd": 3,  # Third place
+        "final": 3,  # Final
     }
 
     # Champion prediction points by odds category
@@ -74,23 +77,33 @@ class ScoringService:
             Tuple of (base_points, is_exact_match)
         """
         # Check exact score (6 points)
-        if ScoringService._check_exact_score(pred_home, pred_away, actual_home, actual_away):
+        if ScoringService._check_exact_score(
+            pred_home, pred_away, actual_home, actual_away
+        ):
             return 6, True
 
         # Check tendency + goal difference (5 points)
-        if ScoringService._check_tendency_and_diff(pred_home, pred_away, actual_home, actual_away):
+        if ScoringService._check_tendency_and_diff(
+            pred_home, pred_away, actual_home, actual_away
+        ):
             return 5, False
 
         # Check tendency + one goal correct (4 points)
-        if ScoringService._check_tendency_and_one_goal(pred_home, pred_away, actual_home, actual_away):
+        if ScoringService._check_tendency_and_one_goal(
+            pred_home, pred_away, actual_home, actual_away
+        ):
             return 4, False
 
         # Check tendency only (3 points)
-        if ScoringService._check_tendency_only(pred_home, pred_away, actual_home, actual_away):
+        if ScoringService._check_tendency_only(
+            pred_home, pred_away, actual_home, actual_away
+        ):
             return 3, False
 
         # Check one goal only (1 point)
-        if ScoringService._check_one_goal_only(pred_home, pred_away, actual_home, actual_away):
+        if ScoringService._check_one_goal_only(
+            pred_home, pred_away, actual_home, actual_away
+        ):
             return 1, False
 
         # No match (0 points)
@@ -308,9 +321,8 @@ class ScoringService:
         user = prediction.user
         points_delta = result["points"] - old_points
         exact_delta = (1 if result["is_exact"] else 0) - (1 if old_is_exact else 0)
-        joker_delta = (
-            (1 if prediction.joker_active else 0)
-            - (1 if old_joker_counted else 0)
+        joker_delta = (1 if prediction.joker_active else 0) - (
+            1 if old_joker_counted else 0
         )
 
         # Use F() expressions for atomic updates
@@ -345,9 +357,7 @@ class ScoringService:
         if match.goals_home is None or match.goals_away is None:
             return 0
 
-        predictions = MatchPrediction.objects.filter(match=match).select_related(
-            "user"
-        )
+        predictions = MatchPrediction.objects.filter(match=match).select_related("user")
         count = 0
 
         for prediction in predictions:
@@ -383,7 +393,9 @@ class ScoringService:
             return 0
 
         # Check if final match is finished
-        final_match = MatchModel.objects.filter(round="final", status="finished").first()
+        final_match = MatchModel.objects.filter(
+            round="final", status="finished"
+        ).first()
         if not final_match:
             return 0
 
@@ -419,9 +431,94 @@ class RankingService:
     """
 
     @staticmethod
+    def get_leaderboard_up_to_round(round_code: str | None = None) -> list[dict]:
+        """
+        Generate leaderboard including matches up to a specific round.
+
+        Args:
+            round_code: Tournament round ('group', 'r32', 'r16', 'qf', 'sf', '3rd', 'final')
+                       If None or 'final' or invalid, returns live view using cached User fields
+
+        Returns:
+            List of dicts with: rank, user_id, username, total_points,
+            exact_match_count, jokers_used
+
+        Example:
+            >>> RankingService.get_leaderboard_up_to_round('group')
+            [{"rank": 1, "user_id": 5, "username": "alice", "total_points": 30, ...}]
+        """
+        from django.db.models import Count, Q, Sum
+
+        from users.models import User as UserModel
+
+        # For live view (None), final, or invalid codes, use cached User fields
+        # This includes champion bonus points which are not in match predictions
+        if round_code is None or round_code == "final" or round_code not in ROUND_ORDER:
+            users = UserModel.objects.filter(is_active=True).order_by(
+                "-total_points",
+                "-exact_match_count",
+                "jokers_used",  # Ascending: fewer jokers used = better
+            )
+            if not users.exists():
+                return []
+            return RankingService._calculate_rank_numbers(list(users))
+
+        # For round-filtered view, calculate from match predictions
+        # Determine which rounds to include
+        cutoff_index = ROUND_ORDER.index(round_code)
+        included_rounds = ROUND_ORDER[: cutoff_index + 1]
+
+        # Build filter for matches in included rounds
+        match_filter = Q(
+            match_predictions__match__round__in=included_rounds,
+            match_predictions__match__status="finished",
+            match_predictions__points_earned__isnull=False,
+        )
+
+        # Aggregate user statistics (use different names to avoid model field conflicts)
+        users = (
+            UserModel.objects.filter(is_active=True)
+            .annotate(
+                filtered_total_points=Sum(
+                    "match_predictions__points_earned",
+                    filter=match_filter,
+                    default=0,
+                ),
+                filtered_exact_count=Count(
+                    "match_predictions",
+                    filter=match_filter & Q(match_predictions__is_exact_match=True),
+                ),
+                filtered_jokers_used=Count(
+                    "match_predictions",
+                    filter=match_filter & Q(match_predictions__joker_active=True),
+                ),
+            )
+            .order_by(
+                "-filtered_total_points",
+                "-filtered_exact_count",
+                "filtered_jokers_used",  # ASC: fewer used = better
+            )
+        )
+
+        # Convert QuerySet to list and update attributes for _calculate_rank_numbers
+        user_list = []
+        for user in users:
+            # Create a simple object with the attributes expected by _calculate_rank_numbers
+            # We temporarily override the model fields with filtered values
+            user.total_points = user.filtered_total_points
+            user.exact_match_count = user.filtered_exact_count
+            user.jokers_used = user.filtered_jokers_used
+            user_list.append(user)
+
+        return RankingService._calculate_rank_numbers(user_list)
+
+    @staticmethod
     def get_current_leaderboard() -> list[dict]:
         """
         Generate the current leaderboard with rankings.
+
+        This is a convenience wrapper around get_leaderboard_up_to_round(None)
+        for backward compatibility.
 
         Returns:
             List of dicts with: rank, user_id, username, total_points,
@@ -435,20 +532,7 @@ class RankingService:
                 {"rank": 4, "user_id": 1, "username": "dave", "total_points": 90, ...},
             ]
         """
-        from users.models import User as UserModel  # noqa: F811
-
-        # Get all active users ordered by tiebreaker criteria
-        # Note: jokers_used ascending because FEWER used = better (more remaining)
-        users = UserModel.objects.filter(is_active=True).order_by(
-            "-total_points",
-            "-exact_match_count",
-            "jokers_used",  # Ascending: fewer jokers used = better
-        )
-
-        if not users.exists():
-            return []
-
-        return RankingService._calculate_rank_numbers(list(users))
+        return RankingService.get_leaderboard_up_to_round(round_code=None)
 
     @staticmethod
     def _calculate_rank_numbers(users: list) -> list[dict]:

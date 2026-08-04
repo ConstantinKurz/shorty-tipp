@@ -510,10 +510,11 @@ class TestGetPhaseStats:
 
     def test_returns_all_phases(self, regular_user, db):
         """Should return stats for all 7 tournament phases."""
+        from matches.constants import ROUND_ORDER
+        
         stats = get_phase_stats(regular_user)
 
-        expected_phases = ["group", "r32", "r16", "qf", "sf", "3rd", "final"]
-        assert list(stats.keys()) == expected_phases
+        assert list(stats.keys()) == ROUND_ORDER
 
     def test_returns_correct_structure(self, regular_user, db):
         """Each phase should have predictions, jokers, total_matches, joker_limit."""

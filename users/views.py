@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 from django.views.generic.edit import UpdateView
 
+from matches.constants import ROUND_ORDER, get_available_rounds
 from matches.models import Match, Team
 from scoring.services import RankingService
 from users.forms import UserSettingsForm
@@ -28,20 +29,36 @@ class RankingView(LoginRequiredMixin, TemplateView):
 
     template_name = "ranking.html"
 
+    def get_template_names(self) -> list[str]:
+        """
+        Return partial template for HTMX requests, full page otherwise.
+        """
+        if self.request.headers.get("HX-Request"):
+            return ["partials/ranking_content.html"]
+        return [self.template_name]
+
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """
         Build context with enriched leaderboard data.
 
         Calls RankingService for base ranking, then enriches with
         predicted_champion data fetched in a single query.
+        Supports round filtering via ?round=<code> query parameter.
 
         Returns:
-            Context dict with 'leaderboard' containing ranked user data.
+            Context dict with 'leaderboard', 'selected_round', and 'available_rounds'.
         """
         context = super().get_context_data(**kwargs)
 
-        # Get base leaderboard from ranking service
-        leaderboard = RankingService.get_current_leaderboard()
+        # Get round filter from query params
+        round_filter = self.request.GET.get("round", None)
+
+        # Validate round parameter
+        if round_filter and round_filter not in ROUND_ORDER:
+            round_filter = None
+
+        # Get filtered leaderboard
+        leaderboard = RankingService.get_leaderboard_up_to_round(round_filter)
 
         if leaderboard:
             # Extract user IDs for champion data enrichment
@@ -66,6 +83,8 @@ class RankingView(LoginRequiredMixin, TemplateView):
                     entry["country_code"] = ""
 
         context["leaderboard"] = leaderboard
+        context["selected_round"] = round_filter
+        context["available_rounds"] = get_available_rounds()
         return context
 
 

@@ -335,3 +335,60 @@ class TestRankingViewRendering:
         content = response.content.decode()
         # Check for dash placeholder or "Kein Champion" text
         assert "–" in content or "Kein Champion" in content
+
+
+class TestRankingViewRoundFiltering:
+    """Test round filtering functionality in ranking view."""
+
+    def test_ranking_view_with_valid_round_parameter(self, db, client: Client):
+        """Test view with valid round parameter."""
+        user = User.objects.create_user(username="test", password="pass")
+        client.force_login(user)
+
+        response = client.get(reverse("ranking") + "?round=group")
+        assert response.status_code == 200
+        assert response.context["selected_round"] == "group"
+
+    def test_ranking_view_with_invalid_round_parameter(self, db, client: Client):
+        """Test view ignores invalid round parameter."""
+        user = User.objects.create_user(username="test", password="pass")
+        client.force_login(user)
+
+        response = client.get(reverse("ranking") + "?round=invalid")
+        assert response.status_code == 200
+        assert response.context["selected_round"] is None
+
+    def test_ranking_view_without_round_parameter(self, db, client: Client):
+        """Test default view without parameter."""
+        user = User.objects.create_user(username="test", password="pass")
+        client.force_login(user)
+
+        response = client.get(reverse("ranking"))
+        assert response.status_code == 200
+        assert response.context["selected_round"] is None
+
+    def test_ranking_view_available_rounds_in_context(self, db, client: Client):
+        """Test available_rounds provided to template."""
+        user = User.objects.create_user(username="test", password="pass")
+        client.force_login(user)
+
+        response = client.get(reverse("ranking"))
+        assert "available_rounds" in response.context
+        assert len(response.context["available_rounds"]) == 7
+
+        # Verify structure
+        round_entry = response.context["available_rounds"][0]
+        assert "code" in round_entry
+        assert "label" in round_entry
+
+    def test_ranking_view_all_round_codes_valid(self, db, client: Client):
+        """Test that all valid round codes work."""
+        from matches.constants import ROUND_ORDER
+        
+        user = User.objects.create_user(username="test", password="pass")
+        client.force_login(user)
+
+        for round_code in ROUND_ORDER:
+            response = client.get(reverse("ranking") + f"?round={round_code}")
+            assert response.status_code == 200
+            assert response.context["selected_round"] == round_code

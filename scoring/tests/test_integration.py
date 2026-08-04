@@ -324,3 +324,163 @@ class TestSnapshotCapturesState:
         # Snapshot should still have original values
         snapshot.refresh_from_db()
         assert snapshot.data[2]["total_points"] == 60
+
+
+class TestRoundBasedRankingFullFlow:
+    """Integration test for round-based ranking filtering."""
+
+    def test_round_based_ranking_full_flow(self, db) -> None:
+        """Integration test creating matches across rounds and verifying filtered rankings."""
+        # Setup: Create teams
+        germany = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        brazil = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="A")
+
+        # Setup: Create users
+        alice = User.objects.create_user(username="alice", password="test")
+        bob = User.objects.create_user(username="bob", password="test")
+
+        # Create matches across different rounds
+        # Group stage match
+        group_match = Match.objects.create(
+            team_home=germany,
+            team_away=brazil,
+            round="group",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        # R16 match
+        r16_match = Match.objects.create(
+            team_home=germany,
+            team_away=brazil,
+            round="r16",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        # Quarter-final match
+        qf_match = Match.objects.create(
+            team_home=germany,
+            team_away=brazil,
+            round="qf",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        # Alice makes predictions
+        MatchPrediction.objects.create(
+            user=alice,
+            match=group_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
+        MatchPrediction.objects.create(
+            user=alice,
+            match=r16_match,
+            predicted_goals_home=1,
+            predicted_goals_away=0,
+        )
+        MatchPrediction.objects.create(
+            user=alice,
+            match=qf_match,
+            predicted_goals_home=3,
+            predicted_goals_away=2,
+        )
+
+        # Bob makes predictions
+        MatchPrediction.objects.create(
+            user=bob,
+            match=group_match,
+            predicted_goals_home=3,
+            predicted_goals_away=1,
+        )
+        MatchPrediction.objects.create(
+            user=bob,
+            match=r16_match,
+            predicted_goals_home=1,
+            predicted_goals_away=0,
+        )
+        MatchPrediction.objects.create(
+            user=bob,
+            match=qf_match,
+            predicted_goals_home=0,
+            predicted_goals_away=1,
+        )
+
+        # Score group match (alice exact, bob tendency)
+        group_match.goals_home = 2
+        group_match.goals_away = 1
+        group_match.status = "finished"
+        group_match.save()
+
+        # Score R16 match (both exact)
+        r16_match.goals_home = 1
+        r16_match.goals_away = 0
+        r16_match.status = "finished"
+        r16_match.save()
+
+        # Score QF match (alice exact, bob wrong)
+        qf_match.goals_home = 3
+        qf_match.goals_away = 2
+        qf_match.status = "finished"
+        qf_match.save()
+
+        # Test 1: Leaderboard after group stage only
+        group_leaderboard = RankingService.get_leaderboard_up_to_round("group")
+        assert len(group_leaderboard) == 2
+        # Alice: 6 (exact) * 1 (group multiplier) = 6
+        # Bob: 4 (tendency + one goal) * 1 (group multiplier) = 4
+        assert group_leaderboard[0]["username"] == "alice"
+        assert group_leaderboard[0]["total_points"] == 6
+        assert group_leaderboard[1]["username"] == "bob"
+        assert group_leaderboard[1]["total_points"] == 4
+
+        # Test 2: Leaderboard through R16
+        r16_leaderboard = RankingService.get_leaderboard_up_to_round("r16")
+        assert len(r16_leaderboard) == 2
+        # Alice: 6 (group) + 6 * 2 (r16 exact) = 6 + 12 = 18
+        # Bob: 4 (group) + 6 * 2 (r16 exact) = 4 + 12 = 16
+        assert r16_leaderboard[0]["username"] == "alice"
+        assert r16_leaderboard[0]["total_points"] == 18
+        assert r16_leaderboard[1]["username"] == "bob"
+        assert r16_leaderboard[1]["total_points"] == 16
+
+        # Test 3: Leaderboard through QF
+        qf_leaderboard = RankingService.get_leaderboard_up_to_round("qf")
+        assert len(qf_leaderboard) == 2
+        # Alice: 18 (through r16) + 6 * 3 (qf exact) = 18 + 18 = 36
+        # Bob: 16 (through r16) + 0 (qf wrong) = 16
+        assert qf_leaderboard[0]["username"] == "alice"
+        assert qf_leaderboard[0]["total_points"] == 36
+        assert qf_leaderboard[1]["username"] == "bob"
+        assert qf_leaderboard[1]["total_points"] == 16
+
+        # Test 4: Live view includes all rounds
+        live_leaderboard = RankingService.get_current_leaderboard()
+        # Should match cached User fields which were updated by match saves
+        alice.refresh_from_db()
+        bob.refresh_from_db()
+        assert live_leaderboard[0]["username"] == "alice"
+        assert live_leaderboard[0]["total_points"] == alice.total_points
+        assert live_leaderboard[1]["username"] == "bob"
+        assert live_leaderboard[1]["total_points"] == bob.total_points
+
+        # Test 5: Verify ranking progression (points increase through rounds)
+        group_alice_points = next(
+            e for e in group_leaderboard if e["username"] == "alice"
+        )["total_points"]
+        r16_alice_points = next(
+            e for e in r16_leaderboard if e["username"] == "alice"
+        )["total_points"]
+        qf_alice_points = next(
+            e for e in qf_leaderboard if e["username"] == "alice"
+        )["total_points"]
+
+        # Points should increase as rounds progress
+        assert group_alice_points < r16_alice_points < qf_alice_points
+
+        # Test 6: Verify Olympic ranking is maintained in all views
+        for leaderboard in [group_leaderboard, r16_leaderboard, qf_leaderboard]:
+            # All leaderboards should have rank 1 for alice, rank 2 for bob
+            assert leaderboard[0]["rank"] == 1
+            assert leaderboard[1]["rank"] == 2

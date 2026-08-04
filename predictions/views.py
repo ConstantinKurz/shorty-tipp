@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from matches.constants import ROUND_ORDER as TOURNAMENT_PHASES
 from matches.models import Match
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
@@ -26,10 +27,6 @@ from predictions.services import PredictionLimitService
 
 if TYPE_CHECKING:
     from users.models import User
-
-
-# Tournament phases in display order
-TOURNAMENT_PHASES = ["group", "r32", "r16", "qf", "sf", "3rd", "final"]
 
 # Polling configuration
 POLLING_INTERVAL_ACTIVE = 1  # seconds - during active matches
