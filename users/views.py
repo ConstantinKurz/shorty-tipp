@@ -32,6 +32,7 @@ class RankingView(LoginRequiredMixin, TemplateView):
     def get_template_names(self) -> list[str]:
         """
         Return partial template for HTMX requests, full page otherwise.
+        HTMX requests renders filtered ranking by group stage.
         """
         if self.request.headers.get("HX-Request"):
             return ["partials/ranking_content.html"]

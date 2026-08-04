@@ -1,5 +1,6 @@
-- User Page
+- User Page done
 - Home Page mit Ranking und nächste Spiele
+- htmx für ranking napassungen
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
 - Scraper / Vllt kann man das Polling von Matches über htmx mit match status von der uefa abdeckenß

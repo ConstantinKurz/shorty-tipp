@@ -61,15 +61,15 @@
     {% if user.is_authenticated %}
     <header class="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 sticky top-0 z-50">
         <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="{% url 'ranking' %}" class="text-lg font-bold text-zinc-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+            <a href="{% url 'home' %}" class="text-lg font-bold text-zinc-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
                 ⚽ WM 2026
             </a>
             <nav class="flex items-center gap-4 text-sm">
+                <a href="{% url 'home' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'home' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
+                    Home
+                </a>
                 <a href="{% url 'predictions:prediction-list' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Tipps
-                </a>
-                <a href="{% url 'ranking' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'ranking' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
-                    Ranking
                 </a>
                 <span class="text-zinc-300 dark:text-zinc-600">|</span>
                 <a href="{% url 'users:settings' %}" class="flex items-center gap-1 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'settings' %}text-emerald-600 dark:text-emerald-400{% endif %}" title="Einstellungen">
