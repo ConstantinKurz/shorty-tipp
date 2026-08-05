@@ -2,7 +2,7 @@
 
 ### Requirement: Match prediction point calculation
 
-The system SHALL calculate points for match predictions according to WM 2026 scoring rules.
+The system SHALL calculate points for match predictions according to Shortytipp scoring rules.
 
 #### Scenario: Exact score match
 - **WHEN** predicted score exactly matches actual result

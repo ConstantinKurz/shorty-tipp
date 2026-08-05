@@ -107,7 +107,7 @@ class Command(BaseCommand):
         elements = []
 
         # Title
-        elements.append(Paragraph("WM 2026 Leaderboard", styles["Heading1"]))
+        elements.append(Paragraph("Shortytipp Leaderboard", styles["Heading1"]))
         elements.append(Spacer(1, 12))
 
         # Table data

@@ -224,7 +224,7 @@ class UserSettingsForm(forms.ModelForm):
 
 ```html
 {% extends "base.html" %}
-{% block title %}Einstellungen - WM 2026 Tippspiel{% endblock %}
+{% block title %}Einstellungen - Shortytipp Tippspiel{% endblock %}
 
 {% block content %}
 <main class="max-w-2xl mx-auto px-4 py-8">

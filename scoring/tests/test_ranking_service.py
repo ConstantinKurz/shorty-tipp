@@ -65,7 +65,7 @@ class TestRankingByPoints:
 
 
 class TestTiebreakers:
-    """Test Olympic tiebreaker rules per WM 2026 rules section 10."""
+    """Test Olympic tiebreaker rules per Shortytipp rules section 10."""
 
     def test_tiebreaker_exact_matches(self, db) -> None:
         """Test first tiebreaker: exact match count (higher is better)."""

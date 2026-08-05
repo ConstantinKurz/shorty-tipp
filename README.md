@@ -249,14 +249,14 @@ make check
 
 ## Test Data Seeding
 
-For development and testing, use the management command to create comprehensive WM 2026 test data:
+For development and testing, use the management command to create comprehensive Shortytipp test data:
 
 ```bash
 python manage.py create_wm2026_testdata --clear
 ```
 
 This creates:
-- **48 real teams** from WM 2026 (12 groups × 4 teams, Groups A-L)
+- **48 real teams** from Shortytipp (12 groups × 4 teams, Groups A-L)
 - **104 matches** (72 group stage + 32 knockout: 16 R32 + 8 R16 + 4 QF + 2 SF + 1 3rd + 1 Final)
 - **8 test users** (`tipper1` through `tipper8`, password: `testpass123`)
 - **~65 predictions per user** following all game rules:
@@ -302,6 +302,35 @@ The predictions page (`/predictions/`) includes:
 - **Auto-scroll**: Page automatically scrolls to the nearest upcoming match
 - **Live updates**: Match results update every 60 seconds via HTMX polling
 - **Joker management**: Toggle jokers on knockout matches (within limits)
+
+## Admin Features
+
+Staff users have access to the following admin features:
+
+### Navigation
+- **Admin Link**: Staff users see an "Admin" link in the main navbar for quick access to Django admin
+
+### Leaderboard Exports
+
+#### Via Django Admin Actions
+Navigate to Admin → Scoring → Leaderboard Snapshots:
+- **Export selected snapshots to CSV**: Basic export of selected snapshots
+- **Export detailed leaderboard with predictions to CSV**: Full export with per-match prediction details
+
+#### Manual Download View (Staff Only)
+Download current leaderboard without creating a snapshot:
+- **Basic export**: `/scoring/admin/download-leaderboard/`
+- **Detailed export**: `/scoring/admin/download-leaderboard/?detailed=true`
+
+### Leaderboard Snapshots
+Snapshot types available:
+- **Daily**: Regular point-in-time snapshot
+- **Final**: End-of-tournament snapshot
+
+*Note: Weekly snapshots have been removed.*
+
+### Champion Prediction Management
+When staff change a user's predicted champion via the admin panel, rankings are automatically recalculated to reflect any champion bonus point changes.
 
 ## Contributing
 

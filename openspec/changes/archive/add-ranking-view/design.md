@@ -67,7 +67,7 @@ leaderboard = RankingService.get_current_leaderboard()
 
 **Rationale:**
 - Ranking logic already implemented and tested in RankingService
-- Uses correct tiebreaker rules per WM 2026 rules:
+- Uses correct tiebreaker rules per Shortytipp rules:
   1. Total points (higher is better)
   2. Exact match count (higher is better)  
   3. Jokers used (fewer is better - more jokers left)

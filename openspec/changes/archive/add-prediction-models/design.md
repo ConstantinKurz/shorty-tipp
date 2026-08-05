@@ -1,6 +1,6 @@
 ## Context
 
-We have User, Team, and Match models implemented. Users need to make predictions for matches and select a champion before the tournament starts. The prediction system must support the WM 2026 tipping game rules including jokers, group stage limits (36 matches max), and champion predictions with category-based scoring.
+We have User, Team, and Match models implemented. Users need to make predictions for matches and select a champion before the tournament starts. The prediction system must support the Shortytipp tipping game rules including jokers, group stage limits (36 matches max), and champion predictions with category-based scoring.
 
 ## Goals / Non-Goals
 

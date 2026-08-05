@@ -57,7 +57,7 @@ class TestSnapshotCreation:
         self, db, users_for_snapshot: list[User]
     ) -> None:
         """Test snapshot captures correct ranking order."""
-        snapshot = RankingService.create_snapshot("weekly")
+        snapshot = RankingService.create_snapshot("final")
 
         assert snapshot.data[0]["username"] == "leader"
         assert snapshot.data[0]["rank"] == 1
@@ -94,13 +94,13 @@ class TestSnapshotQuerying:
         """Test filtering snapshots by type."""
         RankingService.create_snapshot("daily")
         RankingService.create_snapshot("daily")
-        RankingService.create_snapshot("weekly")
+        RankingService.create_snapshot("final")
 
         daily_snapshots = LeaderboardSnapshot.objects.filter(snapshot_type="daily")
-        weekly_snapshots = LeaderboardSnapshot.objects.filter(snapshot_type="weekly")
+        final_snapshots = LeaderboardSnapshot.objects.filter(snapshot_type="final")
 
         assert daily_snapshots.count() == 2
-        assert weekly_snapshots.count() == 1
+        assert final_snapshots.count() == 1
 
     def test_ordering_by_date(self, db, users_for_snapshot: list[User]) -> None:
         """Test snapshots are ordered by created_at descending."""
@@ -123,11 +123,6 @@ class TestSnapshotTypes:
         """Test creating daily snapshot."""
         snapshot = RankingService.create_snapshot("daily")
         assert snapshot.snapshot_type == "daily"
-
-    def test_weekly_snapshot(self, db, users_for_snapshot: list[User]) -> None:
-        """Test creating weekly snapshot."""
-        snapshot = RankingService.create_snapshot("weekly")
-        assert snapshot.snapshot_type == "weekly"
 
     def test_final_snapshot(self, db, users_for_snapshot: list[User]) -> None:
         """Test creating final snapshot."""

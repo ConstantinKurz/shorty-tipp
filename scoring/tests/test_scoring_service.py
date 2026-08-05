@@ -70,7 +70,7 @@ def user(db) -> User:
 
 
 class TestScoringCategories:
-    """Test the 6 scoring categories per WM 2026 rules."""
+    """Test the 6 scoring categories per Shortytipp rules."""
 
     def test_exact_score_6_points(self, db, group_match: Match, user: User) -> None:
         """Test exact score prediction awards 6 base points."""
@@ -195,7 +195,7 @@ class TestScoringCategories:
 
 
 class TestRoundMultipliers:
-    """Test round multipliers per WM 2026 rules section 4."""
+    """Test round multipliers per Shortytipp rules section 4."""
 
     def test_group_stage_x1(self, db, team_home: Team, team_away: Team, user: User) -> None:
         """Test group stage has x1 multiplier."""
@@ -272,7 +272,7 @@ class TestRoundMultipliers:
 
 
 class TestJokerMultiplier:
-    """Test joker doubling per WM 2026 rules section 6."""
+    """Test joker doubling per Shortytipp rules section 6."""
 
     def test_joker_doubles_points(
         self, db, r16_match: Match, user: User
@@ -315,7 +315,7 @@ class TestJokerMultiplier:
 
 
 class TestChampionPrediction:
-    """Test champion prediction scoring per WM 2026 rules section 8."""
+    """Test champion prediction scoring per Shortytipp rules section 8."""
 
     def test_champion_category_a_20_points(self, db, team_home: Team) -> None:
         """Test category A champion prediction awards 20 points."""

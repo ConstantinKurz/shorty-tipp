@@ -41,7 +41,7 @@ def generate_leaderboard_csv(leaderboard: list[dict]) -> str:
     return output.getvalue()
 
 
-def generate_leaderboard_pdf(leaderboard: list[dict], title: str = "WM 2026 Leaderboard") -> bytes:
+def generate_leaderboard_pdf(leaderboard: list[dict], title: str = "Shortytipp Leaderboard") -> bytes:
     """
     Generate PDF content from leaderboard data.
 
@@ -131,21 +131,137 @@ def generate_leaderboard_pdf(leaderboard: list[dict], title: str = "WM 2026 Lead
     return output.getvalue()
 
 
-def csv_response(leaderboard: list[dict], filename: str = "leaderboard.csv") -> HttpResponse:
+def csv_response(
+    leaderboard: list[dict],
+    filename: str = "leaderboard.csv",
+    detailed: bool = False,
+) -> HttpResponse:
     """
     Create an HttpResponse with CSV content for download.
 
     Args:
         leaderboard: List of dicts from RankingService.get_current_leaderboard()
         filename: Name of the downloaded file
+        detailed: If True, include per-match prediction details
 
     Returns:
         HttpResponse with CSV content
     """
-    content = generate_leaderboard_csv(leaderboard)
+    if detailed:
+        content = generate_detailed_leaderboard_csv(leaderboard)
+    else:
+        content = generate_leaderboard_csv(leaderboard)
     response = HttpResponse(content, content_type="text/csv")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
+    """
+    Generate detailed CSV with leaderboard followed by predictions grouped by user.
+
+    Format:
+    - Section 1: Full leaderboard rankings
+    - Section 2: For each user, their predictions in chronological order
+
+    Args:
+        leaderboard: List of dicts from RankingService.get_current_leaderboard()
+
+    Returns:
+        CSV content as string, formatted for readability
+    """
+    from matches.models import Match
+    from predictions.models import MatchPrediction
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # ========== SECTION 1: LEADERBOARD ==========
+    writer.writerow(["=" * 60])
+    writer.writerow(["LEADERBOARD"])
+    writer.writerow(["=" * 60])
+    writer.writerow([])
+    writer.writerow(["Rank", "Player", "Total Points", "Exact Matches", "Jokers Used"])
+    
+    for entry in leaderboard:
+        writer.writerow([
+            entry["rank"],
+            entry["username"],
+            entry["total_points"],
+            entry["exact_match_count"],
+            entry["jokers_used"],
+        ])
+    
+    writer.writerow([])
+    writer.writerow([])
+
+    # ========== SECTION 2: PREDICTIONS BY USER ==========
+    writer.writerow(["=" * 60])
+    writer.writerow(["PREDICTIONS BY PLAYER"])
+    writer.writerow(["=" * 60])
+
+    # Get all finished matches ordered by kickoff
+    matches = Match.objects.filter(status="finished").select_related(
+        "team_home", "team_away"
+    ).order_by("kickoff")
+
+    # Get all user_ids from leaderboard
+    user_ids = [entry["user_id"] for entry in leaderboard]
+
+    # Pre-fetch all predictions for these users
+    predictions_by_user: dict[int, dict[int, "MatchPrediction"]] = {}
+    predictions = MatchPrediction.objects.filter(
+        user_id__in=user_ids
+    ).select_related("match")
+    
+    for pred in predictions:
+        if pred.user_id not in predictions_by_user:
+            predictions_by_user[pred.user_id] = {}
+        predictions_by_user[pred.user_id][pred.match_id] = pred
+
+    # Generate predictions for each user
+    for entry in leaderboard:
+        user_id = entry["user_id"]
+        user_predictions = predictions_by_user.get(user_id, {})
+
+        writer.writerow([])
+        writer.writerow(["-" * 50])
+        writer.writerow([f"Player: {entry['username']} (Rank #{entry['rank']}, {entry['total_points']} points)"])
+        writer.writerow(["-" * 50])
+        writer.writerow([
+            "Date", "Round", "Match", "Result", "Prediction", "Points", "Exact?", "Joker?"
+        ])
+
+        for match in matches:
+            pred = user_predictions.get(match.pk)
+            
+            match_date = match.kickoff.strftime("%Y-%m-%d") if match.kickoff else ""
+            match_str = f"{match.team_home.name if match.team_home else '?'} vs {match.team_away.name if match.team_away else '?'}"
+            result_str = f"{match.goals_home}-{match.goals_away}" if match.goals_home is not None else ""
+            
+            if pred:
+                pred_str = f"{pred.predicted_goals_home}-{pred.predicted_goals_away}"
+                points = pred.points_earned if pred.points_earned is not None else "-"
+                exact = "Yes" if pred.is_exact_match else "No"
+                joker = "Yes" if pred.joker_active else "No"
+            else:
+                pred_str = "No prediction"
+                points = "0"
+                exact = ""
+                joker = ""
+
+            writer.writerow([
+                match_date,
+                match.round,
+                match_str,
+                result_str,
+                pred_str,
+                points,
+                exact,
+                joker,
+            ])
+
+    return output.getvalue()
 
 
 def pdf_response(leaderboard: list[dict], filename: str = "leaderboard.pdf") -> HttpResponse:

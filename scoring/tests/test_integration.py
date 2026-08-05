@@ -216,10 +216,12 @@ class TestChampionPredictionFlow:
         teams["germany"].is_champion = True
         teams["germany"].save()
 
-        # Alice predicted Germany as champion
-        alice.predicted_champion = teams["germany"]
-        alice.total_points = 50  # Existing points from match predictions
-        alice.save()
+        # Use update() to set predicted_champion and base points
+        # This bypasses the champion change signal which would reset points
+        User.objects.filter(pk=alice.pk).update(
+            predicted_champion=teams["germany"],
+            total_points=50,  # Simulate existing points from match predictions
+        )
 
         # Create scheduled final match first (no results)
         final_match = Match.objects.create(
@@ -230,7 +232,8 @@ class TestChampionPredictionFlow:
             status="scheduled",
         )
 
-        # Now add results and finish it (this triggers champion scoring)
+        # Now add results and finish it
+        # Match.save() automatically triggers score_champion_predictions via signal
         final_match.goals_home = 1
         final_match.goals_away = 0
         final_match.status = "finished"

@@ -32,7 +32,7 @@
 ## 4. Create Ranking Template
 
 - [x] 4.1 Create `templates/ranking.html` extending `base.html`
-- [x] 4.2 Set page title to "Ranking - WM 2026 Tippspiel"
+- [x] 4.2 Set page title to "Ranking - Shortytipp Tippspiel"
 - [x] 4.3 Add gradient background wrapper matching login.html (min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800)
 - [x] 4.4 Create main card container with login page styling (bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-8)
 - [x] 4.5 Add card heading "🏆 Ranking" with zinc styling (text-2xl font-bold text-zinc-900 dark:text-white)

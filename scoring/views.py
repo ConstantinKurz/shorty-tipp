@@ -4,10 +4,14 @@ Views for the scoring app.
 Provides views for displaying rankings, leaderboards, and the home page.
 """
 
+from datetime import date
+
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -17,6 +21,7 @@ from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
 from predictions.views import get_polling_interval
+from scoring.exports import csv_response
 from scoring.services import RankingService
 from users.models import User
 
@@ -61,10 +66,8 @@ def _get_ranking_context(user, selected_round):
             u = users_dict.get(entry["user_id"])
             if u:
                 entry["predicted_champion"] = u.predicted_champion
-                entry["country_code"] = u.country_code
             else:
                 entry["predicted_champion"] = None
-                entry["country_code"] = ""
     
     # Find user position
     user_rank_entry = None
@@ -221,3 +224,26 @@ class RankingUpdatesView(LoginRequiredMixin, View):
         }
 
         return render(request, "partials/ranking_updates.html", context)
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class DownloadLeaderboardView(View):
+    """
+    Staff-only view for on-demand leaderboard CSV download.
+
+    Supports both summary and detailed exports via query parameter.
+    
+    Query params:
+        detailed: If "true", include per-match prediction details
+    """
+
+    def get(self, request: HttpRequest) -> HttpResponse:
+        """Generate and return leaderboard CSV."""
+        leaderboard = RankingService.get_current_leaderboard()
+        detailed = request.GET.get("detailed", "").lower() == "true"
+        
+        today = date.today().isoformat()
+        suffix = "_detailed" if detailed else ""
+        filename = f"leaderboard{suffix}_{today}.csv"
+        
+        return csv_response(leaderboard, filename=filename, detailed=detailed)

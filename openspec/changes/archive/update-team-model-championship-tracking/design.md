@@ -1,6 +1,6 @@
 ## Context
 
-The Team model was just created with a `group` field (A-H) for tournament group assignment. After reviewing the WM 2026 tipping game requirements, the group assignment is not needed. Instead, teams need to track championship points and whether they became the tournament champion.
+The Team model was just created with a `group` field (A-H) for tournament group assignment. After reviewing the Shortytipp tipping game requirements, the group assignment is not needed. Instead, teams need to track championship points and whether they became the tournament champion.
 
 Current Team model has:
 - name (CharField)

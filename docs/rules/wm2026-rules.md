@@ -1,4 +1,4 @@
-# WM 2026 Tipp Game Rules
+# Shortytipp Tipp Game Rules
 
 ## Source
 

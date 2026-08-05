@@ -16,8 +16,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser) -> None:
         parser.add_argument(
             "snapshot_type",
-            choices=["daily", "weekly", "final"],
-            help="Type of snapshot to create (daily, weekly, or final)",
+            choices=["daily", "final"],
+            help="Type of snapshot to create (daily or final)",
         )
 
     def handle(self, *args, **options) -> None:

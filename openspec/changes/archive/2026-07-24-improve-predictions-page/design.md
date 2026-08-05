@@ -10,7 +10,7 @@ This change enhances the predictions page with better navigation (scrollable lis
 
 **Location**: `predictions/management/commands/create_wm2026_testdata.py`
 
-**Purpose**: Populate database with realistic WM 2026 tournament data
+**Purpose**: Populate database with realistic Shortytipp tournament data
 
 **Data Generation Strategy**:
 

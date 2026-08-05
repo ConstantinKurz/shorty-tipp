@@ -5,7 +5,7 @@
 - [x] 1.3 Add Tailwind CDN script with custom config
 - [x] 1.4 Configure dark mode via tailwind.config (class strategy)
 - [x] 1.5 Add meta viewport for mobile responsiveness
-- [x] 1.6 Define {% block title %} with default "WM 2026 Tippspiel"
+- [x] 1.6 Define {% block title %} with default "Shortytipp Tippspiel"
 - [x] 1.7 Define {% block content %} for page content
 - [x] 1.8 Add dark mode toggle script with localStorage persistence
 - [x] 1.9 Set zinc-based color scheme as default

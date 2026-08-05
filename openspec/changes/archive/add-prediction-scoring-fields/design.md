@@ -24,7 +24,7 @@ The MatchPrediction model was created in the previous change to track user predi
 **Decision:** Use `IntegerField` for `points_earned`.
 
 **Rationale:**
-- WM 2026 rules use whole number points (exact: 6, correct result: 3, etc.)
+- Shortytipp rules use whole number points (exact: 6, correct result: 3, etc.)
 - No fractional points in current game rules
 - Simpler queries and aggregations
 - Can change to DecimalField later if rules change (non-breaking)

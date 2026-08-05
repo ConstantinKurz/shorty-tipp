@@ -94,15 +94,6 @@ class TestCreateSnapshotCommand:
         assert snapshot is not None
         assert snapshot.snapshot_type == "daily"
 
-    def test_create_weekly_snapshot(self, db, setup_data: dict) -> None:
-        """Test creating weekly snapshot via command."""
-        out = StringIO()
-        call_command("create_snapshot", "weekly", stdout=out)
-
-        snapshot = LeaderboardSnapshot.objects.first()
-        assert snapshot is not None
-        assert snapshot.snapshot_type == "weekly"
-
     def test_create_final_snapshot(self, db, setup_data: dict) -> None:
         """Test creating final snapshot via command."""
         out = StringIO()

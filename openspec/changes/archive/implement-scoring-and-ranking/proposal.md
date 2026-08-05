@@ -1,6 +1,6 @@
 ## Why
 
-The prediction models exist but lack the core game functionality: calculating points and generating rankings. Without scoring logic, users cannot see their performance, and without ranking logic, there's no leaderboard or winner determination. This change implements the complete scoring engine and ranking system based on WM 2026 game rules.
+The prediction models exist but lack the core game functionality: calculating points and generating rankings. Without scoring logic, users cannot see their performance, and without ranking logic, there's no leaderboard or winner determination. This change implements the complete scoring engine and ranking system based on Shortytipp game rules.
 
 ## What Changes
 
@@ -22,7 +22,7 @@ The prediction models exist but lack the core game functionality: calculating po
 ## Capabilities
 
 ### New Capabilities
-- `scoring-service`: Calculate points for match predictions and champion predictions based on WM 2026 rules
+- `scoring-service`: Calculate points for match predictions and champion predictions based on Shortytipp rules
 - `ranking-service`: Generate leaderboards with Olympic tiebreakers and historical snapshots
 - `leaderboard-history`: Track ranking changes over time with daily/weekly snapshots
 - `leaderboard-export`: Export rankings as CSV and PDF formats

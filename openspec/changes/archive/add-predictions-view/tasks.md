@@ -87,7 +87,7 @@
 
 - [ ] 8.1 Create `templates/predictions/` directory
 - [ ] 8.2 Create `templates/predictions/prediction_list.html` extending `base.html`
-- [ ] 8.3 Set page title "Meine Tipps - WM 2026 Tippspiel"
+- [ ] 8.3 Set page title "Meine Tipps - Shortytipp Tippspiel"
 - [ ] 8.4 Add gradient background wrapper matching existing pages
 - [ ] 8.5 Create main card container
 - [ ] 8.6 Add heading "🎯 Meine Tipps" with group stage counter (X/36)

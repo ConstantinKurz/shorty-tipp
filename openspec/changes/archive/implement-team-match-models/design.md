@@ -1,6 +1,6 @@
 ## Context
 
-The Django tipping app currently has empty `matches` app. We need to add Team and Match models to represent the WM 2026 tournament structure. The User model already exists from initial setup. Prediction model will come in a future change.
+The Django tipping app currently has empty `matches` app. We need to add Team and Match models to represent the Shortytipp tournament structure. The User model already exists from initial setup. Prediction model will come in a future change.
 
 ## Goals / Non-Goals
 
@@ -131,7 +131,7 @@ kickoff: DateTimeField() # Match start time
 **Mitigation:** Add model clean() method or database constraint in future if needed
 
 **Trade-off:** Round choices hardcoded  
-**Acceptance:** WM 2026 structure is fixed, no need for dynamic configuration
+**Acceptance:** Shortytipp structure is fixed, no need for dynamic configuration
 
 ## Migration Plan
 

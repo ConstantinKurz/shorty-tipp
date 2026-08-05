@@ -13,7 +13,6 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
     list_display = [
         "username",
         "email",
-        "country_code",
         "total_points",
         "exact_match_count",
         "jokers_used",
@@ -32,12 +31,6 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
 
     # Extend BaseUserAdmin fieldsets to include predictions and statistics
     fieldsets = BaseUserAdmin.fieldsets + (  # type: ignore[operator]
-        (
-            "Profile",
-            {
-                "fields": ("country_code",),
-            },
-        ),
         (
             "Predictions",
             {

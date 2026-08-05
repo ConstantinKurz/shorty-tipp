@@ -15,7 +15,6 @@ class LeaderboardSnapshot(models.Model):
 
     SNAPSHOT_TYPE_CHOICES = [
         ("daily", "Daily"),
-        ("weekly", "Weekly"),
         ("final", "Final"),
     ]
 
@@ -27,7 +26,7 @@ class LeaderboardSnapshot(models.Model):
     snapshot_type: models.CharField = models.CharField(
         max_length=10,
         choices=SNAPSHOT_TYPE_CHOICES,
-        help_text="Type of snapshot (daily, weekly, or final)"
+        help_text="Type of snapshot (daily or final)"
     )
 
     data: models.JSONField = models.JSONField(

@@ -1,8 +1,8 @@
 """
-Management command to create WM 2026 test data.
+Management command to create Shortytipp test data.
 
 Creates a complete tournament dataset with 48 real teams, 104 matches
-based on the actual WM 2026 format (12 groups of 4), test users, and
+based on the actual Shortytipp format (12 groups of 4), test users, and
 realistic predictions following all game rules.
 """
 
@@ -17,7 +17,7 @@ from matches.models import Match, Team
 from predictions.models import MatchPrediction
 from users.models import User
 
-# Real WM 2026 Groups (12 groups × 4 teams)
+# Real Shortytipp Groups (12 groups × 4 teams)
 # Based on the actual draw: https://en.wikipedia.org/wiki/2026_FIFA_World_Cup
 WM2026_GROUPS: dict[str, list[tuple[str, str]]] = {
     "A": [
@@ -94,7 +94,7 @@ WM2026_GROUPS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-# Tournament dates (WM 2026) - using UTC
+# Tournament dates (Shortytipp) - using UTC
 # Group stage: June 11-27, 2026
 # Round of 32: June 28 - July 3
 # Round of 16: July 4-7
@@ -115,10 +115,10 @@ KICKOFF_TIMES = [17, 20, 23, 2]  # 1pm, 4pm, 7pm, 10pm ET
 
 
 class Command(BaseCommand):
-    """Create comprehensive WM 2026 test data with real teams and schedule."""
+    """Create comprehensive Shortytipp test data with real teams and schedule."""
 
     help = (
-        "Create WM 2026 test data: 48 real teams (groups A-L), "
+        "Create Shortytipp test data: 48 real teams (groups A-L), "
         "104 matches (72 group + 32 knockout), test users, and predictions"
     )
 
@@ -153,7 +153,7 @@ class Command(BaseCommand):
         if num_users > 20:
             raise CommandError("--users must be at most 20")
 
-        self.stdout.write(f"Creating WM 2026 test data with {num_users} users...")
+        self.stdout.write(f"Creating Shortytipp test data with {num_users} users...")
 
         try:
             with transaction.atomic():
@@ -172,7 +172,7 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Error creating test data: {e}"))
             raise CommandError(str(e)) from e
 
-        self.stdout.write(self.style.SUCCESS("WM 2026 test data created successfully!"))
+        self.stdout.write(self.style.SUCCESS("Shortytipp test data created successfully!"))
 
     def _clear_existing_data(self):
         """Delete existing test data."""
@@ -188,7 +188,7 @@ class Command(BaseCommand):
         self.stdout.write("    Cleared all existing data")
 
     def _create_teams(self):
-        """Create 48 teams from real WM 2026 groups."""
+        """Create 48 teams from real Shortytipp groups."""
         self.stdout.write("  Creating 48 teams...")
         teams_to_create = []
 

@@ -1,6 +1,7 @@
 """Admin configuration for scoring app."""
 
 import csv
+from datetime import date
 from io import StringIO
 from typing import Any
 
@@ -8,6 +9,7 @@ from django.contrib import admin
 from django.http import HttpRequest, HttpResponse
 from django.utils.html import format_html
 
+from scoring.exports import csv_response
 from scoring.models import LeaderboardSnapshot
 from scoring.services import RankingService
 
@@ -31,7 +33,7 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
         "data",
         "formatted_rankings",
     ]
-    actions = ["create_daily_snapshot", "create_weekly_snapshot", "export_csv"]
+    actions = ["create_daily_snapshot", "export_csv", "export_detailed_csv"]
 
     @admin.display(description="Entries")
     def entry_count(self, obj: LeaderboardSnapshot) -> int:
@@ -91,17 +93,6 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
             f"Created daily snapshot with {len(snapshot.data)} entries (ID: {snapshot.pk})",
         )
 
-    @admin.action(description="Create weekly snapshot from current leaderboard")
-    def create_weekly_snapshot(
-        self, request: HttpRequest, queryset: Any
-    ) -> None:
-        """Create a new weekly snapshot."""
-        snapshot = RankingService.create_snapshot("weekly")
-        self.message_user(
-            request,
-            f"Created weekly snapshot with {len(snapshot.data)} entries (ID: {snapshot.pk})",
-        )
-
     @admin.action(description="Export selected snapshots to CSV")
     def export_csv(
         self, request: HttpRequest, queryset: Any
@@ -140,3 +131,16 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
         response = HttpResponse(output.getvalue(), content_type="text/csv")
         response["Content-Disposition"] = "attachment; filename=leaderboard_snapshots.csv"
         return response
+
+    @admin.action(description="Export detailed leaderboard with predictions to CSV")
+    def export_detailed_csv(
+        self, request: HttpRequest, queryset: Any
+    ) -> HttpResponse:
+        """Export current leaderboard with per-match prediction details."""
+        leaderboard = RankingService.get_current_leaderboard()
+        filename = f"leaderboard_detailed_{date.today().isoformat()}.csv"
+        self.message_user(
+            request,
+            f"Exported detailed leaderboard with {len(leaderboard)} users",
+        )
+        return csv_response(leaderboard, filename=filename, detailed=True)

@@ -2,7 +2,7 @@
 Scoring and ranking services for the tipapp application.
 
 This module contains the core business logic for calculating match prediction
-points and generating leaderboard rankings according to WM 2026 game rules.
+points and generating leaderboard rankings according to Shortytipp game rules.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 class ScoringService:
     """
-    Service for calculating prediction points according to WM 2026 rules.
+    Service for calculating prediction points according to Shortytipp rules.
 
     Scoring categories (in precedence order):
     1. Exact score match: 6 points
@@ -37,7 +37,7 @@ class ScoringService:
     Points are multiplied by round multiplier, then by joker (if active).
     """
 
-    # Round multipliers per WM 2026 rules section 4
+    # Round multipliers per Shortytipp rules section 4
     ROUND_MULTIPLIERS: dict[str, int] = {
         "group": 1,  # Group stage
         "r32": 2,  # Round of 32
@@ -422,7 +422,7 @@ class RankingService:
     """
     Service for generating leaderboards and rankings.
 
-    Ranking uses Olympic tiebreakers per WM 2026 rules:
+    Ranking uses Olympic tiebreakers per Shortytipp rules:
     1. Total points (higher is better)
     2. Exact match count (higher is better)
     3. Jokers used (fewer is better - more jokers left = better)
@@ -600,3 +600,42 @@ class RankingService:
         )
 
         return snapshot
+
+    @staticmethod
+    @transaction.atomic
+    def recalculate_user_score(user: UserModel) -> None:
+        """
+        Recalculate scoring for a single user.
+
+        Recalculates total_points, exact_match_count, and jokers_used
+        based on all scored predictions. Champion bonus points are NOT
+        included here - they are managed separately via score_champion_predictions.
+
+        Args:
+            user: User instance to recalculate
+        """
+        from predictions.models import MatchPrediction
+
+        # Calculate points from match predictions
+        predictions = MatchPrediction.objects.filter(
+            user=user,
+            points_earned__isnull=False,
+        )
+
+        total_points = 0
+        exact_match_count = 0
+        jokers_used = 0
+
+        for prediction in predictions:
+            total_points += prediction.points_earned or 0
+            if prediction.is_exact_match:
+                exact_match_count += 1
+            if prediction.joker_active:
+                jokers_used += 1
+
+        # Update user with recalculated values
+        # Note: Champion bonus is handled separately by score_champion_predictions
+        user.total_points = total_points
+        user.exact_match_count = exact_match_count
+        user.jokers_used = jokers_used
+        user.save(update_fields=["total_points", "exact_match_count", "jokers_used"])

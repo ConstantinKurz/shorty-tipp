@@ -79,7 +79,7 @@
 
 **Out of Scope**:
 - Predictions (covered in Task 1.5)
-- Real WM 2026 schedule (simplified dates)
+- Real Shortytipp schedule (simplified dates)
 - Team logos or detailed metadata
 
 **Acceptance Criteria**:
@@ -812,7 +812,7 @@
 **Scope**:
 - Create commit(s) with descriptive messages
 - Follow conventional commits format:
-  - `feat: add WM 2026 test data management command`
+  - `feat: add Shortytipp test data management command`
   - `feat: improve predictions page with filters and auto-scroll`
   - `feat: add live match result polling`
 - Update CHANGELOG.md with new features

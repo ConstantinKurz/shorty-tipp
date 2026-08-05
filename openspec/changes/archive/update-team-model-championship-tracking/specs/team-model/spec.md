@@ -74,6 +74,6 @@ The system SHALL track whether a team won the tournament.
 
 ### Requirement: Group validation
 
-**Reason:** Tournament group assignment is not needed for the WM 2026 tipping game rules. Teams are tracked by championship points instead.
+**Reason:** Tournament group assignment is not needed for the Shortytipp tipping game rules. Teams are tracked by championship points instead.
 
 **Migration:** Remove any code referencing team.group. Use team.points for rankings and team.is_champion to identify the winner.

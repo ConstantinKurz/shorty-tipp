@@ -2,7 +2,7 @@
 
 ## Summary
 
-Enhance the predictions page with a single scrollable list of all matches, stage-based filtering, auto-scroll to the nearest match, and live updates when match results change. Additionally, create comprehensive test data including all WM 2026 matches and multiple tippers with realistic predictions.
+Enhance the predictions page with a single scrollable list of all matches, stage-based filtering, auto-scroll to the nearest match, and live updates when match results change. Additionally, create comprehensive test data including all Shortytipp matches and multiple tippers with realistic predictions.
 
 ## Problem
 
@@ -25,7 +25,7 @@ Missing features prevent effective testing and user experience:
 
 Create a Django management command to populate the database with:
 
-- **All 104 WM 2026 matches** with realistic kickoff times
+- **All 104 Shortytipp matches** with realistic kickoff times
   - 48 group stage matches (16 groups × 3 matches)
   - 32 round of 32 matches
   - 16 round of 16 matches
@@ -65,7 +65,7 @@ Transform the predictions page from static tabs to a dynamic scrollable experien
 ### In Scope
 
 - Management command to create test data:
-  - All 104 WM 2026 matches with correct teams, dates, and stages
+  - All 104 Shortytipp matches with correct teams, dates, and stages
   - 6-10 test users with profiles
   - Predictions for each user following joker rules
   - Some matches with results to show scoring
@@ -89,7 +89,7 @@ Transform the predictions page from static tabs to a dynamic scrollable experien
 - Notifications when matches finish (future change)
 - Match detail page (future change)
 - Editing existing test data (command will create fresh data)
-- Automatic kickoff time generation based on real WM 2026 schedule (use simplified dates)
+- Automatic kickoff time generation based on real Shortytipp schedule (use simplified dates)
 
 ## Business Rules (from wm2026-rules.md)
 

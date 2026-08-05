@@ -85,15 +85,13 @@ class RankingView(LoginRequiredMixin, TemplateView):
                 )
             }
 
-            # Enrich leaderboard with champion data and country_code
+            # Enrich leaderboard with champion data
             for entry in leaderboard:
                 user = users_dict.get(entry["user_id"])
                 if user:
                     entry["predicted_champion"] = user.predicted_champion
-                    entry["country_code"] = user.country_code
                 else:
                     entry["predicted_champion"] = None
-                    entry["country_code"] = ""
 
         context["leaderboard"] = leaderboard
         context["selected_round"] = round_filter

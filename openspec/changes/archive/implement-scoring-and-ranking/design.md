@@ -1,11 +1,11 @@
 ## Context
 
-The prediction system is in place with User, Match, MatchPrediction models. Users can make predictions with jokers, but no scoring or ranking exists yet. The WM 2026 game rules define a multi-tier scoring system (6 categories), round multipliers (x1/x2/x3), joker doubling, and Olympic-style ranking with tiebreakers. The system needs to calculate points automatically when match results are entered and maintain historical leaderboard snapshots for tracking progress over time.
+The prediction system is in place with User, Match, MatchPrediction models. Users can make predictions with jokers, but no scoring or ranking exists yet. The Shortytipp game rules define a multi-tier scoring system (6 categories), round multipliers (x1/x2/x3), joker doubling, and Olympic-style ranking with tiebreakers. The system needs to calculate points automatically when match results are entered and maintain historical leaderboard snapshots for tracking progress over time.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Implement complete WM 2026 scoring logic as reusable service
+- Implement complete Shortytipp scoring logic as reusable service
 - Calculate points automatically when match results entered
 - Generate rankings with Olympic tiebreakers (points → exact matches → jokers used)
 - Track historical leaderboard snapshots (daily/weekly)
@@ -85,7 +85,7 @@ class ScoringService:
 **Decision:** Use if-elif chain in documented precedence order (exact → tendency+diff → tendency+one_goal → tendency → one_goal → none).
 
 **Rationale:**
-- Matches WM 2026 rules exactly (section 2)
+- Matches Shortytipp rules exactly (section 2)
 - Only one category applies (mutual exclusion)
 - Early return prevents checking lower categories
 - Easy to verify against rules document
@@ -125,7 +125,7 @@ ROUND_MULTIPLIERS = {
 **Decision:** Formula: `final_points = base_points * round_multiplier * (2 if joker_active else 1)`
 
 **Rationale:**
-- Matches WM 2026 rules exactly (section 6)
+- Matches Shortytipp rules exactly (section 6)
 - Joker doubles AFTER round multiplier
 - Clear order of operations
 
@@ -147,7 +147,7 @@ class RankingService:
 **Rationale:**
 - Ranking is derived from user statistics (no separate table needed)
 - Tiebreakers: total_points → exact_match_count → jokers_used
-- Shared rank for identical stats (per WM 2026 rules section 10)
+- Shared rank for identical stats (per Shortytipp rules section 10)
 
 ### 8. User Statistics: Cached vs Calculated
 
@@ -221,7 +221,7 @@ class LeaderboardSnapshot(models.Model):
 **Decision:** Score champion predictions automatically when final match is scored, after admin sets Team.is_champion.
 
 **Context:**
-- WM 2026 rules award champion prediction points: Category A (20 pts), Category B (30 pts)
+- Shortytipp rules award champion prediction points: Category A (20 pts), Category B (30 pts)
 - Team model has `is_champion` boolean field set by admin after final match result
 - Final match is played in regular time (90 min) or extra time (120 min)
 - For extra-time draws, `is_champion` field determines winner for scoring purposes
