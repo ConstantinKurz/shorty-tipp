@@ -68,6 +68,9 @@
                 <a href="{% url 'predictions:prediction-list' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Tipps
                 </a>
+                <a href="{% url 'users:rules' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'rules' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
+                    Rules
+                </a>
                 <span class="text-zinc-300 dark:text-zinc-600">|</span>
                 <a href="{% url 'users:settings' %}" class="flex items-center gap-1 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'settings' %}text-emerald-600 dark:text-emerald-400{% endif %}" title="Einstellungen">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

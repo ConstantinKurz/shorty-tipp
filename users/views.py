@@ -18,6 +18,18 @@ from users.forms import UserSettingsForm
 from users.models import User
 
 
+class RulesView(TemplateView):
+    """Display game rules and how-to guide."""
+
+    template_name = "users/rules.html"
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Add page title to context."""
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Rules & How to Play"
+        return context
+
+
 class RankingView(LoginRequiredMixin, TemplateView):
     """
     Display the current tournament ranking for all users.

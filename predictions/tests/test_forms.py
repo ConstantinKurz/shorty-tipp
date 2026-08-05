@@ -27,11 +27,11 @@ class TestPredictionForm:
         assert form.is_valid()
 
     def test_valid_with_max_goals(self):
-        """Form should accept 99 as max value."""
+        """Form should accept 20 as max value."""
         form = PredictionForm(
             data={
-                "predicted_goals_home": 99,
-                "predicted_goals_away": 99,
+                "predicted_goals_home": 20,
+                "predicted_goals_away": 20,
             }
         )
         assert form.is_valid()

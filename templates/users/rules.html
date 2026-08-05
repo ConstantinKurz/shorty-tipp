@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - WM 2026 Tippspiel{% endblock %}
+
+{% block content %}
+<main class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Hero Section -->
+    <div class="text-center mb-12">
+        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white mb-4">📋 {{ page_title }}</h1>
+        <p class="text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
+            Everything you need to know about the World Cup 2026 prediction game. 
+            Learn how scoring works, understand the joker system, and find out how to use all website features.
+        </p>
+    </div>
+
+    <!-- Game Rules Section -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+            <span>🎯</span> Game Rules
+        </h2>
+
+        <!-- Match Scoring -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('match-scoring')"
+                aria-expanded="false"
+                aria-controls="match-scoring"
+                aria-label="Match Scoring - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Match Scoring</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-match-scoring" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="match-scoring" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    Predict the exact result of each match. Points are awarded based on how close your prediction is to the actual result.
+                    Only one category applies per prediction (the highest one you qualify for).
+                </p>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Points</th>
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Category</th>
+                                <th class="text-left py-2 font-semibold text-zinc-900 dark:text-white">Example</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-600 dark:text-zinc-400">
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-bold text-emerald-600 dark:text-emerald-400">6 pts</td>
+                                <td class="py-2 pr-4">Exact result</td>
+                                <td class="py-2">Predicted 2:1, Result 2:1 ✓</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-bold text-blue-600 dark:text-blue-400">5 pts</td>
+                                <td class="py-2 pr-4">Correct tendency + goal difference</td>
+                                <td class="py-2">Predicted 3:2, Result 1:0 (both +1 diff)</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-bold text-indigo-600 dark:text-indigo-400">4 pts</td>
+                                <td class="py-2 pr-4">Correct tendency + one team's goals</td>
+                                <td class="py-2">Predicted 3:2, Result 3:0 (home goals match)</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-bold text-purple-600 dark:text-purple-400">3 pts</td>
+                                <td class="py-2 pr-4">Correct tendency only</td>
+                                <td class="py-2">Predicted 3:2, Result 7:0 (both home wins)</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-bold text-orange-600 dark:text-orange-400">1 pt</td>
+                                <td class="py-2 pr-4">One team's goals only (wrong tendency)</td>
+                                <td class="py-2">Predicted 3:2, Result 0:2 (away goals match)</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2 pr-4 font-bold text-zinc-400">0 pts</td>
+                                <td class="py-2 pr-4">No match</td>
+                                <td class="py-2">Predicted 3:2, Result 0:0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm mt-4">
+                    <strong>Note:</strong> For knockout matches, the result includes extra time (if played). Penalty shootouts don't count, so you can predict a draw in knockout rounds.
+                </p>
+            </div>
+        </div>
+
+        <!-- Round Multipliers -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('round-multipliers')"
+                aria-expanded="false"
+                aria-controls="round-multipliers"
+                aria-label="Round Multipliers - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Round Multipliers</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-round-multipliers" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="round-multipliers" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    Your base points are multiplied depending on the tournament phase. The later the round, the more valuable each prediction!
+                </p>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Round</th>
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Multiplier</th>
+                                <th class="text-left py-2 font-semibold text-zinc-900 dark:text-white">Max Points (exact)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-600 dark:text-zinc-400">
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Group Stage</td>
+                                <td class="py-2 pr-4 font-mono">×1</td>
+                                <td class="py-2">6 × 1 = 6 pts</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Round of 32</td>
+                                <td class="py-2 pr-4 font-mono">×2</td>
+                                <td class="py-2">6 × 2 = 12 pts</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Round of 16</td>
+                                <td class="py-2 pr-4 font-mono">×2</td>
+                                <td class="py-2">6 × 2 = 12 pts</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Quarter-finals</td>
+                                <td class="py-2 pr-4 font-mono">×3</td>
+                                <td class="py-2">6 × 3 = 18 pts</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Semi-finals</td>
+                                <td class="py-2 pr-4 font-mono">×3</td>
+                                <td class="py-2">6 × 3 = 18 pts</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Third-place match</td>
+                                <td class="py-2 pr-4 font-mono">×3</td>
+                                <td class="py-2">6 × 3 = 18 pts</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2 pr-4">Final</td>
+                                <td class="py-2 pr-4 font-mono">×3</td>
+                                <td class="py-2">6 × 3 = 18 pts</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group Stage Limit -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('group-stage-limit')"
+                aria-expanded="false"
+                aria-controls="group-stage-limit"
+                aria-label="Group Stage Limit - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Group Stage Limit</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-group-stage-limit" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="group-stage-limit" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    The 2026 World Cup has an expanded format with <strong>72 group stage matches</strong>. 
+                    To make predictions more strategic, you can only predict <strong>36 of these matches</strong>.
+                </p>
+                
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                    <p class="text-amber-800 dark:text-amber-200 font-medium">⚠️ Choose wisely!</p>
+                    <p class="text-amber-700 dark:text-amber-300 text-sm mt-1">
+                        You can only predict half of the group stage matches (36 out of 72). 
+                        Pick the matches where you feel most confident. Any predictions beyond this limit won't count.
+                    </p>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm mt-4">
+                    <strong>Tip:</strong> There's no limit on knockout stage predictions—you can predict all of them!
+                </p>
+            </div>
+        </div>
+
+        <!-- Joker System -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('joker-system')"
+                aria-expanded="false"
+                aria-controls="joker-system"
+                aria-label="Joker System - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Joker System</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-joker-system" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="joker-system" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    Jokers let you <strong>double your points</strong> on selected predictions. Use them strategically on matches where you're confident!
+                </p>
+                
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 mb-4">
+                    <p class="text-emerald-800 dark:text-emerald-200 font-mono text-sm">
+                        Final Points = Base Points × Round Multiplier × Joker (×2)
+                    </p>
+                    <p class="text-emerald-700 dark:text-emerald-300 text-sm mt-2">
+                        Example: Exact result in Quarter-finals with Joker = 6 × 3 × 2 = <strong>36 points!</strong>
+                    </p>
+                </div>
+                
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-2">Joker Distribution</h4>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Round</th>
+                                <th class="text-left py-2 font-semibold text-zinc-900 dark:text-white">Jokers Available</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-600 dark:text-zinc-400">
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Group Stage</td>
+                                <td class="py-2 text-zinc-400">None (no jokers)</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Round of 32</td>
+                                <td class="py-2">3 jokers</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Round of 16</td>
+                                <td class="py-2">3 jokers</td>
+                            </tr>
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4">Quarter-finals</td>
+                                <td class="py-2">2 jokers</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2 pr-4">Semi-finals, 3rd place & Final</td>
+                                <td class="py-2">2 jokers (combined)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm mt-4">
+                    <strong>Important:</strong> Once a match starts, you can no longer add or remove the joker. Set your jokers before kickoff!
+                </p>
+            </div>
+        </div>
+
+        <!-- Champion Prediction -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('champion-prediction')"
+                aria-expanded="false"
+                aria-controls="champion-prediction"
+                aria-label="Champion Prediction - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Champion Prediction</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-champion-prediction" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="champion-prediction" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    Before the tournament starts, predict which team will win the World Cup. 
+                    If you're right, you get bonus points based on your team's odds category!
+                </p>
+                
+                <div class="overflow-x-auto mb-4">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Category</th>
+                                <th class="text-left py-2 pr-4 font-semibold text-zinc-900 dark:text-white">Teams</th>
+                                <th class="text-left py-2 font-semibold text-zinc-900 dark:text-white">Bonus Points</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-600 dark:text-zinc-400">
+                            <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                                <td class="py-2 pr-4 font-semibold">Category A</td>
+                                <td class="py-2 pr-4">Top 8 favorites (by betting odds)</td>
+                                <td class="py-2 font-bold text-emerald-600 dark:text-emerald-400">20 points</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2 pr-4 font-semibold">Category B</td>
+                                <td class="py-2 pr-4">All other teams (underdogs)</td>
+                                <td class="py-2 font-bold text-emerald-600 dark:text-emerald-400">30 points</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p class="text-blue-800 dark:text-blue-200 font-medium">🏆 Risk vs Reward</p>
+                    <p class="text-blue-700 dark:text-blue-300 text-sm mt-1">
+                        Picking a favorite (Category A) is safer but gives fewer bonus points. 
+                        Picking an underdog (Category B) is riskier but rewards you with 30 points if they win!
+                    </p>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm mt-4">
+                    <strong>Deadline:</strong> You must select your champion before the first match of the tournament!
+                </p>
+            </div>
+        </div>
+
+        <!-- Ranking & Tiebreakers -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('ranking-tiebreakers')"
+                aria-expanded="false"
+                aria-controls="ranking-tiebreakers"
+                aria-label="Ranking and Tiebreakers - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Ranking & Tiebreakers</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-ranking-tiebreakers" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="ranking-tiebreakers" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    Your total score is the sum of all your match prediction points (with multipliers and jokers) plus any champion bonus.
+                </p>
+                
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-2">Tiebreaker Rules</h4>
+                <p class="text-zinc-600 dark:text-zinc-400 mb-3">
+                    If two or more players have the same total score, we use these criteria in order:
+                </p>
+                
+                <ol class="list-decimal list-inside space-y-2 text-zinc-600 dark:text-zinc-400">
+                    <li><strong>Number of exact predictions</strong> — More exact results (6 base points) ranks higher</li>
+                    <li><strong>Number of jokers used</strong> — More jokers used ranks higher (shows more commitment)</li>
+                    <li><strong>Shared rank</strong> — If still tied, players share the same rank</li>
+                </ol>
+                
+                <div class="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-4 mt-4">
+                    <h5 class="font-medium text-zinc-900 dark:text-white mb-2">Example Ranking</h5>
+                    <div class="text-sm text-zinc-600 dark:text-zinc-400 font-mono space-y-1">
+                        <p>1. Alice — 100 pts, 8 exact, 5 jokers</p>
+                        <p>2. Bob — 95 pts, 7 exact, 5 jokers</p>
+                        <p>2. Charlie — 95 pts, 7 exact, 5 jokers</p>
+                        <p>4. Diana — 90 pts, 6 exact, 4 jokers</p>
+                    </div>
+                    <p class="text-zinc-500 dark:text-zinc-500 text-xs mt-2">
+                        Bob and Charlie share 2nd place (same points, exact predictions, and jokers).
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How to Use Section -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+            <span>📖</span> How to Use
+        </h2>
+
+        <!-- Making Predictions -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('making-predictions')"
+                aria-expanded="false"
+                aria-controls="making-predictions"
+                aria-label="Making Predictions - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Making Predictions</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-making-predictions" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="making-predictions" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-3">How to Enter Predictions</h4>
+                <ol class="list-decimal list-inside space-y-2 text-zinc-600 dark:text-zinc-400 mb-4">
+                    <li>Click <strong>"Tipps"</strong> in the navigation bar</li>
+                    <li>Find the match you want to predict</li>
+                    <li>Enter your predicted score for both teams</li>
+                    <li>Your prediction is saved automatically</li>
+                </ol>
+                
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+                    <p class="text-amber-800 dark:text-amber-200 font-medium">⏰ Deadline Warning</p>
+                    <p class="text-amber-700 dark:text-amber-300 text-sm mt-1">
+                        You can only enter or edit predictions <strong>before the match starts</strong>. 
+                        Once kickoff begins, your prediction is locked!
+                    </p>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm">
+                    <strong>Remember:</strong> In the group stage, you can only predict 36 out of 72 matches. Choose wisely!
+                </p>
+            </div>
+        </div>
+
+        <!-- Setting Jokers -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('setting-jokers')"
+                aria-expanded="false"
+                aria-controls="setting-jokers"
+                aria-label="Setting Jokers - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Setting Jokers</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-setting-jokers" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="setting-jokers" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-3">How to Use Jokers</h4>
+                <ol class="list-decimal list-inside space-y-2 text-zinc-600 dark:text-zinc-400 mb-4">
+                    <li>Go to <strong>"Tipps"</strong> and find a knockout match</li>
+                    <li>Look for the joker icon (🃏) next to your prediction</li>
+                    <li>Click the joker icon to activate it for that match</li>
+                    <li>The icon will highlight when active</li>
+                </ol>
+                
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                    <p class="text-blue-800 dark:text-blue-200 font-medium">💡 Tips for Jokers</p>
+                    <ul class="text-blue-700 dark:text-blue-300 text-sm mt-1 list-disc list-inside space-y-1">
+                        <li>Jokers are only available in knockout rounds (no group stage)</li>
+                        <li>Each round has a limited number of jokers</li>
+                        <li>You can see how many jokers you have left for each round</li>
+                        <li>Remove a joker by clicking the icon again (before kickoff)</li>
+                    </ul>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm">
+                    <strong>Important:</strong> Jokers lock when the match starts—just like predictions!
+                </p>
+            </div>
+        </div>
+
+        <!-- Champion Selection -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('champion-selection')"
+                aria-expanded="false"
+                aria-controls="champion-selection"
+                aria-label="Champion Selection - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Champion Selection</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-champion-selection" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="champion-selection" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-3">How to Pick Your Champion</h4>
+                <ol class="list-decimal list-inside space-y-2 text-zinc-600 dark:text-zinc-400 mb-4">
+                    <li>Click your username in the navigation bar to go to <strong>Settings</strong></li>
+                    <li>Find the <strong>"Predicted Champion"</strong> section</li>
+                    <li>Select a team from the dropdown list</li>
+                    <li>Click <strong>Save</strong> to confirm your choice</li>
+                </ol>
+                
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                    <p class="text-red-800 dark:text-red-200 font-medium">⚠️ Critical Deadline!</p>
+                    <p class="text-red-700 dark:text-red-300 text-sm mt-1">
+                        You must select your World Cup champion <strong>before the first match</strong> of the tournament starts. 
+                        After that, you cannot change it!
+                    </p>
+                </div>
+                
+                <p class="text-zinc-500 dark:text-zinc-500 text-sm">
+                    Your champion pick will be shown next to your name on the leaderboard with the team's flag.
+                </p>
+            </div>
+        </div>
+
+        <!-- Viewing Rankings -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('viewing-rankings')"
+                aria-expanded="false"
+                aria-controls="viewing-rankings"
+                aria-label="Viewing Rankings - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Viewing Rankings</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-viewing-rankings" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="viewing-rankings" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-3">Understanding the Leaderboard</h4>
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    The home page shows the current rankings. Here's what each column means:
+                </p>
+                
+                <ul class="space-y-2 text-zinc-600 dark:text-zinc-400 mb-4">
+                    <li><strong>#</strong> — Your current rank (ties share the same rank)</li>
+                    <li><strong>Name</strong> — Username with their predicted champion's flag</li>
+                    <li><strong>Points</strong> — Total score including multipliers and jokers</li>
+                    <li><strong>Exact</strong> — Number of exact predictions (6 base points)</li>
+                    <li><strong>Jokers</strong> — Number of jokers used so far</li>
+                </ul>
+                
+                <div class="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-4">
+                    <p class="text-zinc-700 dark:text-zinc-300 text-sm">
+                        <strong>💡 Tip:</strong> You can filter the leaderboard by tournament round using the dropdown menu. 
+                        This lets you see how everyone was doing at any point in the tournament!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seeing Others' Predictions -->
+        <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg mb-4 overflow-hidden">
+            <button 
+                type="button"
+                class="w-full px-6 py-4 flex justify-between items-center text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                onclick="toggleSection('others-predictions')"
+                aria-expanded="false"
+                aria-controls="others-predictions"
+                aria-label="Seeing Others' Predictions - click to expand"
+            >
+                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Seeing Others' Predictions</h3>
+                <svg class="w-5 h-5 text-zinc-500 dark:text-zinc-400 transform transition-transform duration-200" id="icon-others-predictions" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+            <div id="others-predictions" class="hidden px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                <h4 class="font-semibold text-zinc-900 dark:text-white mb-3">Viewing Other Players' Predictions</h4>
+                <p class="text-zinc-600 dark:text-zinc-400 mb-4">
+                    On the Tipps page, you can see what other players predicted for each match.
+                </p>
+                
+                <ol class="list-decimal list-inside space-y-2 text-zinc-600 dark:text-zinc-400 mb-4">
+                    <li>Go to <strong>"Tipps"</strong> in the navigation</li>
+                    <li>Click on any match card</li>
+                    <li>A panel shows all predictions for that match</li>
+                </ol>
+                
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+                    <p class="text-emerald-800 dark:text-emerald-200 font-medium">🔒 Privacy Protection</p>
+                    <p class="text-emerald-700 dark:text-emerald-300 text-sm mt-1">
+                        You can only see other players' predictions <strong>after the match has started</strong>. 
+                        This prevents copying predictions before kickoff!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Links Section -->
+    <section class="mb-8">
+        <h2 class="text-2xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+            <span>🔗</span> Quick Links
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <a href="{% url 'predictions:prediction-list' %}" class="flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors duration-200">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                Make Predictions
+            </a>
+            <a href="{% url 'home' %}" class="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                View Rankings
+            </a>
+            <a href="{% url 'users:settings' %}" class="flex items-center justify-center gap-2 px-6 py-4 bg-zinc-600 hover:bg-zinc-700 text-white font-semibold rounded-lg transition-colors duration-200">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                User Settings
+            </a>
+        </div>
+    </section>
+</main>
+
+<script>
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId);
+    const icon = document.getElementById('icon-' + sectionId);
+    const button = content.previousElementSibling;
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.classList.add('rotate-180');
+        button.setAttribute('aria-expanded', 'true');
+    } else {
+        content.classList.add('hidden');
+        icon.classList.remove('rotate-180');
+        button.setAttribute('aria-expanded', 'false');
+    }
+}
+</script>
+{% endblock %}
