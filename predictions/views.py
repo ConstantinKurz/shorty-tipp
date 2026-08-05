@@ -209,7 +209,7 @@ def _get_match_row_context(
         Context dict for the prediction_row.html template.
     """
     now = timezone.now()
-    is_locked = match.kickoff <= now
+    is_locked = match.kickoff - timedelta(minutes=3) <= now
     round_code = match.round
 
     form = PredictionForm(instance=prediction)
@@ -446,34 +446,37 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
             request: The HTTP request.
 
         Returns:
-            HTML fragments with hx-swap-oob for finished matches, or empty response.
+            HTML fragments with hx-swap-oob for live matches, or empty response. OOB to change multiple matches at once
             HX-Trigger header with updated polling interval.
         """
         # Calculate current polling interval
         polling_interval = get_polling_interval()
+        now = timezone.now()
 
-        # Find finished matches - these may have recently updated results
-        finished_matches = Match.objects.filter(
-            status="finished",
-        ).select_related("team_home", "team_away")
+        # Find live/active matches (within active window, not finished yet)
+        # These may have goals updating in real-time
+        matches_to_update = Match.objects.filter(
+            kickoff__lte=now,
+            kickoff__gt=now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES),
+        ).exclude(status="finished").select_related("team_home", "team_away")
 
-        if not finished_matches.exists():
-            # No finished matches, return empty response with polling interval
+        if not matches_to_update.exists():
+            # No live matches, return empty response with polling interval
             response = HttpResponse("", content_type="text/html")
             response["HX-Trigger"] = json.dumps({"pollingInterval": polling_interval})
             return response
 
-        # Get user's predictions for finished matches
+        # Get user's predictions for these matches
         user: User = request.user  # type: ignore[assignment]
         predictions = MatchPrediction.objects.filter(
             user=user,
-            match__in=finished_matches,
+            match__in=matches_to_update,
         ).select_related("match")
         prediction_map = {p.match.pk: p for p in predictions}
 
-        # Build HTML fragments for finished matches with OOB swap
+        # Build HTML fragments for matches with OOB swap
         html_parts = []
-        for match in finished_matches:
+        for match in matches_to_update:
             prediction = prediction_map.get(match.pk)
             context = _get_match_row_context(user, match, prediction)
 

@@ -19,6 +19,7 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(next_page="/login/"), name="logout"),
     path("ranking/", RedirectView.as_view(url="/", permanent=False), name="ranking"),  # Redirect to home
     path("predictions/", include("predictions.urls")),
+    path("scoring/", include("scoring.urls")),
     path("", include("users.urls")),
     # Password reset URLs
     path(

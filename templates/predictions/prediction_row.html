@@ -29,7 +29,7 @@
                     <input type="number" 
                            name="predicted_goals_home" 
                            value="{% if prediction %}{{ prediction.predicted_goals_home }}{% endif %}"
-                           min="0" max="99"
+                           min="0" max="20"
                            class="prediction-input w-10 h-10 sm:w-12 sm:h-12 text-center text-lg font-bold bg-white dark:bg-zinc-700 border-2 border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-zinc-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                            placeholder="-"
                            {% if is_locked %}disabled{% endif %}
@@ -38,7 +38,7 @@
                     <input type="number"
                            name="predicted_goals_away"
                            value="{% if prediction %}{{ prediction.predicted_goals_away }}{% endif %}"
-                           min="0" max="99"
+                           min="0" max="20"
                            class="prediction-input w-10 h-10 sm:w-12 sm:h-12 text-center text-lg font-bold bg-white dark:bg-zinc-700 border-2 border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-zinc-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                            placeholder="-"
                            {% if is_locked %}disabled{% endif %}

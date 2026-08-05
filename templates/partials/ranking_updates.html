@@ -1,0 +1,15 @@
+{% load user_tags %}
+<!--
+    HTMX OOB swap partial for ranking updates.
+    Returns both compact and full ranking tables for out-of-band swap.
+-->
+
+<!-- Compact ranking (OOB swap) -->
+<div id="compact-ranking" hx-swap-oob="innerHTML">
+    {% include "partials/compact_ranking.html" %}
+</div>
+
+<!-- Full ranking content (OOB swap) -->
+<div id="ranking-content" hx-swap-oob="innerHTML">
+    {% include "partials/ranking_content.html" %}
+</div>

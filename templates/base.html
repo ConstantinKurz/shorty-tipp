@@ -65,9 +65,6 @@
                 ⚽ WM 2026
             </a>
             <nav class="flex items-center gap-4 text-sm">
-                <a href="{% url 'home' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'home' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
-                    Home
-                </a>
                 <a href="{% url 'predictions:prediction-list' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Tipps
                 </a>
@@ -196,6 +193,30 @@
                     closeBottomSheet();
                 }
             }
+        });
+    </script>
+    
+    <!-- Auto-save: Submit prediction form when both home + away goals filled -->
+    <!-- Debounced to avoid spamming server while user types -->
+    <script>
+        document.addEventListener('input', function(e) {
+            if (!e.target.classList.contains('prediction-input')) return;
+            
+            const form = e.target.closest('.prediction-form');
+            if (!form) return;
+            
+            const homeInput = form.querySelector('[name="predicted_goals_home"]');
+            const awayInput = form.querySelector('[name="predicted_goals_away"]');
+            
+            // Clear previous timer (debounce)
+            if (form.debounceTimer) clearTimeout(form.debounceTimer);
+            
+            // Wait 500ms after last keystroke, then submit if both fields filled
+            form.debounceTimer = setTimeout(function() {
+                if (homeInput.value !== '' && awayInput.value !== '') {
+                    htmx.trigger(form, 'submit');  // Trigger HTMX form submission
+                }
+            }, 500);
         });
     </script>
 </body>

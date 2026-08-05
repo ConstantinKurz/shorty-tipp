@@ -67,6 +67,13 @@
                     {% include "partials/ranking_content.html" %}
                 </div>
             </div>
+            
+            <!-- HTMX Polling for ranking updates -->
+            <div hx-get="{% url 'scoring:ranking-updates' %}{% if selected_round %}?round={{ selected_round }}{% endif %}"
+                 hx-trigger="every {{ ranking_interval }}s"
+                 hx-swap="none"
+                 class="hidden">
+            </div>
         </div>
         
         <!-- Next Matches Section -->

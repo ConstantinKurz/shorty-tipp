@@ -5,7 +5,10 @@ Provides views for displaying rankings, leaderboards, and the home page.
 """
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render
 from django.utils import timezone
+from django.views import View
 from django.views.generic import TemplateView
 
 from matches.constants import get_available_rounds
@@ -13,8 +16,81 @@ from matches.models import Match
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
+from predictions.views import get_polling_interval
 from scoring.services import RankingService
 from users.models import User
+
+
+def _get_validated_round(request: HttpRequest) -> str | None:
+    """
+    Get and validate round filter from query params.
+    
+    Args:
+        request: The HTTP request containing potential 'round' query param
+        
+    Returns:
+        Valid round code or None if not specified or invalid
+    """
+    selected_round = request.GET.get("round")
+    if selected_round and selected_round not in [r["code"] for r in get_available_rounds()]:
+        return None
+    return selected_round
+
+
+def _get_ranking_context(user, selected_round):
+    """
+    Shared ranking logic for HomeView and RankingUpdatesView.
+    
+    Args:
+        user: The current user
+        selected_round: Round code to filter by (None for all rounds)
+        
+    Returns:
+        Dict containing compact_leaderboard, full_leaderboard, and user_rank_entry
+    """
+    full_leaderboard = RankingService.get_leaderboard_up_to_round(round_code=selected_round)
+    
+    # Enrich with champion data
+    if full_leaderboard:
+        user_ids = [entry["user_id"] for entry in full_leaderboard]
+        users_dict = {
+            u.pk: u
+            for u in User.objects.filter(pk__in=user_ids).select_related("predicted_champion")
+        }
+        for entry in full_leaderboard:
+            u = users_dict.get(entry["user_id"])
+            if u:
+                entry["predicted_champion"] = u.predicted_champion
+                entry["country_code"] = u.country_code
+            else:
+                entry["predicted_champion"] = None
+                entry["country_code"] = ""
+    
+    # Find user position
+    user_rank_entry = None
+    user_index = None
+    for idx, entry in enumerate(full_leaderboard):
+        if entry["user_id"] == user.id:
+            user_rank_entry = entry
+            user_index = idx
+            break
+    
+    # Compact leaderboard
+    compact_leaderboard = []
+    if user_index is not None:
+        start = max(0, user_index - 2)
+        end = min(len(full_leaderboard), start + 5)
+        if end - start < 5:
+            start = max(0, end - 5)
+        compact_leaderboard = full_leaderboard[start:end]
+    elif full_leaderboard:
+        compact_leaderboard = full_leaderboard[:5]
+    
+    return {
+        "compact_leaderboard": compact_leaderboard,
+        "full_leaderboard": full_leaderboard,
+        "user_rank_entry": user_rank_entry,
+    }
 
 
 class HomeView(LoginRequiredMixin, TemplateView):
@@ -53,58 +129,9 @@ class HomeView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Get round filter from query params
-        selected_round = self.request.GET.get("round")
-        if selected_round and selected_round not in [r["code"] for r in get_available_rounds()]:
-            selected_round = None
-
-        # Get full leaderboard (filtered by round if applicable)
-        full_leaderboard = RankingService.get_leaderboard_up_to_round(round_code=selected_round)
-
-        # Enrich leaderboard with champion data (avoid N+1)
-        if full_leaderboard:
-            user_ids = [entry["user_id"] for entry in full_leaderboard]
-            users_dict = {
-                u.pk: u
-                for u in User.objects.filter(pk__in=user_ids).select_related("predicted_champion")
-            }
-            for entry in full_leaderboard:
-                u = users_dict.get(entry["user_id"])
-                if u:
-                    entry["predicted_champion"] = u.predicted_champion
-                    entry["country_code"] = u.country_code
-                else:
-                    entry["predicted_champion"] = None
-                    entry["country_code"] = ""
-
-        # Find user's entry and position in leaderboard
-        user_rank_entry = None
-        user_index = None
-        for idx, entry in enumerate(full_leaderboard):
-            if entry["user_id"] == user.id:
-                user_rank_entry = entry
-                user_index = idx
-                break
-
-        # Build compact leaderboard (up to 5 entries centered around user)
-        # Edge cases handled:
-        # - User at rank 1: shows user + 4 below (or all available)
-        # - User at last rank: shows user + 4 above (or all available)
-        # - Fewer than 5 users: shows all available users
-        # - User not in ranking: shows top 5 users
-        compact_leaderboard = []
-        if user_index is not None:
-            # Center window of 5 around user (2 above + user + 2 below)
-            start = max(0, user_index - 2)
-            end = min(len(full_leaderboard), start + 5)
-            # If hit end boundary, slide window back to get 5 entries
-            if end - start < 5:
-                start = max(0, end - 5)
-            compact_leaderboard = full_leaderboard[start:end]
-        elif full_leaderboard:
-            # User not in ranking, show top 5
-            compact_leaderboard = full_leaderboard[:5]
-        # If no leaderboard at all, compact_leaderboard remains empty list
+        # Get round filter and ranking data
+        selected_round = _get_validated_round(self.request)
+        ranking_context = _get_ranking_context(user, selected_round)
 
         # Get next 3 upcoming matches
         now = timezone.now()
@@ -160,12 +187,37 @@ class HomeView(LoginRequiredMixin, TemplateView):
             {
                 "selected_round": selected_round,
                 "available_rounds": get_available_rounds(),
-                "user_rank_entry": user_rank_entry,
-                "compact_leaderboard": compact_leaderboard,
-                "full_leaderboard": full_leaderboard,
-                "leaderboard": full_leaderboard,  # For ranking_content.html compatibility
                 "matches_data": matches_data,
+                "ranking_interval": get_polling_interval(),
+                "leaderboard": ranking_context["full_leaderboard"],  # For ranking_content.html compatibility
+                **ranking_context,
             }
         )
 
         return context
+
+
+class RankingUpdatesView(LoginRequiredMixin, View):
+    """
+    HTMX endpoint for polling ranking updates.
+
+    Returns updated ranking partials (both compact and full) using out-of-band swaps.
+    Triggered by client-side polling on the home page.
+    """
+
+    def get(self, request: HttpRequest) -> HttpResponse:
+        """Handle GET request for ranking updates."""
+        user = request.user
+
+        # Get round filter and ranking data
+        selected_round = _get_validated_round(request)
+        ranking_context = _get_ranking_context(user, selected_round)
+
+        context = {
+            "selected_round": selected_round,
+            "available_rounds": get_available_rounds(),
+            "leaderboard": ranking_context["full_leaderboard"],
+            **ranking_context,
+        }
+
+        return render(request, "partials/ranking_updates.html", context)

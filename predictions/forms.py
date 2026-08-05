@@ -57,7 +57,7 @@ class PredictionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Add range validators
-        goal_validators = [MinValueValidator(0), MaxValueValidator(99)]
+        goal_validators = [MinValueValidator(0), MaxValueValidator(20)]
         self.fields["predicted_goals_home"].validators.extend(goal_validators)
         self.fields["predicted_goals_away"].validators.extend(goal_validators)
 

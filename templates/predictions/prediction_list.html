@@ -59,6 +59,8 @@
 <script>
 (function() {
     // Phase Navigation Module
+    // Controls filtering matches by tournament phase (group, R16, quarters, etc.)
+    // Updates stats display and manages URL state
     const PhaseNav = {
         currentPhase: 'group',
         stats: {},
@@ -78,7 +80,7 @@
             const navEl = document.getElementById('phase-nav');
             if (!navEl) return;
             
-            // Load stats from data attribute
+            // Load phase stats (predictions count, joker count) from DOM data attribute
             try {
                 this.stats = JSON.parse(navEl.dataset.phaseStats);
             } catch (e) {
@@ -86,17 +88,17 @@
                 return;
             }
             
-            // Bind tab click events
+            // Attach click handlers to all phase tabs
             document.querySelectorAll('.phase-tab').forEach(tab => {
                 tab.addEventListener('click', () => this.switchPhase(tab.dataset.phase));
             });
             
-            // Restore phase from URL parameter
+            // Restore phase from URL (?phase=qf) if user bookmarked or used back button
             const urlPhase = new URLSearchParams(location.search).get('phase');
             if (urlPhase && this.stats[urlPhase]) {
                 this.switchPhase(urlPhase, false);
             } else {
-                // Apply default phase (group)
+                // Default to group phase on first visit
                 this.switchPhase('group', false);
             }
         },
@@ -104,7 +106,7 @@
         switchPhase(phase, updateUrl = true) {
             this.currentPhase = phase;
             
-            // Update tab visual state
+            // Update tab styles: active tab = green, others = gray
             document.querySelectorAll('.phase-tab').forEach(tab => {
                 const isActive = tab.dataset.phase === phase;
                 tab.classList.toggle('bg-emerald-500', isActive);
@@ -115,24 +117,24 @@
                 tab.classList.toggle('dark:text-zinc-300', !isActive);
             });
             
-            // Scroll active tab into view
+            // Scroll active tab into horizontal view (tabs may overflow on mobile)
             const activeTab = document.querySelector(`.phase-tab[data-phase="${phase}"]`);
             if (activeTab) {
                 activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             }
             
-            // Filter matches
+            // CORE: Show only matches that belong to selected phase, hide others
             document.querySelectorAll('.match-row').forEach(row => {
                 row.style.display = row.dataset.matchStage === phase ? '' : 'none';
             });
             
-            // Update date header visibility
+            // Hide date headers when all matches in that date group are hidden
             this.updateDateHeaders();
             
-            // Update progress display
+            // Update stats counter at top ("3/4 Tipps", "2/3 Joker")
             this.updateProgress(phase);
             
-            // Update URL
+            // Add phase to URL so user can bookmark or share link
             if (updateUrl) {
                 const url = new URL(location);
                 url.searchParams.set('phase', phase);
@@ -141,6 +143,7 @@
         },
         
         updateDateHeaders() {
+            // Hide date headers (e.g., "Mittwoch, 5. August") when no matches visible for that date
             document.querySelectorAll('.date-group').forEach(group => {
                 const visibleMatches = group.querySelectorAll('.match-row:not([style*="display: none"])');
                 const dateKey = group.dataset.date;
@@ -157,6 +160,7 @@
         },
         
         updateProgress(phase) {
+            // Updates stats display at top of page: "3/4 Tipps" and "2/3 Joker"
             const stat = this.stats[phase];
             if (!stat) return;
             
@@ -168,6 +172,7 @@
                 predictionsText.textContent = `${stat.predictions}/${stat.total_matches} Tipps`;
             }
             
+            // Joker stats only visible in knockout phases (not in group stage)
             if (jokersEl && jokersText) {
                 if (phase === 'group') {
                     jokersEl.style.display = 'none';
@@ -178,7 +183,7 @@
             }
         },
         
-        // Update stats when predictions change (called after HTMX swaps)
+        // Update local stats after prediction save/delete (avoids full page reload)
         refreshStats(phase, delta) {
             if (this.stats[phase]) {
                 this.stats[phase].predictions += delta.predictions || 0;
@@ -198,13 +203,15 @@
     // Expose for HTMX integration
     window.PhaseNav = PhaseNav;
 
-    // Auto-scroll to nearest upcoming match
+    // Auto-scroll to next upcoming match after phase switch
+    // Helps user find relevant matches in long list
     function scrollToNearestMatch() {
         const now = Date.now() / 1000;
         const matchRows = document.querySelectorAll('.match-row[data-kickoff-timestamp]:not([style*="display: none"])');
         let nearestMatch = null;
         let minDiff = Infinity;
 
+        // Find next match that hasn't started yet
         matchRows.forEach(function(row) {
             const kickoff = parseInt(row.dataset.kickoffTimestamp, 10);
             const diff = kickoff - now;
@@ -215,6 +222,7 @@
             }
         });
 
+        // If all matches finished, scroll to last visible match
         if (!nearestMatch) {
             const visibleMatches = document.querySelectorAll('.match-row:not([style*="display: none"])');
             if (visibleMatches.length > 0) {
@@ -223,7 +231,7 @@
         }
 
         if (nearestMatch) {
-            const offset = 180; // Account for sticky header
+            const offset = 180; // Space for sticky header
             const elementPosition = nearestMatch.getBoundingClientRect().top;
             const offsetPosition = elementPosition + window.pageYOffset - offset;
 
@@ -234,67 +242,51 @@
         }
     }
 
-    // Run auto-scroll after phase switch settles
+    // Run auto-scroll after phase switch settles (wait for DOM updates)
     setTimeout(scrollToNearestMatch, 200);
 
-    // Auto-save predictions when both fields have values
-    document.addEventListener('input', function(e) {
-        if (!e.target.classList.contains('prediction-input')) return;
-        
-        const form = e.target.closest('.prediction-form');
-        if (!form) return;
-        
-        const homeInput = form.querySelector('[name="predicted_goals_home"]');
-        const awayInput = form.querySelector('[name="predicted_goals_away"]');
-        
-        if (form.debounceTimer) clearTimeout(form.debounceTimer);
-        
-        form.debounceTimer = setTimeout(function() {
-            if (homeInput.value !== '' && awayInput.value !== '') {
-                htmx.trigger(form, 'submit');
-            }
-        }, 500);
-    });
-    
-    // Handle browser back/forward
+    // Handle browser back/forward buttons
+    // Switches phase when user navigates through history
     window.addEventListener('popstate', function() {
         const urlPhase = new URLSearchParams(location.search).get('phase');
         if (urlPhase && window.PhaseNav) {
-            window.PhaseNav.switchPhase(urlPhase, false);
+            window.PhaseNav.switchPhase(urlPhase, false);  // false = don't update URL again
         }
     });
     
-    // HTMX Integration - re-apply phase filter after swaps and refresh stats
+    // HTMX Integration: Re-apply phase filter after match row updates
+    // Problem: HTMX swaps in new HTML that doesn't know about current phase filter
+    // Solution: Immediately hide swapped match if it doesn't belong to current phase
     document.body.addEventListener('htmx:afterSwap', function(event) {
         const target = event.detail.target;
         
-        // If a match row was swapped, ensure it respects current filter
+        // Check if swapped element is a match row
         if (target && target.classList && target.classList.contains('match-row')) {
             const currentPhase = window.PhaseNav ? window.PhaseNav.getCurrentPhase() : 'group';
             const rowPhase = target.dataset.matchStage;
             
-            // Hide if not in current phase
+            // Hide match if not in active phase (e.g., saved group match while viewing quarters)
             if (rowPhase !== currentPhase) {
                 target.style.display = 'none';
             }
             
-            // Update date headers
+            // Recalculate which date headers should be visible
             if (window.PhaseNav) {
                 window.PhaseNav.updateDateHeaders();
             }
         }
     });
     
-    // Refresh stats from server after successful prediction changes
+    // Refresh stats counter after prediction changes
+    // Updates "3/4 Tipps" and "2/3 Joker" display at top of page
     document.body.addEventListener('htmx:afterRequest', function(event) {
         const xhr = event.detail.xhr;
         const path = event.detail.pathInfo && event.detail.pathInfo.requestPath;
         
-        // Check if this was a successful prediction save/delete/joker toggle
+        // Only trigger on successful prediction operations
         if (xhr && xhr.status === 200 && path && window.PhaseNav) {
-            // Only refresh stats for prediction-related endpoints
             if (path.includes('/save/') || path.includes('/delete/') || path.includes('/joker/')) {
-                // Fetch fresh stats from server
+                // Fetch updated stats from server
                 fetch('{% url "predictions:phase-stats" %}')
                     .then(response => response.json())
                     .then(newStats => {
@@ -306,7 +298,9 @@
         }
     });
 
-    // Dynamic Polling Module - adjusts polling interval based on active matches
+    // Dynamic Polling: Change polling speed based on match activity
+    // Server sends new interval via HX-Trigger header
+    // Fast polling (5s) during live matches, slow polling (30s) otherwise
     const DynamicPolling = {
         currentInterval: {{ polling_interval }},
         pollingElement: null,
@@ -320,10 +314,11 @@
             
             this.currentInterval = newInterval;
             
-            // Update HTMX trigger attribute
+            // Update HTMX attribute: hx-trigger="every 5s" → "every 30s"
             this.pollingElement.setAttribute('hx-trigger', `load, every ${newInterval}s`);
             
-            // Re-process the element so HTMX picks up new interval
+            // Tell HTMX to re-initialize this element with new interval
+            // (HTMX doesn't detect attribute changes automatically)
             htmx.process(this.pollingElement);
         }
     };
@@ -331,7 +326,8 @@
     // Initialize polling module
     document.addEventListener('DOMContentLoaded', () => DynamicPolling.init());
 
-    // Listen for pollingInterval event from server (HX-Trigger header)
+    // Listen for server polling interval changes
+    // Server sends: HX-Trigger: {"pollingInterval": {"value": 5}}
     document.body.addEventListener('pollingInterval', function(event) {
         const newInterval = event.detail.value;
         if (newInterval && DynamicPolling.currentInterval !== newInterval) {
