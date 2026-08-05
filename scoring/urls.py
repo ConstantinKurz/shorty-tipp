@@ -4,7 +4,8 @@ URL configuration for the scoring app.
 
 from django.urls import path
 
-from scoring.views import DownloadLeaderboardView, RankingUpdatesView
+from scoring.views import DownloadLeaderboardView
+from tipapp.views import RankingUpdatesView
 
 app_name = "scoring"
 

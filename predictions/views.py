@@ -521,34 +521,45 @@ class PhaseStatsView(LoginRequiredMixin, View):
         return HttpResponse(json.dumps(stats), content_type="application/json")
 
 
-class MatchPredictionsView(LoginRequiredMixin, View):
+class MatchPredictionsView(LoginRequiredMixin, TemplateView):
     """
-    Return all predictions for a match (HTMX partial).
+    Display all predictions for a match on a dedicated page.
 
-    Displays predictions from all users for the given match.
-    Used in the bottom sheet overlay.
-    Includes aggregated user statistics: champion prediction, exact count,
-    jokers used, and total points.
+    Shows predictions from all users for the given match with aggregated
+    user statistics: champion prediction, exact count, jokers used, and
+    total points.
+
+    Query Parameters:
+        from: Origin page for back navigation ('home' or 'predictions').
+              Defaults to 'predictions' if not provided or invalid.
+        sort: Ranking sort mode ('match' for match points, 'total' for
+              total points). Defaults to 'match' if not provided or invalid.
     """
 
-    def get(self, request: HttpRequest, match_id: int) -> HttpResponse:
+    template_name = "predictions/match_predictions_page.html"
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """
-        Handle GET request to retrieve all predictions for a match.
-
-        Args:
-            request: The HTTP request.
-            match_id: The ID of the match.
+        Build context with match and all user predictions.
 
         Returns:
-            HTML partial with all predictions for the match.
+            Context dict with match, user_predictions, sort_mode, origin,
+            and current_user.
         """
+        context = super().get_context_data(**kwargs)
+        match_id = self.kwargs["match_id"]
         match = get_object_or_404(
             Match.objects.select_related("team_home", "team_away"),
             pk=match_id,
         )
 
+        # Get origin for back navigation (defaults to predictions)
+        origin = self.request.GET.get("from", "predictions")
+        if origin not in ("home", "predictions"):
+            origin = "predictions"
+
         # Get sort mode from query parameter (default: match)
-        sort_mode = request.GET.get("sort", "match")
+        sort_mode = self.request.GET.get("sort", "match")
         if sort_mode not in ("match", "total"):
             sort_mode = "match"
 
@@ -655,13 +666,12 @@ class MatchPredictionsView(LoginRequiredMixin, View):
             entry["rank"] = current_rank
             prev_entry = entry
 
-        return render(
-            request,
-            "predictions/partials/match_predictions.html",
-            {
-                "match": match,
-                "user_predictions": user_predictions,
-                "current_user": request.user,
-                "sort_mode": sort_mode,
-            },
-        )
+        context.update({
+            "match": match,
+            "user_predictions": user_predictions,
+            "sort_mode": sort_mode,
+            "origin": origin,
+            "current_user": self.request.user,
+        })
+
+        return context

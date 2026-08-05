@@ -1,3 +1,4 @@
+{# Icon usage: 👥 Alle Tipps, ⭐/☆ Joker (active/inactive), 🗑️ Delete, 🔒 Locked, 🎯 Exact match, 🔴 Live #}
 <div id="match-{{ match.id }}" 
      class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600"
      data-match-stage="{{ match.round }}"
@@ -123,14 +124,12 @@
             <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
                 {{ match.get_round_display }}
             </span>
-            <button type="button"
-                    hx-get="{% url 'predictions:match-predictions' match.id %}"
-                    hx-target="#bottom-sheet-content"
-                    hx-swap="innerHTML"
-                    hx-on="htmx:afterRequest: openBottomSheet()"
-                    class="text-xs px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors">
-                👥 Alle Tipps
-            </button>
+            <!-- 👥 Alle Tipps link - navigates to dedicated page -->
+            <a href="{% url 'predictions:match-predictions' match.id %}?from={% if origin_page %}{{ origin_page }}{% else %}predictions{% endif %}"
+               class="text-xs px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors inline-flex items-center gap-1 min-h-[44px] min-w-[44px]">
+                <span>👥</span>
+                <span>Alle Tipps</span>
+            </a>
         </div>
     </form>
 </div>

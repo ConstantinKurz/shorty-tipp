@@ -922,14 +922,14 @@ class TestMatchPredictionsView:
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_returns_predictions_partial(self, client, regular_user, future_match):
-        """Should return match predictions partial template."""
+    def test_returns_full_page_template(self, client, regular_user, future_match):
+        """Should return match predictions full page template."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[future_match.id])
         response = client.get(url)
         assert response.status_code == 200
         template_names = [t.name for t in response.templates]
-        assert "predictions/partials/match_predictions.html" in template_names
+        assert "predictions/match_predictions_page.html" in template_names
 
     def test_shows_all_predictions_for_match(
         self, client, regular_user, multiple_users, future_match
@@ -1051,7 +1051,7 @@ class TestMatchPredictionsView:
     def test_url_reverse_lookup(self, future_match):
         """URL should be reversible with match ID."""
         url = reverse("predictions:match-predictions", args=[future_match.id])
-        assert f"/predictions/match/{future_match.id}/predictions/" in url
+        assert f"/predictions/match/{future_match.id}/all/" in url
 
     def test_olympic_ranking_with_ties(
         self, client, regular_user, multiple_users, past_match

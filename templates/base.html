@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="de" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Shortytipp Tippspiel{% endblock %}</title>
-    
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -31,61 +32,71 @@
             }
         }
     </script>
-    
+
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    
+
     <!-- Dark mode initialization (runs before render to prevent flash) -->
     <script>
-        (function() {
-            const stored = localStorage.getItem('darkMode');
-            if (stored === 'false') {
-                document.documentElement.classList.remove('dark');
-            } else if (stored === 'true') {
-                document.documentElement.classList.add('dark');
-            } else {
-                // Check system preference
-                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            (function () {
+                const stored = localStorage.getItem('darkMode');
+                if (stored === 'false') {
+                    document.documentElement.classList.remove('dark');
+                } else if (stored === 'true') {
                     document.documentElement.classList.add('dark');
                 } else {
-                    document.documentElement.classList.remove('dark');
+                    // Check system preference
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
                 }
-            }
-        })();
+            })();
     </script>
-    
+
     {% block extra_head %}{% endblock %}
 </head>
+
 <body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-screen transition-colors duration-200">
     <!-- Navigation header (shown when logged in) -->
     {% if user.is_authenticated %}
     <header class="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 sticky top-0 z-50">
         <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="{% url 'home' %}" class="text-lg font-bold text-zinc-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
-                ⚽ Shortytipp
+            <a href="{% url 'home' %}"
+                class="text-lg font-bold text-zinc-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+                Shortytipp
             </a>
             <nav class="flex items-center gap-4 text-sm">
-                <a href="{% url 'predictions:prediction-list' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
+                <a href="{% url 'predictions:prediction-list' %}"
+                    class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'prediction-list' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Tipps
                 </a>
-                <a href="{% url 'users:rules' %}" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'rules' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
+                <a href="{% url 'users:rules' %}"
+                    class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'rules' %}text-emerald-600 dark:text-emerald-400 font-medium{% endif %}">
                     Rules
                 </a>
                 {% if user.is_staff %}
-                <a href="/admin/" class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200" title="Django Admin">
+                <a href="/admin/"
+                    class="text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200"
+                    title="Django Admin">
                     Admin
                 </a>
                 {% endif %}
                 <span class="text-zinc-300 dark:text-zinc-600">|</span>
-                <a href="{% url 'users:settings' %}" class="flex items-center gap-1 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'settings' %}text-emerald-600 dark:text-emerald-400{% endif %}" title="Einstellungen">
+                <a href="{% url 'users:settings' %}"
+                    class="flex items-center gap-1 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 {% if request.resolver_match.url_name == 'settings' %}text-emerald-600 dark:text-emerald-400{% endif %}"
+                    title="Einstellungen">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                     </svg>
                     <span>{{ user.username }}</span>
                 </a>
                 <form method="post" action="{% url 'logout' %}" class="inline">
                     {% csrf_token %}
-                    <button type="submit" class="text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200">
+                    <button type="submit"
+                        class="text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200">
                         Logout
                     </button>
                 </form>
@@ -93,34 +104,15 @@
         </div>
     </header>
     {% endif %}
-    
+
     {% block content %}{% endblock %}
-    
-    <!-- Bottom Sheet Container -->
-    <div id="bottom-sheet-backdrop" 
-         class="fixed inset-0 bg-black/50 z-40 hidden"
-         onclick="closeBottomSheet()"></div>
-    
-    <div id="bottom-sheet" 
-         class="fixed inset-x-0 bottom-0 z-50 transform translate-y-full transition-transform duration-300 ease-out">
-        <div class="bg-white dark:bg-zinc-800 rounded-t-2xl max-h-[70vh] overflow-hidden flex flex-col shadow-2xl">
-            <!-- Handle bar -->
-            <div class="flex justify-center py-3 cursor-grab" id="bottom-sheet-handle">
-                <div class="w-10 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-full"></div>
-            </div>
-            <!-- Content loaded via HTMX -->
-            <div id="bottom-sheet-content" class="overflow-y-auto px-4 pb-6">
-                <!-- Dynamic content here -->
-            </div>
-        </div>
-    </div>
-    
+
     <!-- Dark mode toggle script -->
     <script>
         function toggleDarkMode() {
             const html = document.documentElement;
             const isDark = html.classList.contains('dark');
-            
+
             if (isDark) {
                 html.classList.remove('dark');
                 localStorage.setItem('darkMode', 'false');
@@ -128,16 +120,16 @@
                 html.classList.add('dark');
                 localStorage.setItem('darkMode', 'true');
             }
-            
+
             // Update toggle button icon
             updateToggleIcon();
         }
-        
+
         function updateToggleIcon() {
             const isDark = document.documentElement.classList.contains('dark');
             const sunIcon = document.getElementById('sun-icon');
             const moonIcon = document.getElementById('moon-icon');
-            
+
             if (sunIcon && moonIcon) {
                 if (isDark) {
                     sunIcon.classList.remove('hidden');
@@ -148,79 +140,28 @@
                 }
             }
         }
-        
+
         // Update icon on page load
         document.addEventListener('DOMContentLoaded', updateToggleIcon);
     </script>
-    
-    <!-- Bottom Sheet Script -->
-    <script>
-        function openBottomSheet() {
-            document.getElementById('bottom-sheet-backdrop').classList.remove('hidden');
-            document.getElementById('bottom-sheet').classList.remove('translate-y-full');
-            document.body.classList.add('overflow-hidden');
-        }
-        
-        function closeBottomSheet() {
-            document.getElementById('bottom-sheet').classList.add('translate-y-full');
-            document.getElementById('bottom-sheet-backdrop').classList.add('hidden');
-            document.body.classList.remove('overflow-hidden');
-        }
-        
-        // Swipe down to close (touch devices)
-        (function() {
-            const sheet = document.getElementById('bottom-sheet');
-            if (!sheet) return;
-            
-            let touchStartY = 0;
-            let touchCurrentY = 0;
-            
-            sheet.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            }, { passive: true });
-            
-            sheet.addEventListener('touchmove', (e) => {
-                touchCurrentY = e.touches[0].clientY;
-            }, { passive: true });
-            
-            sheet.addEventListener('touchend', () => {
-                const diff = touchCurrentY - touchStartY;
-                if (diff > 80) {
-                    closeBottomSheet();
-                }
-                touchStartY = 0;
-                touchCurrentY = 0;
-            }, { passive: true });
-        })();
-        
-        // ESC key to close
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                const backdrop = document.getElementById('bottom-sheet-backdrop');
-                if (backdrop && !backdrop.classList.contains('hidden')) {
-                    closeBottomSheet();
-                }
-            }
-        });
-    </script>
-    
+
     <!-- Auto-save: Submit prediction form when both home + away goals filled -->
     <!-- Debounced to avoid spamming server while user types -->
     <script>
-        document.addEventListener('input', function(e) {
+        document.addEventListener('input', function (e) {
             if (!e.target.classList.contains('prediction-input')) return;
-            
+
             const form = e.target.closest('.prediction-form');
             if (!form) return;
-            
+
             const homeInput = form.querySelector('[name="predicted_goals_home"]');
             const awayInput = form.querySelector('[name="predicted_goals_away"]');
-            
+
             // Clear previous timer (debounce)
             if (form.debounceTimer) clearTimeout(form.debounceTimer);
-            
+
             // Wait 500ms after last keystroke, then submit if both fields filled
-            form.debounceTimer = setTimeout(function() {
+            form.debounceTimer = setTimeout(function () {
                 if (homeInput.value !== '' && awayInput.value !== '') {
                     htmx.trigger(form, 'submit');  // Trigger HTMX form submission
                 }
@@ -228,4 +169,5 @@
         });
     </script>
 </body>
+
 </html>

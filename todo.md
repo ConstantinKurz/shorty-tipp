@@ -10,7 +10,17 @@ JavaScript-Aufgaben: Client-seitige UX (Filter, Navigation, Auto-Save-Logik)
 - leaderboard weekly? plus alle tipps done
 - admin page link done
 - dedicated page for alle tipps
-- Scraper / Vllt kann man das Polling von Matches über htmx mit match status von der 
+- kriegt die page mit wenn sich predictions ändern?
+- rule page stimmt noch nicht ganz:
+3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
+Stimmt das:
+🔒 Privacy Protection
+
+You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
+- kann das ranking nicht zwischen predictions und ranking service geteilt werden.
+
+- hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird
+- In eigenen Worker schreiben Scraper / Vllt kann man das Polling von Matches über htmx mit match status von der 
 uefa oder match result update durch die ueafabdecken.
 
 - Email mit leaderboard
@@ -21,4 +31,5 @@ uefa oder match result update durch die ueafabdecken.
 - "error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."
 - Forum
 - UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
++ light dark mode besser 
 - security check

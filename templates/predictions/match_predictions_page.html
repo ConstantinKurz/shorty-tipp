@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{# Icon usage: 👥 Alle Tipps, ✕ Close/Back, ⭐ Joker, 🏆 Champion, ✓ Exact match #}
+
+{% block title %}{{ match.team_home.name }} vs {{ match.team_away.name }} - Alle Tipps{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-zinc-50 dark:bg-zinc-900">
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 py-6">
+        <!-- Match Info Card -->
+        <div class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex items-start justify-between mb-3">
+                <button type="button" onclick="history.back()"
+                    class="w-10 h-10 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-all hover:scale-105"
+                    aria-label="Zurück">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="flex-1"></div>
+            </div>
+            <h2 class="text-2xl font-bold text-center text-zinc-900 dark:text-white -mt-11">
+                {{ match.team_home.name }} vs {{ match.team_away.name }}
+            </h2>
+            {% if match.goals_home is not None and match.goals_away is not None %}
+            <p class="text-center text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">
+                {{ match.goals_home }} : {{ match.goals_away }}
+            </p>
+            {% else %}
+            <p class="text-center text-3xl font-bold text-zinc-400 dark:text-zinc-500 mt-2">
+                - : -
+            </p>
+            {% endif %}
+            <p class="text-center text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+                {{ match.kickoff|date:"d.m.Y H:i" }} Uhr
+            </p>
+        </div>
+
+        <!-- Sort Toggle -->
+        <div class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 mb-4">
+            <div class="flex justify-center">
+                <div class="inline-flex rounded-lg p-1 bg-zinc-100 dark:bg-zinc-700" role="group">
+                    <a href="?sort=match&from={{ origin }}"
+                        class="px-4 py-2 text-sm font-medium rounded-md transition-colors min-w-[120px] text-center min-h-[44px] flex items-center justify-center
+                        {% if sort_mode == 'match' %}bg-white dark:bg-zinc-600 text-zinc-900 dark:text-white shadow-sm{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %}">
+                        Spielpunkte
+                    </a>
+                    <a href="?sort=total&from={{ origin }}"
+                        class="px-4 py-2 text-sm font-medium rounded-md transition-colors min-w-[120px] text-center min-h-[44px] flex items-center justify-center
+                        {% if sort_mode == 'total' %}bg-white dark:bg-zinc-600 text-zinc-900 dark:text-white shadow-sm{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %}">
+                        Gesamtpunkte
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Predictions List -->
+        <div class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm divide-y divide-zinc-100 dark:divide-zinc-700">
+            {% for item in user_predictions %}
+            <div class="p-4 {% if item.user == current_user %}bg-emerald-50 dark:bg-emerald-900/20{% endif %}">
+                <!-- Main row: rank, username, joker, prediction, points -->
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-zinc-500 dark:text-zinc-400 text-sm font-medium w-6 flex-shrink-0 text-right">
+                            {{ item.rank }}.
+                        </span>
+                        <span class="font-medium text-zinc-900 dark:text-white truncate">
+                            {{ item.user.username }}
+                        </span>
+                        {% if item.joker_active %}
+                        <span class="text-yellow-500 flex-shrink-0" title="Joker">⭐</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-3 flex-shrink-0">
+                        {% if item.has_predicted %}
+                        <span class="font-bold text-lg text-zinc-900 dark:text-white">
+                            {{ item.predicted_goals_home }}:{{ item.predicted_goals_away }}
+                        </span>
+                        {% if item.points_earned is not None %}
+                        <span
+                            class="text-sm min-w-[3rem] text-right {% if item.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-400{% endif %}">
+                            +{{ item.points_earned }}
+                        </span>
+                        {% else %}
+                        <span class="text-sm min-w-[3rem] text-right text-zinc-400">0 Pkt.</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-sm text-zinc-400 italic">
+                            Kein Tipp
+                        </span>
+                        <span class="text-sm min-w-[3rem] text-right text-zinc-400">0 Pkt.</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Statistics row: champion, exact count, jokers, total points -->
+                <div class="flex items-center gap-4 mt-1 ml-9 text-xs text-zinc-500 dark:text-zinc-400">
+                    {% if item.champion %}
+                    <span class="inline-flex items-center gap-1" title="Weltmeister-Tipp">
+                        🏆 {{ item.champion.name }}
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 opacity-50" title="Kein Weltmeister-Tipp">
+                        🏆 —
+                    </span>
+                    {% endif %}
+                    <span class="inline-flex items-center gap-1" title="Exakte Tipps">
+                        ✓ {{ item.exact_count }}
+                    </span>
+                    <span class="inline-flex items-center gap-1" title="Joker gesetzt">
+                        ⭐ {{ item.jokers_count }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 font-medium" title="Gesamtpunkte">
+                        Σ {{ item.total_points }}
+                    </span>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center text-zinc-500 dark:text-zinc-400">
+                Noch keine Tipps vorhanden.
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Summary -->
+        {% if user_predictions %}
+        <div class="mt-4 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+            {{ user_predictions|length }} Tipper
+        </div>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}
