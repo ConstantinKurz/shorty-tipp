@@ -342,7 +342,7 @@ class PredictionSaveView(LoginRequiredMixin, View):
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, prediction)
             context["just_saved"] = True
-            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
 
         context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)
@@ -395,7 +395,7 @@ class PredictionDeleteView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, None)
-            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
 
         context = _get_match_row_context(user, match, None)
         return render(request, "predictions/prediction_row.html", context)
@@ -477,7 +477,7 @@ class PredictionJokerView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, prediction, just_saved=True)
-            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
 
         context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)

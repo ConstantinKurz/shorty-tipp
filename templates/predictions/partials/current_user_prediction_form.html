@@ -1,11 +1,18 @@
 {# Current user prediction form - for HTMX swap after save/delete/joker #}
 {# Required context: match, is_locked, current_user_prediction, current_user_form, can_add_joker, joker_count, joker_limit, is_group_stage, current_user, just_saved #}
 
-<form hx-post="{% url 'predictions:prediction-save' match.id %}?context=match-predictions" 
-      hx-target="closest #current-user-prediction-form" 
+<form id="current-user-prediction-form" 
+      class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 mb-4 border-2 border-emerald-500 dark:border-emerald-600"
+      hx-post="{% url 'predictions:prediction-save' match.id %}?context=match-predictions" 
+      hx-target="this" 
       hx-swap="outerHTML"
       hx-sync="this:replace">
     {% csrf_token %}
+    
+    <div class="flex items-center gap-2 mb-3">
+        <span class="text-sm font-medium text-emerald-600 dark:text-emerald-400">Dein Tipp</span>
+        <span class="text-xs text-zinc-500 dark:text-zinc-400">({{ current_user.username }})</span>
+    </div>
     
     <div class="flex items-center justify-between gap-3 mb-3">
         <!-- Success Indicator -->
@@ -90,7 +97,7 @@
                 <!-- Joker Toggle -->
                 <button type="button"
                         hx-post="{% url 'predictions:prediction-joker' match.id %}?context=match-predictions"
-                        hx-target="closest #current-user-prediction-form"
+                        hx-target="#current-user-prediction-form"
                         hx-swap="outerHTML"
                         hx-include="closest form"
                         class="w-9 h-9 flex items-center justify-center rounded-full transition-all {% if current_user_prediction and current_user_prediction.joker_active %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-500{% else %}bg-zinc-100 dark:bg-zinc-700 text-zinc-400 hover:text-yellow-500{% endif %} {% if is_locked %}opacity-50 cursor-not-allowed{% else %}hover:scale-110{% endif %}"
@@ -104,7 +111,7 @@
                 <!-- Delete Button -->
                 <button type="button"
                         hx-post="{% url 'predictions:prediction-delete' match.id %}?context=match-predictions"
-                        hx-target="closest #current-user-prediction-form"
+                        hx-target="#current-user-prediction-form"
                         hx-swap="outerHTML"
                         hx-include="closest form"
                         hx-confirm="Tipp wirklich löschen?"
