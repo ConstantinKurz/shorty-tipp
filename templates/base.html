@@ -36,20 +36,6 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 
-    <!-- Custom styles -->
-    <style>
-        /* Success flash animation for saved predictions */
-        @keyframes success-flash {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-            50% { box-shadow: 0 0 0 4px rgba(167, 13, 44, 0.4); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-        
-        .htmx-swapping {
-            animation: success-flash 500ms ease-out;
-        }
-    </style>
-
     <!-- Dark mode initialization (runs before render to prevent flash) -->
     <script>
             (function () {
@@ -180,6 +166,29 @@
                     htmx.trigger(form, 'submit');  // Trigger HTMX form submission
                 }
             }, 500);
+        });
+    </script>
+
+    <!-- HTMX Error Handler - gracefully handle swap errors when target doesn't exist -->
+    <script>
+        document.body.addEventListener('htmx:swapError', function(evt) {
+            // Suppress errors when target element doesn't exist (e.g., user navigated away)
+            console.debug('HTMX swap error (suppressed):', evt.detail.error);
+            evt.preventDefault();
+        });
+        
+        document.body.addEventListener('htmx:targetError', function(evt) {
+            // Suppress errors when target element doesn't exist
+            console.debug('HTMX target error (suppressed):', evt.detail.error);
+            evt.preventDefault();
+        });
+        
+        // Abort pending requests when navigating away
+        document.body.addEventListener('htmx:beforeSwap', function(evt) {
+            // If target doesn't exist, abort the swap silently
+            if (!evt.detail.target) {
+                evt.detail.shouldSwap = false;
+            }
         });
     </script>
 </body>

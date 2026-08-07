@@ -3,7 +3,7 @@
      class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600"
      data-match-stage="{{ match.round }}"
      data-kickoff-timestamp="{{ match.kickoff|date:'U' }}">
-    <form class="prediction-form transition-all duration-500" hx-post="{% url 'predictions:prediction-save' match.id %}" hx-target="#match-{{ match.id }}" hx-swap="outerHTML swap:500ms">
+    <form class="prediction-form" hx-post="{% url 'predictions:prediction-save' match.id %}" hx-target="#match-{{ match.id }}" hx-swap="outerHTML">
         {% csrf_token %}
         
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -93,6 +93,27 @@
                             title="Tipp löschen">
                         🗑️
                     </button>
+                {% endif %}
+
+                <!-- Success Indicator -->
+                {% if just_saved %}
+                    <div id="save-indicator-{{ match.id }}" class="flex items-center gap-1">
+                        <span class="text-emerald-500 text-lg">✓</span>
+                    </div>
+                    <script>
+                        (function() {
+                            var indicator = document.getElementById('save-indicator-{{ match.id }}');
+                            if (indicator) {
+                                setTimeout(function() {
+                                    indicator.style.transition = 'opacity 300ms';
+                                    indicator.style.opacity = '0';
+                                    setTimeout(function() {
+                                        if (indicator) indicator.remove();
+                                    }, 300);
+                                }, 2000);
+                            }
+                        })();
+                    </script>
                 {% endif %}
             </div>
         </div>

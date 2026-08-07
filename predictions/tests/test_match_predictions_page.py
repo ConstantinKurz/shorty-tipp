@@ -546,15 +546,13 @@ class TestMatchPredictionsUpdateView:
         assert "origin" in response.context
 
     def test_uses_correct_template(self, client, regular_user, test_match):
-        """Should render both header and content partials."""
+        """Should render predictions list content."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions-updates", args=[test_match.id])
         response = client.get(url)
 
         assert response.status_code == 200
         content = response.content.decode()
-        # Should include OOB header swap
-        assert 'id="match-header"' in content
         # Should include predictions content (sort toggle)
         assert "Spielpunkte" in content
 
@@ -891,30 +889,19 @@ class TestVersionTracking:
         # Should render full response (empty string doesn't match "2:1")
         assert response.content != b""
 
-    def test_update_view_includes_oob_header_in_full_render(
+    def test_update_view_full_render_includes_predictions_list(
         self, client, regular_user, past_match
     ):
-        """Full render should include OOB header swap directive."""
+        """Full render should include predictions list content."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions-updates", args=[past_match.id])
         # Send old version to trigger full render
         response = client.get(url + "?version=0:0")
 
         content = response.content.decode()
-        assert 'id="match-header"' in content
-        assert 'hx-swap-oob="innerHTML"' in content
-
-    def test_update_view_oob_header_shows_current_score(
-        self, client, regular_user, past_match
-    ):
-        """OOB header should display current match score."""
-        client.force_login(regular_user)
-        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
-        response = client.get(url + "?version=0:0")
-
-        content = response.content.decode()
-        # past_match has score 2:1 - check for score in result section
-        assert "2:1" in content
+        # Should include sort toggle (from predictions list)
+        assert "Spielpunkte" in content
+        assert "Gesamtpunkte" in content
 
     def test_update_view_empty_response_has_no_oob_directive(
         self, client, regular_user, past_match
@@ -928,16 +915,17 @@ class TestVersionTracking:
         content = response.content.decode()
         assert "hx-swap-oob" not in content
 
-    def test_match_predictions_page_has_30s_polling(
+    def test_match_predictions_page_has_dynamic_polling(
         self, client, regular_user, test_match
     ):
-        """Page template should have 30s polling interval."""
+        """Page template should have dynamic polling interval (1s or 60s)."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[test_match.id])
         response = client.get(url)
 
         content = response.content.decode()
-        assert 'hx-trigger="every 30s"' in content
+        # Polling interval is dynamic: 1s during active matches, 60s otherwise
+        assert 'hx-trigger="every 1s"' in content or 'hx-trigger="every 60s"' in content
 
     def test_match_predictions_page_includes_version_in_url(
         self, client, regular_user, past_match
@@ -964,32 +952,31 @@ class TestVersionTracking:
         assert "HX-Trigger" in content
         assert "trigger.version" in content
 
-    def test_match_predictions_page_renders_with_extracted_header(
+    def test_match_predictions_page_renders_with_team_names(
         self, client, regular_user, past_match
     ):
-        """Page should render with match header partial."""
+        """Page should render with team names."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[past_match.id])
         response = client.get(url)
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert 'id="match-header"' in content
-        # Header should show team names
+        # Page should show team names
         assert past_match.team_home.name in content
         assert past_match.team_away.name in content
 
-    def test_match_header_shows_dash_when_no_score(
-        self, client, regular_user, test_match
+    def test_match_predictions_page_shows_result_when_available(
+        self, client, regular_user, past_match
     ):
-        """Header should show -:- when match has no score."""
+        """Page should show match result when available."""
         client.force_login(regular_user)
-        url = reverse("predictions:match-predictions", args=[test_match.id])
+        url = reverse("predictions:match-predictions", args=[past_match.id])
         response = client.get(url)
 
         content = response.content.decode()
-        # Look for dash placeholders in score display
-        assert ">-<" in content.replace(" ", "").replace("\n", "")
+        # past_match has score 2:1 - should show in result section
+        assert "2:1" in content
 
     def test_full_polling_cycle_with_score_change(self, client, regular_user, teams, db):
         """Integration test: full polling cycle with score updates."""

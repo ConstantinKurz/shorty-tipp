@@ -24,6 +24,7 @@ Trenne Validation Service von Globalen Services(Ranking, Scoring, Statistics)
   - Cron triggert Commands, htmx pollt dann Updates auf Frontend 
 - hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird
 - feedback ob tipp gespeichert wurde
+- predictions componenten verinheitlichen auf home und match predcitions
 - rule page stimmt noch nicht ganz:
 3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
 Stimmt das:

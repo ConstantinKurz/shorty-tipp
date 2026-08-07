@@ -30,6 +30,9 @@
         </div>
 
 
+        <!-- Current User Prediction Form (OUTSIDE polling area to avoid race conditions) -->
+        {% include "predictions/partials/current_user_prediction_form_wrapper.html" %}
+
         <!-- Predictions Content (HTMX polling enabled)
              hx-get: polls the update endpoint for fresh predictions data
              hx-trigger: dynamic interval - 10s during active matches, 60s otherwise
@@ -39,7 +42,7 @@
              hx-get="{% url 'predictions:match-predictions-updates' match.id %}?sort={{ sort_mode }}&from={{ origin }}&version={{ current_version }}"
              hx-trigger="every {{ polling_interval }}s"
              hx-swap="innerHTML">
-            {% include "predictions/partials/match_predictions_content.html" %}
+            {% include "predictions/partials/match_predictions_list.html" %}
         </div>
     </main>
 </div>

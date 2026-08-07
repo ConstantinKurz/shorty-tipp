@@ -1,0 +1,11 @@
+{# Wrapper for current user prediction form - used outside polling area #}
+{# Required context: match, is_locked, current_user_prediction, current_user_form, can_add_joker, joker_count, joker_limit, is_group_stage, current_user, just_saved #}
+
+<div id="current-user-prediction-form" class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 mb-4 border-2 border-emerald-500 dark:border-emerald-600">
+    <div class="flex items-center gap-2 mb-3">
+        <span class="text-sm font-medium text-emerald-600 dark:text-emerald-400">Dein Tipp</span>
+        <span class="text-xs text-zinc-500 dark:text-zinc-400">({{ current_user.username }})</span>
+    </div>
+    
+    {% include "predictions/partials/current_user_prediction_form.html" %}
+</div>

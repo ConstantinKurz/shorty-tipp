@@ -195,7 +195,7 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
 
 
 def _get_match_row_context(
-    user: "User", match: Match, prediction: MatchPrediction | None
+    user: "User", match: Match, prediction: MatchPrediction | None, just_saved: bool = False
 ) -> dict[str, Any]:
     """
     Build context for rendering a single match row partial.
@@ -204,6 +204,7 @@ def _get_match_row_context(
         user: The authenticated user.
         match: The match object.
         prediction: The user's prediction for this match (or None).
+        just_saved: Whether the prediction was just saved (shows success indicator).
 
     Returns:
         Context dict for the prediction_row.html template.
@@ -225,11 +226,12 @@ def _get_match_row_context(
         "is_group_stage": round_code == "group",
         "group_stage_count": PredictionLimitService.get_group_stage_prediction_count(user),
         "group_stage_limit": PredictionLimitService.GROUP_STAGE_LIMIT,
+        "just_saved": just_saved,
     }
 
 
 def _get_match_predictions_form_context(
-    user: "User", match: Match, prediction: MatchPrediction | None
+    user: "User", match: Match, prediction: MatchPrediction | None, just_saved: bool = False
 ) -> dict[str, Any]:
     """
     Build context for match predictions page form partial.
@@ -238,6 +240,7 @@ def _get_match_predictions_form_context(
         user: The authenticated user.
         match: The match object.
         prediction: The user's prediction for this match (or None).
+        just_saved: Whether the prediction was just saved (shows success indicator).
 
     Returns:
         Context dict for current_user_prediction_form.html template.
@@ -256,6 +259,7 @@ def _get_match_predictions_form_context(
         "joker_limit": PredictionLimitService.get_joker_limit_for_round(round_code),
         "is_group_stage": round_code == "group",
         "current_user": user,
+        "just_saved": just_saved,
     }
 
 
@@ -337,9 +341,10 @@ class PredictionSaveView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, prediction)
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            context["just_saved"] = True
+            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
 
-        context = _get_match_row_context(user, match, prediction)
+        context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)
 
 
@@ -390,7 +395,7 @@ class PredictionDeleteView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, None)
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
 
         context = _get_match_row_context(user, match, None)
         return render(request, "predictions/prediction_row.html", context)
@@ -471,10 +476,10 @@ class PredictionJokerView(LoginRequiredMixin, View):
         # Check if request from match predictions page
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
-            context = _get_match_predictions_form_context(user, match, prediction)
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            context = _get_match_predictions_form_context(user, match, prediction, just_saved=True)
+            return render(request, "predictions/partials/current_user_prediction_form_wrapper.html", context)
 
-        context = _get_match_row_context(user, match, prediction)
+        context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)
 
 
