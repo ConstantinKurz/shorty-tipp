@@ -36,6 +36,20 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 
+    <!-- Custom styles -->
+    <style>
+        /* Success flash animation for saved predictions */
+        @keyframes success-flash {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            50% { box-shadow: 0 0 0 4px rgba(167, 13, 44, 0.4); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        
+        .htmx-swapping {
+            animation: success-flash 500ms ease-out;
+        }
+    </style>
+
     <!-- Dark mode initialization (runs before render to prevent flash) -->
     <script>
             (function () {

@@ -198,13 +198,14 @@ class TestMatchPredictionsPageTemplate:
         assert "1" in content
 
     def test_template_shows_pending_result_for_future_match(self, client, regular_user, test_match):
-        """Template should show - : - for matches without results."""
+        """Template should show -:- for matches without results."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[test_match.id])
         response = client.get(url)
 
         content = response.content.decode()
-        assert "- : -" in content
+        # Check for dash placeholder in result section (may be formatted as -:-)
+        assert "-:-" in content
 
     def test_current_user_highlighted(self, client, regular_user, test_match):
         """Current user's prediction should be highlighted."""
@@ -545,13 +546,17 @@ class TestMatchPredictionsUpdateView:
         assert "origin" in response.context
 
     def test_uses_correct_template(self, client, regular_user, test_match):
-        """Should render the partial template."""
+        """Should render both header and content partials."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions-updates", args=[test_match.id])
         response = client.get(url)
 
         assert response.status_code == 200
-        assert response.templates[0].name == "predictions/partials/match_predictions_content.html"
+        content = response.content.decode()
+        # Should include OOB header swap
+        assert 'id="match-header"' in content
+        # Should include predictions content (sort toggle)
+        assert "Spielpunkte" in content
 
 
 class TestMatchPredictionsPageHTMXPolling:
@@ -767,3 +772,273 @@ class TestPollingBehavior:
 
         interval = get_polling_interval()
         assert interval == 60
+
+
+class TestVersionTracking:
+    """Tests for version-based polling optimization."""
+
+    def test_match_predictions_view_includes_version_in_context(
+        self, client, regular_user, past_match
+    ):
+        """Full page view should include current_version in context."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "current_version" in response.context
+        # past_match has goals_home=2, goals_away=1
+        assert response.context["current_version"] == "2:1"
+
+    def test_match_predictions_view_version_with_none_score(
+        self, client, regular_user, test_match
+    ):
+        """Version should be 'None:None' for matches without score."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[test_match.id])
+        response = client.get(url)
+
+        assert response.context["current_version"] == "None:None"
+
+    def test_update_view_returns_version_in_header(
+        self, client, regular_user, past_match
+    ):
+        """Update view should return version in HX-Trigger header."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        response = client.get(url)
+
+        assert "HX-Trigger" in response.headers
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "2:1"
+
+    def test_update_view_version_format_with_none_score(
+        self, client, regular_user, test_match
+    ):
+        """Version header should contain None:None for matches without score."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[test_match.id])
+        response = client.get(url)
+
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "None:None"
+
+    def test_update_view_returns_empty_when_version_unchanged_post_kickoff(
+        self, client, regular_user, past_match
+    ):
+        """Post-kickoff with matching version should return empty response."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        # past_match has score 2:1
+        response = client.get(url + "?version=2:1")
+
+        assert response.status_code == 200
+        assert response.content == b""
+        # Should still include version header
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "2:1"
+
+    def test_update_view_renders_when_version_changed_post_kickoff(
+        self, client, regular_user, past_match
+    ):
+        """Post-kickoff with old version should render full response."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        # Send old version (1:0), but match has score 2:1
+        response = client.get(url + "?version=1:0")
+
+        assert response.status_code == 200
+        assert response.content != b""
+        # Response should contain HTML
+        assert b"<div" in response.content
+        # Should include new version in header
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "2:1"
+
+    def test_update_view_always_renders_pre_kickoff(
+        self, client, regular_user, test_match
+    ):
+        """Pre-kickoff should always render full response even if version matches."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[test_match.id])
+        # Send matching version (None:None)
+        response = client.get(url + "?version=None:None")
+
+        assert response.status_code == 200
+        # Should NOT be empty - pre-kickoff predictions can change
+        assert response.content != b""
+        assert b"<div" in response.content
+
+    def test_update_view_handles_missing_version_param(
+        self, client, regular_user, past_match
+    ):
+        """Missing version param should trigger full render."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        response = client.get(url)  # No version param
+
+        assert response.status_code == 200
+        # Should render full response (empty string doesn't match "2:1")
+        assert response.content != b""
+
+    def test_update_view_includes_oob_header_in_full_render(
+        self, client, regular_user, past_match
+    ):
+        """Full render should include OOB header swap directive."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        # Send old version to trigger full render
+        response = client.get(url + "?version=0:0")
+
+        content = response.content.decode()
+        assert 'id="match-header"' in content
+        assert 'hx-swap-oob="innerHTML"' in content
+
+    def test_update_view_oob_header_shows_current_score(
+        self, client, regular_user, past_match
+    ):
+        """OOB header should display current match score."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        response = client.get(url + "?version=0:0")
+
+        content = response.content.decode()
+        # past_match has score 2:1 - check for score in result section
+        assert "2:1" in content
+
+    def test_update_view_empty_response_has_no_oob_directive(
+        self, client, regular_user, past_match
+    ):
+        """Empty response should not contain OOB directive."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+        # Send matching version to get empty response
+        response = client.get(url + "?version=2:1")
+
+        content = response.content.decode()
+        assert "hx-swap-oob" not in content
+
+    def test_match_predictions_page_has_30s_polling(
+        self, client, regular_user, test_match
+    ):
+        """Page template should have 30s polling interval."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[test_match.id])
+        response = client.get(url)
+
+        content = response.content.decode()
+        assert 'hx-trigger="every 30s"' in content
+
+    def test_match_predictions_page_includes_version_in_url(
+        self, client, regular_user, past_match
+    ):
+        """Page template should include version in hx-get URL."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+
+        content = response.content.decode()
+        # past_match has score 2:1
+        assert "version=2:1" in content
+
+    def test_match_predictions_page_has_version_update_script(
+        self, client, regular_user, test_match
+    ):
+        """Page should include JavaScript for version tracking."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[test_match.id])
+        response = client.get(url)
+
+        content = response.content.decode()
+        assert "htmx:afterOnLoad" in content
+        assert "HX-Trigger" in content
+        assert "trigger.version" in content
+
+    def test_match_predictions_page_renders_with_extracted_header(
+        self, client, regular_user, past_match
+    ):
+        """Page should render with match header partial."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[past_match.id])
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert 'id="match-header"' in content
+        # Header should show team names
+        assert past_match.team_home.name in content
+        assert past_match.team_away.name in content
+
+    def test_match_header_shows_dash_when_no_score(
+        self, client, regular_user, test_match
+    ):
+        """Header should show -:- when match has no score."""
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions", args=[test_match.id])
+        response = client.get(url)
+
+        content = response.content.decode()
+        # Look for dash placeholders in score display
+        assert ">-<" in content.replace(" ", "").replace("\n", "")
+
+    def test_full_polling_cycle_with_score_change(self, client, regular_user, teams, db):
+        """Integration test: full polling cycle with score updates."""
+        import json
+
+        # Create match that just started (post-kickoff)
+        match = Match.objects.create(
+            team_home=teams[0],
+            team_away=teams[1],
+            kickoff=timezone.now() - timedelta(minutes=10),
+            round="group",
+            status="in_progress",
+            goals_home=0,
+            goals_away=0,
+        )
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[match.id])
+
+        # First poll with version 0:0 - should return empty (version matches)
+        response = client.get(url + "?version=0:0")
+        assert response.content == b""
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "0:0"
+
+        # Score changes to 1:0
+        match.goals_home = 1
+        match.save()
+
+        # Second poll with old version 0:0 - should return full render
+        response = client.get(url + "?version=0:0")
+        assert response.content != b""
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert trigger["version"] == "1:0"
+
+        # Third poll with new version 1:0 - should return empty again
+        response = client.get(url + "?version=1:0")
+        assert response.content == b""
+
+    def test_version_persists_across_multiple_polls(self, client, regular_user, past_match):
+        """Multiple polls with matching version should all return empty."""
+        import json
+
+        client.force_login(regular_user)
+        url = reverse("predictions:match-predictions-updates", args=[past_match.id])
+
+        # Poll 5 times with matching version
+        for _ in range(5):
+            response = client.get(url + "?version=2:1")
+            assert response.content == b""
+            trigger = json.loads(response.headers["HX-Trigger"])
+            assert trigger["version"] == "2:1"

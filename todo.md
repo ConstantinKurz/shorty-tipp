@@ -11,13 +11,6 @@ JavaScript-Aufgaben: Client-seitige UX (Filter, Navigation, Auto-Save-Logik)
 - admin page link done
 - dedicated page for alle tipps done
 - kriegt die page mit wenn sich predictions ändern?
-- rule page stimmt noch nicht ganz:
-3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
-Stimmt das:
-🔒 Privacy Protection
-
-You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
-- kann das ranking nicht zwischen predictions und ranking service geteilt werden.
 
 Trenne Validation Service von Globalen Services(Ranking, Scoring, Statistics)
 - Scraper + Scoring Setup:
@@ -30,6 +23,14 @@ Trenne Validation Service von Globalen Services(Ranking, Scoring, Statistics)
   - Alternative Dev: Railway ($5 Free Credits/Monat, aber kein natives Cron)
   - Cron triggert Commands, htmx pollt dann Updates auf Frontend 
 - hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird
+- feedback ob tipp gespeichert wurde
+- rule page stimmt noch nicht ganz:
+3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
+Stimmt das:
+🔒 Privacy Protection
+
+You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
+- kann das ranking nicht zwischen predictions und ranking service geteilt werden.
 - Email mit leaderboard
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - css klassen

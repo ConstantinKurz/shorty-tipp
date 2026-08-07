@@ -9,7 +9,7 @@
 
     <!-- Main Content -->
     <main class="max-w-4xl mx-auto px-4 py-6">
-        <!-- Match Info Card -->
+        <!-- Back Button and Page Title -->
         <div class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 mb-6">
             <div class="flex items-start justify-between mb-3">
                 <button type="button" onclick="history.back()"
@@ -24,31 +24,55 @@
             <h2 class="text-2xl font-bold text-center text-zinc-900 dark:text-white -mt-11">
                 {{ match.team_home.name }} vs {{ match.team_away.name }}
             </h2>
-            {% if match.goals_home is not None and match.goals_away is not None %}
-            <p class="text-center text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">
-                {{ match.goals_home }} : {{ match.goals_away }}
-            </p>
-            {% else %}
-            <p class="text-center text-3xl font-bold text-zinc-400 dark:text-zinc-500 mt-2">
-                - : -
-            </p>
-            {% endif %}
             <p class="text-center text-sm text-zinc-500 dark:text-zinc-400 mt-2">
                 {{ match.kickoff|date:"d.m.Y H:i" }} Uhr
             </p>
         </div>
 
+
         <!-- Predictions Content (HTMX polling enabled)
              hx-get: polls the update endpoint for fresh predictions data
-             hx-trigger: dynamic interval (1s active matches, 60s idle)
+             hx-trigger: dynamic interval - 10s during active matches, 60s otherwise
              hx-swap: replaces inner content, preserving scroll position
-             Parameters: sort (match/total) and from (origin) preserved across polls -->
+             Parameters: sort, from, and version preserved across polls -->
         <div id="predictions-content"
-             hx-get="{% url 'predictions:match-predictions-updates' match.id %}?sort={{ sort_mode }}&from={{ origin }}"
+             hx-get="{% url 'predictions:match-predictions-updates' match.id %}?sort={{ sort_mode }}&from={{ origin }}&version={{ current_version }}"
              hx-trigger="every {{ polling_interval }}s"
              hx-swap="innerHTML">
             {% include "predictions/partials/match_predictions_content.html" %}
         </div>
     </main>
 </div>
+
+<!-- Version tracking for polling optimization -->
+<script>
+document.addEventListener('htmx:afterOnLoad', function(event) {
+    // Only process events from predictions-content
+    if (event.detail.elt.id !== 'predictions-content') return;
+    
+    // Parse HX-Trigger header to extract version
+    var triggerHeader = event.detail.xhr.getResponseHeader('HX-Trigger');
+    if (!triggerHeader) return;
+    
+    try {
+        var trigger = JSON.parse(triggerHeader);
+        if (trigger.version) {
+            // Update hx-get URL with new version
+            var el = event.detail.elt;
+            var currentUrl = el.getAttribute('hx-get');
+            // Replace version parameter or add if missing
+            var newUrl = currentUrl.replace(/([?&])version=[^&]*/g, '$1version=' + trigger.version);
+            if (newUrl === currentUrl) {
+                // Version param wasn't in URL, add it
+                newUrl += (currentUrl.indexOf('?') >= 0 ? '&' : '?') + 'version=' + trigger.version;
+            }
+            el.setAttribute('hx-get', newUrl);
+            // Re-process the element to pick up the new URL
+            htmx.process(el);
+        }
+    } catch (e) {
+        // Ignore JSON parse errors
+    }
+});
+</script>
 {% endblock %}

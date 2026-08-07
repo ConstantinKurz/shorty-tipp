@@ -228,6 +228,37 @@ def _get_match_row_context(
     }
 
 
+def _get_match_predictions_form_context(
+    user: "User", match: Match, prediction: MatchPrediction | None
+) -> dict[str, Any]:
+    """
+    Build context for match predictions page form partial.
+
+    Args:
+        user: The authenticated user.
+        match: The match object.
+        prediction: The user's prediction for this match (or None).
+
+    Returns:
+        Context dict for current_user_prediction_form.html template.
+    """
+    now = timezone.now()
+    is_locked = match.kickoff <= now
+    round_code = match.round
+
+    return {
+        "match": match,
+        "current_user_prediction": prediction,
+        "current_user_form": PredictionForm(instance=prediction),
+        "is_locked": is_locked,
+        "can_add_joker": PredictionLimitService.can_add_joker(user, round_code),
+        "joker_count": PredictionLimitService.get_joker_count_for_round(user, round_code),
+        "joker_limit": PredictionLimitService.get_joker_limit_for_round(round_code),
+        "is_group_stage": round_code == "group",
+        "current_user": user,
+    }
+
+
 class PredictionSaveView(LoginRequiredMixin, View):
     """
     Save or update a prediction via HTMX POST.
@@ -302,6 +333,12 @@ class PredictionSaveView(LoginRequiredMixin, View):
 
         form.save()
 
+        # Check if request from match predictions page
+        context_type = request.GET.get("context", "")
+        if context_type == "match-predictions":
+            context = _get_match_predictions_form_context(user, match, prediction)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+
         context = _get_match_row_context(user, match, prediction)
         return render(request, "predictions/prediction_row.html", context)
 
@@ -348,6 +385,12 @@ class PredictionDeleteView(LoginRequiredMixin, View):
             match=match,
         )
         prediction.delete()
+
+        # Check if request from match predictions page
+        context_type = request.GET.get("context", "")
+        if context_type == "match-predictions":
+            context = _get_match_predictions_form_context(user, match, None)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
 
         context = _get_match_row_context(user, match, None)
         return render(request, "predictions/prediction_row.html", context)
@@ -424,6 +467,12 @@ class PredictionJokerView(LoginRequiredMixin, View):
         # Toggle joker
         prediction.joker_active = not prediction.joker_active
         prediction.save(update_fields=["joker_active", "updated_at"])
+
+        # Check if request from match predictions page
+        context_type = request.GET.get("context", "")
+        if context_type == "match-predictions":
+            context = _get_match_predictions_form_context(user, match, prediction)
+            return render(request, "predictions/partials/current_user_prediction_form.html", context)
 
         context = _get_match_row_context(user, match, prediction)
         return render(request, "predictions/prediction_row.html", context)
@@ -713,6 +762,34 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
         # Calculate polling interval based on match activity
         polling_interval = get_polling_interval()
 
+        # Calculate is_locked for header partial
+        now = timezone.now()
+        is_locked = match.kickoff <= now
+
+        # Build version from match score for polling optimization
+        current_version = f"{match.goals_home}:{match.goals_away}"
+
+        # Get current user's prediction for inline editing
+        current_user_prediction = MatchPrediction.objects.filter(
+            user=self.request.user,  # type: ignore[arg-type]
+            match=match,
+        ).first()
+
+        # Build form for current user
+        current_user_form = PredictionForm(instance=current_user_prediction)
+
+        # Joker info for current user
+        round_code = match.round
+        can_add_joker = PredictionLimitService.can_add_joker(
+            self.request.user,  # type: ignore[arg-type]
+            round_code,
+        )
+        joker_count = PredictionLimitService.get_joker_count_for_round(
+            self.request.user,  # type: ignore[arg-type]
+            round_code,
+        )
+        joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
+
         context.update({
             "match": match,
             "user_predictions": user_predictions,
@@ -720,6 +797,14 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
             "origin": origin,
             "current_user": self.request.user,
             "polling_interval": polling_interval,
+            "is_locked": is_locked,
+            "current_version": current_version,
+            "current_user_prediction": current_user_prediction,
+            "current_user_form": current_user_form,
+            "can_add_joker": can_add_joker,
+            "joker_count": joker_count,
+            "joker_limit": joker_limit,
+            "is_group_stage": round_code == "group",
         })
 
         return context
@@ -749,11 +834,29 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
 
         Returns:
             HTML partial with updated predictions content.
+            Includes HX-Trigger header with version for client-side tracking.
         """
         match = get_object_or_404(
             Match.objects.select_related("team_home", "team_away"),
             pk=match_id,
         )
+
+        # Build version from match score
+        current_version = f"{match.goals_home}:{match.goals_away}"
+        # Read client's version from query params
+        client_version = request.GET.get("version", "")
+
+        # Calculate is_locked for optimization and context
+        now = timezone.now()
+        is_locked = match.kickoff <= now
+
+        # Optimization: skip rendering if post-kickoff and version unchanged
+        # Post-kickoff predictions are locked, so only score changes matter.
+        # If score (version) is unchanged, predictions and points are identical.
+        if is_locked and client_version == current_version:
+            response = HttpResponse("")
+            response["HX-Trigger"] = json.dumps({"version": current_version})
+            return response
 
         # Get sort mode from query params (default: match)
         sort_mode = request.GET.get("sort", "match")
@@ -764,6 +867,27 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
         origin = request.GET.get("from", "predictions")
         if origin not in ("home", "predictions"):
             origin = "predictions"
+
+        # Get current user's prediction for inline editing
+        current_user_prediction = MatchPrediction.objects.filter(
+            user=request.user,  # type: ignore[arg-type]
+            match=match,
+        ).first()
+
+        # Build form for current user
+        current_user_form = PredictionForm(instance=current_user_prediction)
+
+        # Joker info for current user
+        round_code = match.round
+        can_add_joker = PredictionLimitService.can_add_joker(
+            request.user,  # type: ignore[arg-type]
+            round_code,
+        )
+        joker_count = PredictionLimitService.get_joker_count_for_round(
+            request.user,  # type: ignore[arg-type]
+            round_code,
+        )
+        joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
 
         # Build user predictions list using shared helper
         user_predictions = build_match_predictions_list(
@@ -778,10 +902,19 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
             "sort_mode": sort_mode,
             "current_user": request.user,
             "origin": origin,
+            "is_locked": is_locked,
+            "current_user_prediction": current_user_prediction,
+            "current_user_form": current_user_form,
+            "can_add_joker": can_add_joker,
+            "joker_count": joker_count,
+            "joker_limit": joker_limit,
+            "is_group_stage": round_code == "group",
         }
 
-        return render(
+        response = render(
             request,
-            "predictions/partials/match_predictions_content.html",
+            "predictions/partials/match_predictions_updates.html",
             context,
         )
+        response["HX-Trigger"] = json.dumps({"version": current_version})
+        return response

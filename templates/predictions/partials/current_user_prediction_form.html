@@ -1,0 +1,118 @@
+{# Current user prediction form - for HTMX swap after save/delete/joker #}
+{# Required context: match, is_locked, current_user_prediction, current_user_form, can_add_joker, joker_count, joker_limit, is_group_stage, current_user #}
+
+<form hx-post="{% url 'predictions:prediction-save' match.id %}?context=match-predictions" 
+      hx-target="#current-user-prediction-form" 
+      hx-swap="innerHTML swap:500ms">
+    {% csrf_token %}
+    
+    <div class="flex items-center justify-center gap-3">
+        <!-- Home Team -->
+        <div class="flex items-center gap-2 flex-1 justify-end">
+            <span class="text-sm font-medium text-zinc-900 dark:text-white truncate">
+                {{ match.team_home.name }}
+            </span>
+            <span class="text-base">{{ match.team_home.fifa_code|slice:":2"|upper }}</span>
+        </div>
+
+        <!-- Score Input -->
+        <div class="flex items-center gap-1">
+            <input type="number" 
+                   name="predicted_goals_home" 
+                   value="{% if current_user_prediction %}{{ current_user_prediction.predicted_goals_home }}{% endif %}"
+                   min="0" max="20"
+                   class="w-12 h-12 text-center text-lg font-bold bg-white dark:bg-zinc-700 border-2 border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-zinc-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                   placeholder="-"
+                   {% if is_locked %}disabled{% endif %}
+                   hx-post="{% url 'predictions:prediction-save' match.id %}?context=match-predictions"
+                   hx-target="#current-user-prediction-form"
+                   hx-swap="innerHTML swap:500ms"
+                   hx-trigger="input delay:500ms"
+                   hx-include="closest form">
+            <span class="text-xl font-bold text-zinc-400 dark:text-zinc-500">:</span>
+            <input type="number"
+                   name="predicted_goals_away"
+                   value="{% if current_user_prediction %}{{ current_user_prediction.predicted_goals_away }}{% endif %}"
+                   min="0" max="20"
+                   class="w-12 h-12 text-center text-lg font-bold bg-white dark:bg-zinc-700 border-2 border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-zinc-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                   placeholder="-"
+                   {% if is_locked %}disabled{% endif %}
+                   hx-post="{% url 'predictions:prediction-save' match.id %}?context=match-predictions"
+                   hx-target="#current-user-prediction-form"
+                   hx-swap="innerHTML swap:500ms"
+                   hx-trigger="input delay:500ms"
+                   hx-include="closest form">
+        </div>
+
+        <!-- Away Team -->
+        <div class="flex items-center gap-2 flex-1">
+            <span class="text-base">{{ match.team_away.fifa_code|slice:":2"|upper }}</span>
+            <span class="text-sm font-medium text-zinc-900 dark:text-white truncate">
+                {{ match.team_away.name }}
+            </span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-2">
+            {% if not is_group_stage %}
+                <!-- Joker Toggle -->
+                <button type="button"
+                        hx-post="{% url 'predictions:prediction-joker' match.id %}?context=match-predictions"
+                        hx-target="#current-user-prediction-form"
+                        hx-swap="innerHTML swap:500ms"
+                        hx-include="closest form"
+                        class="w-9 h-9 flex items-center justify-center rounded-full transition-all {% if current_user_prediction and current_user_prediction.joker_active %}bg-yellow-100 dark:bg-yellow-900/30 text-yellow-500{% else %}bg-zinc-100 dark:bg-zinc-700 text-zinc-400 hover:text-yellow-500{% endif %} {% if is_locked %}opacity-50 cursor-not-allowed{% else %}hover:scale-110{% endif %}"
+                        title="Joker ({{ joker_count }}/{{ joker_limit }} für diese Runde)"
+                        {% if is_locked %}disabled{% endif %}>
+                    {% if current_user_prediction and current_user_prediction.joker_active %}⭐{% else %}☆{% endif %}
+                </button>
+            {% endif %}
+
+            {% if current_user_prediction and not is_locked %}
+                <!-- Delete Button -->
+                <button type="button"
+                        hx-post="{% url 'predictions:prediction-delete' match.id %}?context=match-predictions"
+                        hx-target="#current-user-prediction-form"
+                        hx-swap="innerHTML swap:500ms"
+                        hx-include="closest form"
+                        hx-confirm="Tipp wirklich löschen?"
+                        class="w-9 h-9 flex items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all hover:scale-110"
+                        title="Tipp löschen">
+                    🗑️
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Match Result Section -->
+    <div class="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div class="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+            <span>Ergebnis:</span>
+            {% if match.goals_home is not None and match.goals_away is not None %}
+                <span class="font-bold {% if match.status == 'live' %}text-amber-500 animate-pulse{% else %}text-zinc-900 dark:text-white{% endif %}">
+                    {{ match.goals_home }}:{{ match.goals_away }}
+                    {% if match.status == 'live' %}
+                        <span class="ml-1 text-xs">🔴 Live</span>
+                    {% endif %}
+                </span>
+            {% else %}
+                <span class="font-medium text-zinc-400 dark:text-zinc-500">-:-</span>
+            {% endif %}
+        </div>
+        {% if current_user_prediction and current_user_prediction.points_earned is not None %}
+            <div class="flex items-center gap-1 {% if current_user_prediction.points_earned > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-zinc-500{% endif %} font-medium">
+                {% if current_user_prediction.is_exact_match %}
+                    <span>🎯</span>
+                {% endif %}
+                <span>+{{ current_user_prediction.points_earned }} Punkte</span>
+                {% if current_user_prediction.joker_active %}
+                    <span class="text-yellow-500">(⭐ x2)</span>
+                {% endif %}
+            </div>
+        {% elif match.goals_home is not None and match.goals_away is not None %}
+            <div class="flex items-center gap-1 text-zinc-500 font-medium">
+                <span>0 Punkte</span>
+            </div>
+        {% endif %}
+    </div>
+</form>
