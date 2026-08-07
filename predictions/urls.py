@@ -3,6 +3,7 @@
 from django.urls import path
 
 from predictions.views import (
+    MatchPredictionsUpdateView,
     MatchPredictionsView,
     PhaseStatsView,
     PredictionDeleteView,
@@ -19,6 +20,11 @@ urlpatterns = [
     path("updates/", PredictionUpdatesView.as_view(), name="prediction-updates"),
     path("phase-stats/", PhaseStatsView.as_view(), name="phase-stats"),
     path("match/<int:match_id>/all/", MatchPredictionsView.as_view(), name="match-predictions"),
+    path(
+        "match/<int:match_id>/updates/",
+        MatchPredictionsUpdateView.as_view(),
+        name="match-predictions-updates",
+    ),
     path("<int:match_id>/save/", PredictionSaveView.as_view(), name="prediction-save"),
     path("<int:match_id>/delete/", PredictionDeleteView.as_view(), name="prediction-delete"),
     path("<int:match_id>/joker/", PredictionJokerView.as_view(), name="prediction-joker"),
