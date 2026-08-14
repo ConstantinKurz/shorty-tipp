@@ -344,7 +344,7 @@ class ScoringService:
     @transaction.atomic
     def score_all_predictions_for_match(match: Match) -> int:
         """
-        Score all predictions for a finished match.
+        Score all predictions for a match.
 
         Args:
             match: The match with results to score

@@ -238,3 +238,65 @@ class TestMatchModel:
         assert match.goals_home == 3
         assert match.goals_away == 2
         assert match.status == "finished"
+
+    def test_match_external_id_field_exists(self, team_home, team_away):
+        """Test Match model has external_id field with correct definition."""
+        kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            external_id=12345
+        )
+        assert match.external_id == 12345
+
+        # Verify field properties
+        field = Match._meta.get_field('external_id')
+        assert field.unique is True
+        assert field.null is True
+        assert field.blank is True
+        assert field.db_index is True
+
+    def test_match_external_id_unique_constraint(self, team_home, team_away):
+        """Test external_id unique constraint is enforced."""
+        kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            external_id=99999
+        )
+
+        # Attempt to create another match with same external_id
+        with pytest.raises(IntegrityError):
+            Match.objects.create(
+                team_home=team_away,
+                team_away=team_home,
+                kickoff=kickoff,
+                round="group",
+                external_id=99999  # Duplicate
+            )
+
+    def test_match_external_id_nullable(self, team_home, team_away):
+        """Test external_id can be null for manual matches."""
+        kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            external_id=None
+        )
+        assert match.external_id is None
+
+        # Multiple matches can have null external_id
+        match2 = Match.objects.create(
+            team_home=team_away,
+            team_away=team_home,
+            kickoff=kickoff,
+            round="group",
+            external_id=None
+        )
+        assert match2.external_id is None

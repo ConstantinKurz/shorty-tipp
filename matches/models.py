@@ -73,6 +73,13 @@ class Match(models.Model):
         ('finished', 'Finished'),
     ]
 
+    external_id: models.IntegerField = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="External match ID from football-data.org API",
+        db_index=True,
+    )
     team_home: models.ForeignKey = models.ForeignKey(
         Team,
         on_delete=models.PROTECT,

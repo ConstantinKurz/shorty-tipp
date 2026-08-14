@@ -147,6 +147,164 @@ Access the application:
 - Admin interface: http://localhost:8000/admin/
 - Login with the superuser credentials created above
 
+## Football-Data.org API Integration
+
+The application can automatically sync match results from the [football-data.org](https://www.football-data.org/) API, eliminating the need for manual match result entry.
+
+### API Setup
+
+1. **Get an API Key**
+
+   Register for a free account at [football-data.org](https://www.football-data.org/) and obtain an API key from your dashboard.
+
+2. **Configure Environment Variables**
+
+   Add the following to your `.env` file:
+
+   ```bash
+   FOOTBALL_DATA_API_KEY=your-api-key-here
+   FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4
+   ```
+
+   The `FOOTBALL_DATA_BASE_URL` is optional and defaults to `https://api.football-data.org/v4`.
+
+3. **Sync Teams**
+
+   Before the tournament starts, sync all participating teams:
+
+   ```bash
+   python manage.py sync_teams
+   ```
+
+   This creates Team records in the database from the API. You can specify a different competition:
+
+   ```bash
+   python manage.py sync_teams --competition=EURO
+   ```
+
+4. **Run the Match Updater**
+
+   Start the continuous match updater process:
+
+   ```bash
+   python manage.py update_matches
+   ```
+
+   This command:
+   - Runs in a persistent while-loop
+   - Polls the API at adaptive intervals based on match schedule
+   - Automatically detects goal changes and triggers scoring
+   - Handles errors gracefully and continues running
+   - Shuts down gracefully on SIGTERM/SIGINT
+
+   **Adaptive Polling Intervals:**
+   - **Live match**: 30 seconds
+   - **Match starting < 30 minutes**: 1 minute
+   - **Match starting 30min - 2h**: 5 minutes
+   - **Match starting > 2 hours**: 10 minutes
+   - **No upcoming matches**: 30 minutes
+
+### API Rate Limits
+
+The free tier allows **10 requests per minute**. The client implements:
+- Exponential backoff on 5xx errors (max 3 retries)
+- Retry-After header respect for 429 rate limit responses
+- Adaptive polling to minimize API calls during idle periods
+
+### Deployment Considerations
+
+In production, run `update_matches` as a background service:
+
+**Using systemd (Linux):**
+
+```ini
+[Unit]
+Description=Django TipApp Match Updater
+After=network.target
+
+[Service]
+Type=simple
+User=tipapp
+WorkingDirectory=/path/to/django-tipapp
+Environment="DJANGO_SETTINGS_MODULE=tipapp.settings.production"
+Environment="FOOTBALL_DATA_API_KEY=your-key"
+ExecStart=/path/to/django-tipapp/.venv/bin/python manage.py update_matches
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Using Docker:**
+
+Add a service to `docker-compose.yml`:
+
+```yaml
+services:
+  updater:
+    build: .
+    command: python manage.py update_matches
+    environment:
+      - DJANGO_SETTINGS_MODULE=tipapp.settings.production
+      - FOOTBALL_DATA_API_KEY=${FOOTBALL_DATA_API_KEY}
+    depends_on:
+      - db
+    restart: unless-stopped
+```
+
+### Troubleshooting
+
+**Problem:** `FootballDataAPIError: Request failed after 3 attempts`
+
+**Possible causes:**
+- Network connectivity issues
+- API service outage
+- Invalid API key
+
+**Solution:**
+- Check network connectivity
+- Verify API key in `.env` file
+- Check API status at [football-data.org](https://www.football-data.org/)
+- Review logs for specific error messages
+
+---
+
+**Problem:** Rate limit errors (429)
+
+**Solution:**
+- The client automatically handles rate limits by respecting `Retry-After` headers
+- If you're running multiple instances, ensure only one updater is active
+- Consider upgrading to a paid plan for higher rate limits
+
+---
+
+**Problem:** Teams or matches not syncing
+
+**Possible causes:**
+- Teams must be synced before matches
+- API may not have data for future tournaments yet
+- Incorrect competition code
+
+**Solution:**
+- Run `sync_teams` first
+- Verify the competition code (default: "WC" for World Cup)
+- Check API response in logs for data availability
+
+---
+
+**Problem:** Scoring not triggered after match updates
+
+**Possible causes:**
+- No goal changes detected
+- Match status not properly mapped
+- Database constraint issues
+
+**Solution:**
+- Check logs for "goals_changed" flag in sync results
+- Verify match results in Django admin
+- Run `python manage.py check` for configuration issues
+
 ## Project Structure
 
 ```

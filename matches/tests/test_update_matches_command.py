@@ -1,0 +1,239 @@
+"""Tests for update_matches management command."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from io import StringIO
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+from django.core.management import call_command
+from django.utils import timezone
+
+from matches.management.commands.update_matches import Command
+from matches.models import Match, Team
+from matches.services import MatchSyncResult
+
+
+@pytest.mark.django_db
+class TestUpdateMatchesCommand:
+    """Test suite for update_matches management command."""
+
+    @pytest.fixture
+    def teams(self) -> tuple[Team, Team]:
+        """Create test teams."""
+        team_home = Team.objects.create(name="Germany", fifa_code="GER")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA")
+        return team_home, team_away
+
+    def test_update_matches_once_flag(self, teams: tuple[Team, Team]) -> None:
+        """Verify --once flag runs single iteration and exits."""
+        team_home, team_away = teams
+        match = Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
+            round="group",
+            status="scheduled",
+        )
+
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync:
+            mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=False)]
+
+            out = StringIO()
+            call_command("update_matches", "--once", stdout=out)
+
+            output = out.getvalue()
+            assert "Single iteration complete" in output
+            mock_sync.assert_called_once()
+
+    def test_calculate_sleep_interval_live_match(self, teams: tuple[Team, Team]) -> None:
+        """Verify interval is 30 seconds when live match exists."""
+        team_home, team_away = teams
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="group",
+            status="live",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 30
+
+    def test_calculate_sleep_interval_no_matches(self) -> None:
+        """Verify interval is 1800 seconds when no upcoming matches."""
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 1800
+
+    def test_calculate_sleep_interval_match_soon(self, teams: tuple[Team, Team]) -> None:
+        """Verify interval is 60 seconds for match < 30 minutes away."""
+        team_home, team_away = teams
+        # Match in 20 minutes
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() + timedelta(minutes=20),
+            round="group",
+            status="scheduled",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 60
+
+    def test_calculate_sleep_interval_match_in_2h(self, teams: tuple[Team, Team]) -> None:
+        """Verify interval is 300 seconds for match 30min-2h away."""
+        team_home, team_away = teams
+        # Match in 1 hour
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() + timedelta(hours=1),
+            round="group",
+            status="scheduled",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 300
+
+    def test_calculate_sleep_interval_match_later(self, teams: tuple[Team, Team]) -> None:
+        """Verify interval is 600 seconds for match > 2 hours away."""
+        team_home, team_away = teams
+        # Match in 3 hours
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() + timedelta(hours=3),
+            round="group",
+            status="scheduled",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 600
+
+    def test_update_matches_triggers_scoring(self, teams: tuple[Team, Team]) -> None:
+        """Verify scoring is triggered when goals change."""
+        team_home, team_away = teams
+        match = Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
+            round="group",
+            status="live",
+            goals_home=0,
+            goals_away=0,
+        )
+
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
+             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+
+            # Simulate goal change
+            mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
+            MockScoring.score_all_predictions_for_match.return_value = 5
+
+            out = StringIO()
+            call_command("update_matches", "--once", stdout=out)
+
+            MockScoring.score_all_predictions_for_match.assert_called_once_with(match)
+            output = out.getvalue()
+            assert "scored 5 predictions" in output
+
+    def test_update_matches_triggers_champion_scoring(self, teams: tuple[Team, Team]) -> None:
+        """Verify champion scoring is triggered when final match finishes."""
+        team_home, team_away = teams
+        match = Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=datetime(2026, 7, 20, 18, 0, tzinfo=UTC),
+            round="final",
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
+             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+
+            # Simulate final match finished
+            mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
+            MockScoring.score_all_predictions_for_match.return_value = 10
+            MockScoring.score_champion_predictions.return_value = 3
+
+            out = StringIO()
+            call_command("update_matches", "--once", stdout=out)
+
+            MockScoring.score_champion_predictions.assert_called_once()
+            output = out.getvalue()
+            assert "Champion predictions scored" in output
+
+    def test_update_matches_continues_after_error(self, teams: tuple[Team, Team]) -> None:
+        """Verify update loop continues after error in --once=False mode."""
+        command = Command()
+        command.running = True
+
+        call_count = 0
+
+        def side_effect_sync():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("Simulated error")
+            else:
+                # Stop after second call
+                command.running = False
+                return []
+
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
+             patch("matches.management.commands.update_matches.time.sleep"):
+
+            mock_sync.side_effect = side_effect_sync
+
+            out = StringIO()
+            command.handle(once=False, stdout=out)
+
+            # Should be called twice: once failing, once succeeding
+            assert mock_sync.call_count == 2
+
+    def test_update_matches_skips_scoring_when_no_goal_changes(
+        self, teams: tuple[Team, Team]
+    ) -> None:
+        """Verify scoring is not triggered when goals don't change."""
+        team_home, team_away = teams
+        match = Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
+            round="group",
+            status="scheduled",
+        )
+
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
+             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+
+            # No goal changes
+            mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=False)]
+
+            out = StringIO()
+            call_command("update_matches", "--once", stdout=out)
+
+            MockScoring.score_all_predictions_for_match.assert_not_called()
+            output = out.getvalue()
+            assert "0 with goal changes" in output

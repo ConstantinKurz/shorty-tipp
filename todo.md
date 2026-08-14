@@ -13,15 +13,15 @@ JavaScript-Aufgaben: Client-seitige UX (Filter, Navigation, Auto-Save-Logik)
 - kriegt die page mit wenn sich predictions ändern?
 
 Trenne Validation Service von Globalen Services(Ranking, Scoring, Statistics)
-- Scraper + Scoring Setup:
-  - Django Management Commands (kein Celery/Redis nötig)
-  - Command 1: `scrape_results` - holt Match-Ergebnisse von API
-  - Command 2 (eingebetten in 1): `calculate_rankings` - berechnet Punkte + Rankings, schreibt LeaderboardSnapshot und Punkte in Tipps.
-  - Spieltag punkte auch in DB speichern!
-  - Commands prüfen Match-Zeit selbst (10 min vor bis 10 min nach = jede Minute, sonst alle 10 min)
-  - Hosting: Render.com ($15/Monat - Web + Postgres + native Cron Jobs in UI)
-  - Alternative Dev: Railway ($5 Free Credits/Monat, aber kein natives Cron)
-  - Cron triggert Commands, htmx pollt dann Updates auf Frontend 
+- API-Call + Scoring Setup:
+- https://www.football-data.org/about
+
+Die Deployment-Strategie für deine Tipp-App ist bewusst einfach gehalten: Die Anwendung besteht aus drei Containern. Ein Django-Webcontainer liefert die Website mit HTMX und Bootstrap aus, verwaltet Logins, Tipps, Ranglisten und Statistiken. Eine PostgreSQL-Datenbank speichert alle Nutzer, Spiele, Tipps und Rankings. Zusätzlich läuft ein separater Updater-Service, der regelmäßig die Fußball-Ergebnisse über die football-data.org API abfragt und die Datenbank aktualisiert. Die API stellt dafür kostenlose Zugriffe auf Wettbewerbe, Spiele und Ergebnisse bereit.
+
+Der Updater läuft dauerhaft in einer einfachen while-Schleife. Wenn keine laufenden Spiele existieren, schläft er beispielsweise 10 Minuten. Sobald ein Spiel läuft, verkürzt er das Intervall auf etwa 30 Sekunden und holt regelmäßig neue Ergebnisse. Nach jeder Aktualisierung prüft er, ob ein Spiel beendet wurde. Nur dann werden Punkte, Spieltagswertungen und das Gesamtranking neu berechnet. Dadurch bleiben die API-Aufrufe niedrig und das kostenlose Limit wird problemlos eingehalten.
+
+Deployen würdest du das zunächst auf Render oder Railway, später möglicherweise auf einem kleinen Hetzner-Cloud-Server mit Docker Compose. Die gesamte Architektur bleibt dabei einfach: Django für die Benutzerinteraktion, PostgreSQL für die Speicherung und ein separater Updater-Service für die Fußball-Daten. Kein Celery, kein Redis, kein Kubernetes und kein Scraping notwendig
+
 - hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird
 - feedback ob tipp gespeichert wurde
 - predictions componenten verinheitlichen auf home und match predcitions
