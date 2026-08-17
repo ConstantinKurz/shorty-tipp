@@ -152,15 +152,6 @@ class Match(models.Model):
 
                 # Handle champion predictions for final match
                 if self.round == "final":
-                    if self.status == "finished":
-                        # Final finished - award final champion bonus
-                        champion_count = ScoringService.score_champion_predictions()
-                        if champion_count > 0:
-                            logger.info(
-                                "Awarded final champion points to %d users",
-                                champion_count,
-                            )
-                    elif self.status == "live":
                         # Final is live - update live champion bonuses
                         live_bonus_count = ScoringService.update_live_champion_bonuses()
                         logger.info(

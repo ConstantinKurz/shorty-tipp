@@ -114,7 +114,7 @@ class TestChampionRecalculationIntegration:
     ) -> None:
         """Test that recalculation resets to match prediction points only.
         
-        Champion bonus is handled separately by score_champion_predictions,
+        Champion bonus is handled separately by update_live_champion_bonuses,
         so recalculate_user_score should not include it.
         """
         user = user_without_champion
@@ -125,7 +125,7 @@ class TestChampionRecalculationIntegration:
 
         user.refresh_from_db()
         # Points should be recalculated from predictions only (0 predictions = 0 points)
-        # Champion bonus is NOT included - it's added separately via score_champion_predictions
+        # Champion bonus is NOT included - it's added separately via update_live_champion_bonuses
         assert user.total_points == 0
 
     def test_recalculation_no_bonus_for_wrong_champion(

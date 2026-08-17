@@ -415,29 +415,6 @@ class ScoringService:
         return None
 
     @staticmethod
-    def get_live_champion_bonus_for_user(user: "UserModel") -> int:
-        """
-        Calculate live champion bonus points for a user.
-
-        Used for live leaderboard display during the final.
-        Does NOT persist - call get_current_champion_team() to determine champion.
-
-        Args:
-            user: User to calculate bonus for
-
-        Returns:
-            Bonus points (20 or 30) if user predicted current champion, 0 otherwise
-        """
-        champion = ScoringService.get_current_champion_team()
-        if champion is None:
-            return 0
-
-        if user.predicted_champion_id != champion.pk:
-            return 0
-
-        return ScoringService.calculate_champion_points(champion)
-
-    @staticmethod
     @transaction.atomic
     def update_live_champion_bonuses() -> int:
         """
@@ -488,60 +465,6 @@ class ScoringService:
 
         return count
 
-    @staticmethod
-    @transaction.atomic
-    def score_champion_predictions() -> int:
-        """
-        Score champion predictions after tournament ends.
-
-        Only scores when:
-        - A team has is_champion=True
-        - The final match is finished
-        
-        Idempotent: Only awards points to users who don't already have champion_bonus_points.
-
-        Returns:
-            Number of users who received champion points
-        """
-        from matches.models import Match as MatchModel  # noqa: F811
-        from matches.models import Team as TeamModel  # noqa: F811
-        from users.models import User as UserModel  # noqa: F811
-
-        # Find the champion team
-        try:
-            champion = TeamModel.objects.get(is_champion=True)
-        except TeamModel.DoesNotExist:
-            return 0
-        except TeamModel.MultipleObjectsReturned:
-            # Data integrity issue - should not happen
-            return 0
-
-        # Check if final match is finished
-        final_match = MatchModel.objects.filter(
-            round="final", status="finished"
-        ).first()
-        if not final_match:
-            return 0
-
-        # Calculate points based on champion's odds category
-        champion_points = ScoringService.calculate_champion_points(champion)
-        if champion_points == 0:
-            return 0
-
-        # Award points only to users who predicted correctly AND don't already have bonus
-        users_to_award = UserModel.objects.filter(
-            predicted_champion=champion,
-            champion_bonus_points=0,  # Only award if not already awarded
-        )
-
-        count = 0
-        for user in users_to_award:
-            user.total_points += champion_points
-            user.champion_bonus_points = champion_points
-            user.save(update_fields=["total_points", "champion_bonus_points"])
-            count += 1
-
-        return count
 
 
 class RankingService:
@@ -734,7 +657,7 @@ class RankingService:
 
         Recalculates total_points, exact_match_count, and jokers_used
         based on all scored predictions. Champion bonus points are NOT
-        included here - they are managed separately via score_champion_predictions.
+        included here - they are managed separately via update_live_champion_bonuses.
 
         Args:
             user: User instance to recalculate
@@ -759,7 +682,7 @@ class RankingService:
                 jokers_used += 1
 
         # Update user with recalculated values
-        # Note: Champion bonus is handled separately by score_champion_predictions
+        # Note: Champion bonus is handled separately by update_live_champion_bonuses
         user.total_points = total_points
         user.exact_match_count = exact_match_count
         user.jokers_used = jokers_used

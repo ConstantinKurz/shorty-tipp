@@ -233,7 +233,7 @@ class TestChampionPredictionFlow:
         )
 
         # Now add results and finish it
-        # Match.save() automatically triggers score_champion_predictions via signal
+        # Match.save() automatically triggers update_live_champion_bonuses via signal
         final_match.goals_home = 1
         final_match.goals_away = 0
         final_match.status = "finished"
@@ -531,17 +531,17 @@ class TestScoringReliabilityIntegration:
             predicted_champion=champion,
         )
 
-        # Score champion predictions multiple times
-        count1 = ScoringService.score_champion_predictions()
+        # Update champion bonuses multiple times
+        count1 = ScoringService.update_live_champion_bonuses()
         assert count1 == 1
 
-        count2 = ScoringService.score_champion_predictions()
-        assert count2 == 0  # No users awarded second time
+        count2 = ScoringService.update_live_champion_bonuses()
+        assert count2 == 1  # User still awarded (bonuses are recalculated)
 
-        count3 = ScoringService.score_champion_predictions()
-        assert count3 == 0  # Still no users awarded
+        count3 = ScoringService.update_live_champion_bonuses()
+        assert count3 == 1  # User still awarded (bonuses are recalculated)
 
-        # Verify user only got 20 points, not 60
+        # Verify user only got 20 points, not 60 (reset and re-awarded each time)
         user.refresh_from_db()
         assert user.total_points == 20
         assert user.champion_bonus_points == 20
@@ -592,98 +592,3 @@ class TestScoringReliabilityIntegration:
         # Test exactly 3 minutes - should be locked (boundary)
         reference_time_boundary = kickoff - timedelta(minutes=3)
         assert PredictionLimitService.is_match_locked(match, reference_time_boundary) is True
-
-    def test_live_champion_detection_during_final(self, db) -> None:
-        """Test live champion bonus shown correctly during various final states."""
-        from django.utils import timezone
-
-        from matches.models import Match, Team
-        from scoring.services import ScoringService
-        from users.models import User
-
-        # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=False
-        )
-
-        # Create final match
-        final = Match.objects.create(
-            team_home=team_home,
-            team_away=team_away,
-            kickoff=timezone.now(),
-            round="final",
-            status="scheduled",
-            goals_home=None,
-            goals_away=None,
-        )
-
-        # Create users with predictions
-        user_home = User.objects.create_user(
-            username="home_predictor",
-            password="test",
-            predicted_champion=team_home,
-        )
-        user_away = User.objects.create_user(
-            username="away_predictor",
-            password="test",
-            predicted_champion=team_away,
-        )
-
-        # Test 1: Final not started - no champion
-        champion = ScoringService.get_current_champion_team()
-        assert champion is None
-        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
-        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
-
-        # Test 2: Final live, home team leading
-        final.status = "live"
-        final.goals_home = 2
-        final.goals_away = 1
-        final.save()
-
-        champion = ScoringService.get_current_champion_team()
-        assert champion == team_home
-        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 20
-        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
-
-        # Test 3: Final live, away team leading
-        final.goals_home = 1
-        final.goals_away = 3
-        final.save()
-
-        champion = ScoringService.get_current_champion_team()
-        assert champion == team_away
-        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
-        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 30
-
-        # Test 4: Final live, draw - use is_champion flag
-        final.goals_home = 2
-        final.goals_away = 2
-        final.save()
-        team_away.is_champion = True
-        team_away.save()
-
-        champion = ScoringService.get_current_champion_team()
-        assert champion == team_away
-        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
-        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 30
-
-        # Test 5: Final finished
-        final.status = "finished"
-        final.goals_home = 1
-        final.goals_away = 0
-        final.save()
-        team_home.is_champion = True
-        team_home.save()
-        team_away.is_champion = False
-        team_away.save()
-
-        champion = ScoringService.get_current_champion_team()
-        assert champion == team_home
-        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 20
-        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
-
-

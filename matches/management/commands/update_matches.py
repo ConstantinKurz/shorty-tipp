@@ -71,7 +71,7 @@ class Command(BaseCommand):
 
                     # Check if final match finished
                     if result.match.status == "finished" and result.match.round == "final":
-                        champion_count = ScoringService.score_champion_predictions()
+                        champion_count = ScoringService.update_live_champion_bonuses()
                         if champion_count > 0:
                             champion_scored = True
                             logger.info("Awarded champion points to %d users", champion_count)

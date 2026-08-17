@@ -666,8 +666,8 @@ class TestLiveChampionBonusInLeaderboard:
         team_home.save()
         final.save()
 
-        # Award final champion bonus
-        ScoringService.score_champion_predictions()
+        # Update final champion bonus
+        ScoringService.update_live_champion_bonuses()
         user.refresh_from_db()
 
         # Should still have 70 points, champion_bonus_points unchanged

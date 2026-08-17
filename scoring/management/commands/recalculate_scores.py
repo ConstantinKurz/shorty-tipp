@@ -50,8 +50,8 @@ class Command(BaseCommand):
             total_scored += scored
             self.stdout.write(f"  {match}: {scored} predictions")
 
-        # Score champion predictions if applicable
-        champion_count = ScoringService.score_champion_predictions()
+        # Update champion bonuses if applicable
+        champion_count = ScoringService.update_live_champion_bonuses()
         if champion_count > 0:
             self.stdout.write(f"\nAwarded champion points to {champion_count} users")
 

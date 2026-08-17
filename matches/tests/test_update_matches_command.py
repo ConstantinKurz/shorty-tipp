@@ -174,12 +174,12 @@ class TestUpdateMatchesCommand:
             # Simulate final match finished
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
             MockScoring.score_all_predictions_for_match.return_value = 10
-            MockScoring.score_champion_predictions.return_value = 3
+            MockScoring.update_live_champion_bonuses.return_value = 3
 
             out = StringIO()
             call_command("update_matches", "--once", stdout=out)
 
-            MockScoring.score_champion_predictions.assert_called_once()
+            MockScoring.update_live_champion_bonuses.assert_called_once()
             output = out.getvalue()
             assert "Champion predictions scored" in output
 

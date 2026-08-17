@@ -57,7 +57,7 @@ class TestChampionPointsAwarded:
             predicted_champion=champion_team,
         )
 
-        count = ScoringService.score_champion_predictions()
+        count = ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert count == 1
@@ -73,7 +73,7 @@ class TestChampionPointsAwarded:
             predicted_champion=runner_up_team,
         )
 
-        count = ScoringService.score_champion_predictions()
+        count = ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert count == 0  # No users awarded
@@ -96,7 +96,7 @@ class TestChampionCategories:
             predicted_champion=champion_team,
         )
 
-        ScoringService.score_champion_predictions()
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert user.total_points == 20
@@ -130,7 +130,7 @@ class TestChampionCategories:
             predicted_champion=runner_up_team,
         )
 
-        ScoringService.score_champion_predictions()
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert user.total_points == 30
@@ -153,7 +153,7 @@ class TestChampionScoringTriggers:
             predicted_champion=team,
         )
 
-        count = ScoringService.score_champion_predictions()
+        count = ScoringService.update_live_champion_bonuses()
 
         assert count == 0
         user.refresh_from_db()
@@ -178,7 +178,7 @@ class TestChampionScoringTriggers:
             predicted_champion=champion_team,
         )
 
-        count = ScoringService.score_champion_predictions()
+        count = ScoringService.update_live_champion_bonuses()
 
         assert count == 0
 
@@ -199,7 +199,7 @@ class TestMultipleUsers:
             for i in range(3)
         ]
 
-        count = ScoringService.score_champion_predictions()
+        count = ScoringService.update_live_champion_bonuses()
 
         assert count == 3
         for user in users:
@@ -232,8 +232,8 @@ class TestChampionMatchPredictionSeparation:
             points_earned=18,  # Already scored
         )
 
-        # Score champion predictions
-        ScoringService.score_champion_predictions()
+        # Update champion bonuses
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         # Should add champion points (20) to existing points (50)
@@ -348,54 +348,12 @@ class TestDynamicChampionDetection:
         champion = ScoringService.get_current_champion_team()
         assert champion == team_home
 
-    def test_get_live_champion_bonus_returns_correct_points(self, db) -> None:
-        """Test get_live_champion_bonus_for_user calculates correct bonus."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
-        Match.objects.create(
-            team_home=team_home,
-            team_away=team_away,
-            kickoff=timezone.now(),
-            round="final",
-            status="live",
-            goals_home=2,
-            goals_away=1,
-        )
-
-        # User who predicted home team (category A = 20 points)
-        user_correct = User.objects.create_user(
-            username="correct_predictor",
-            password="test",
-            predicted_champion=team_home,
-        )
-
-        # User who predicted away team
-        user_wrong = User.objects.create_user(
-            username="wrong_predictor",
-            password="test",
-            predicted_champion=team_away,
-        )
-
-        # User with no champion prediction
-        user_no_prediction = User.objects.create_user(
-            username="no_predictor",
-            password="test",
-        )
-
-        assert ScoringService.get_live_champion_bonus_for_user(user_correct) == 20
-        assert ScoringService.get_live_champion_bonus_for_user(user_wrong) == 0
-        assert ScoringService.get_live_champion_bonus_for_user(user_no_prediction) == 0
-
 
 class TestChampionScoringIdempotency:
     """Test champion scoring is idempotent (can be called multiple times safely)."""
 
     def test_scoring_twice_same_as_scoring_once(self, db) -> None:
-        """Test calling score_champion_predictions() twice doesn't double-award points."""
+        """Test calling update_live_champion_bonuses() twice doesn't double-award points."""
         team_home = Team.objects.create(
             name="Germany", fifa_code="GER", odds_category="A", is_champion=True
         )
@@ -419,19 +377,19 @@ class TestChampionScoringIdempotency:
         )
 
         # First call - should award points
-        count1 = ScoringService.score_champion_predictions()
+        count1 = ScoringService.update_live_champion_bonuses()
         assert count1 == 1
 
         user.refresh_from_db()
         assert user.total_points == 20
         assert user.champion_bonus_points == 20
 
-        # Second call - should NOT award again
-        count2 = ScoringService.score_champion_predictions()
-        assert count2 == 0  # No users awarded (already have bonus)
+        # Second call - should recalculate and award same bonus
+        count2 = ScoringService.update_live_champion_bonuses()
+        assert count2 == 1  # User still awarded (bonuses are recalculated)
 
         user.refresh_from_db()
-        assert user.total_points == 20  # Still 20, not 40
+        assert user.total_points == 20  # Still 20, not 40 (reset then re-awarded)
         assert user.champion_bonus_points == 20  # Still 20, not 40
 
     def test_category_a_gets_20_points_tracked(self, db) -> None:
@@ -458,7 +416,7 @@ class TestChampionScoringIdempotency:
             predicted_champion=team,
         )
 
-        ScoringService.score_champion_predictions()
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert user.champion_bonus_points == 20
@@ -487,7 +445,7 @@ class TestChampionScoringIdempotency:
             predicted_champion=team,
         )
 
-        ScoringService.score_champion_predictions()
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert user.champion_bonus_points == 30
@@ -516,7 +474,7 @@ class TestChampionScoringIdempotency:
             predicted_champion=runner_up,
         )
 
-        ScoringService.score_champion_predictions()
+        ScoringService.update_live_champion_bonuses()
 
         user.refresh_from_db()
         assert user.total_points == 0
