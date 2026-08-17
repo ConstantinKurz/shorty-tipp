@@ -24,6 +24,7 @@ from matches.models import Match
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
+from core.ranking import apply_olympic_ranking, create_tiebreaker_from_keys
 
 if TYPE_CHECKING:
     from users.models import User
@@ -682,35 +683,12 @@ def build_match_predictions_list(
         )
 
     # Apply Olympic-style ranking based on sort criterion
-    current_rank = 1
-    prev_entry: dict[str, Any] | None = None
-    users_at_rank = 0
+    if sort_mode == "total":
+        tiebreaker = create_tiebreaker_from_keys("total_points", "exact_count", "jokers_count")
+    else:
+        tiebreaker = create_tiebreaker_from_keys("match_points", "exact_count", "jokers_count")
 
-    for entry in user_predictions:
-        if prev_entry is not None:
-            # Compare tiebreaker fields (same logic both modes, different primary key)
-            if sort_mode == "total":
-                same_rank = (
-                    entry["total_points"] == prev_entry["total_points"]
-                    and entry["exact_count"] == prev_entry["exact_count"]
-                    and entry["jokers_count"] == prev_entry["jokers_count"]
-                )
-            else:
-                same_rank = (
-                    entry["match_points"] == prev_entry["match_points"]
-                    and entry["exact_count"] == prev_entry["exact_count"]
-                    and entry["jokers_count"] == prev_entry["jokers_count"]
-                )
-            if not same_rank:
-                current_rank += users_at_rank
-                users_at_rank = 1
-            else:
-                users_at_rank += 1
-        else:
-            users_at_rank = 1
-
-        entry["rank"] = current_rank
-        prev_entry = entry
+    apply_olympic_ranking(user_predictions, tiebreaker)
 
     return user_predictions
 

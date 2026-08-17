@@ -22,15 +22,15 @@ Der Updater läuft dauerhaft in einer einfachen while-Schleife. Wenn keine laufe
 
 Deployen würdest du das zunächst auf Render oder Railway, später möglicherweise auf einem kleinen Hetzner-Cloud-Server mit Docker Compose. Die gesamte Architektur bleibt dabei einfach: Django für die Benutzerinteraktion, PostgreSQL für die Speicherung und ein separater Updater-Service für die Fußball-Daten. Kein Celery, kein Redis, kein Kubernetes und kein Scraping notwendig
 
-- hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird
-- feedback ob tipp gespeichert wurde
+- hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird 
+- feedback ob tipp gespeichert wurde done
 - predictions componenten verinheitlichen auf home und match predcitions
 - rule page stimmt noch nicht ganz:
 3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
 Stimmt das:
 🔒 Privacy Protection
 
-You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
+You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff! Done!
 - kann das ranking nicht zwischen predictions und ranking service geteilt werden.
 - Email mit leaderboard
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )

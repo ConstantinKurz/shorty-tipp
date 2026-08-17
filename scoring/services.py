@@ -16,6 +16,7 @@ from django.db.models import Count, Q, Sum
 from matches.constants import ROUND_ORDER
 from users.models import User as UserModel
 from scoring.models import LeaderboardSnapshot
+from core.ranking import apply_olympic_ranking
 
 if TYPE_CHECKING:
     from matches.models import Match, Team
@@ -551,31 +552,27 @@ class RankingService:
         if not users:
             return []
 
-        result = []
-        current_rank = 1
+        # Convert users to dicts
+        result = [
+            {
+                "user_id": user.pk,
+                "username": user.username,
+                "total_points": user.total_points,
+                "exact_match_count": user.exact_match_count,
+                "jokers_used": user.jokers_used,
+            }
+            for user in users
+        ]
 
-        for i, user in enumerate(users):
-            # Check if this user shares rank with previous
-            if i > 0:
-                prev = users[i - 1]
-                same_rank = (
-                    user.total_points == prev.total_points
-                    and user.exact_match_count == prev.exact_match_count
-                    and user.jokers_used == prev.jokers_used
-                )
-                if not same_rank:
-                    current_rank = i + 1  # Skip to actual position
-
-            result.append(
-                {
-                    "rank": current_rank,
-                    "user_id": user.pk,
-                    "username": user.username,
-                    "total_points": user.total_points,
-                    "exact_match_count": user.exact_match_count,
-                    "jokers_used": user.jokers_used,
-                }
+        # Apply Olympic-style ranking
+        def tiebreaker(a: dict, b: dict) -> bool:
+            return (
+                a["total_points"] == b["total_points"]
+                and a["exact_match_count"] == b["exact_match_count"]
+                and a["jokers_used"] == b["jokers_used"]
             )
+
+        apply_olympic_ranking(result, tiebreaker)
 
         return result
 
