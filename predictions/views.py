@@ -147,7 +147,7 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
         matches_data = []
         for match in matches:
             prediction = prediction_map.get(match.pk)
-            is_locked = match.kickoff <= now
+            is_locked = PredictionLimitService.is_match_locked(match, now)
             round_code = match.round
 
             # Joker info for this round
@@ -211,7 +211,7 @@ def _get_match_row_context(
         Context dict for the prediction_row.html template.
     """
     now = timezone.now()
-    is_locked = match.kickoff - timedelta(minutes=3) <= now
+    is_locked = PredictionLimitService.is_match_locked(match, now)
     round_code = match.round
 
     form = PredictionForm(instance=prediction)
@@ -247,7 +247,7 @@ def _get_match_predictions_form_context(
         Context dict for current_user_prediction_form.html template.
     """
     now = timezone.now()
-    is_locked = match.kickoff <= now
+    is_locked = PredictionLimitService.is_match_locked(match, now)
     round_code = match.round
 
     return {
@@ -291,7 +291,7 @@ class PredictionSaveView(LoginRequiredMixin, View):
         now = timezone.now()
 
         # Check locktime
-        if match.kickoff <= now:
+        if PredictionLimitService.is_match_locked(match, now):
             return render(
                 request,
                 "predictions/prediction_error.html",
@@ -376,7 +376,7 @@ class PredictionDeleteView(LoginRequiredMixin, View):
         now = timezone.now()
 
         # Check locktime
-        if match.kickoff <= now:
+        if PredictionLimitService.is_match_locked(match, now):
             return render(
                 request,
                 "predictions/prediction_error.html",
@@ -429,7 +429,7 @@ class PredictionJokerView(LoginRequiredMixin, View):
         now = timezone.now()
 
         # Check locktime
-        if match.kickoff <= now:
+        if PredictionLimitService.is_match_locked(match, now):
             return render(
                 request,
                 "predictions/prediction_error.html",
@@ -747,7 +747,7 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
 
         # Calculate is_locked for header partial
         now = timezone.now()
-        is_locked = match.kickoff <= now
+        is_locked = PredictionLimitService.is_match_locked(match, now)
 
         # Build version from match score for polling optimization
         current_version = f"{match.goals_home}:{match.goals_away}"
@@ -831,7 +831,7 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
 
         # Calculate is_locked for optimization and context
         now = timezone.now()
-        is_locked = match.kickoff <= now
+        is_locked = PredictionLimitService.is_match_locked(match, now)
 
         # Optimization: skip rendering if post-kickoff and version unchanged
         # Post-kickoff predictions are locked, so only score changes matter.

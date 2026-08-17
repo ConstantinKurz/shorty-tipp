@@ -158,3 +158,33 @@ class TestUserModel:
         assert User.objects.filter(username="argfan").exists()
         assert user.predicted_champion is None
 
+    def test_champion_bonus_points_default_value(self):
+        """Test champion_bonus_points defaults to 0."""
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="testuser_bonus",
+            email="test_bonus@example.com",
+            password="testpass123",
+        )
+
+        assert user.champion_bonus_points == 0
+
+    def test_champion_bonus_points_can_be_set_and_retrieved(self):
+        """Test champion_bonus_points can be set and retrieved."""
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="testuser_bonus2",
+            email="test_bonus2@example.com",
+            password="testpass123",
+        )
+        user.champion_bonus_points = 20
+        user.save()
+        user.refresh_from_db()
+
+        assert user.champion_bonus_points == 20
+
+

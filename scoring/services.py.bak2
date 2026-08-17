@@ -368,7 +368,7 @@ class ScoringService:
         return count
 
     @staticmethod
-    def get_current_champion_team() -> Team | None:
+    def get_current_champion_team() -> "Team | None":
         """
         Get the current champion team based on final match state.
 
@@ -439,57 +439,6 @@ class ScoringService:
 
     @staticmethod
     @transaction.atomic
-    def update_live_champion_bonuses() -> int:
-        """
-        Update champion bonuses for all users during the final.
-
-        This method:
-        1. Resets all champion_bonus_points to 0 and adjusts total_points
-        2. Calculates new bonuses based on current final state
-        3. Updates total_points and champion_bonus_points
-
-        Returns:
-            Number of users who received bonuses
-        """
-        from users.models import User as UserModel  # noqa: F811
-
-        # Get current champion (None if final not started or no clear leader)
-        current_champion = ScoringService.get_current_champion_team()
-        
-        # Calculate bonus points
-        champion_points = 0
-        if current_champion is not None:
-            champion_points = ScoringService.calculate_champion_points(current_champion)
-
-        # Reset all bonuses first
-        users_with_bonus = UserModel.objects.filter(
-            champion_bonus_points__gt=0
-        )
-        for user in users_with_bonus:
-            user.total_points -= user.champion_bonus_points
-            user.champion_bonus_points = 0
-            user.save(update_fields=["total_points", "champion_bonus_points"])
-
-        # If no champion or no points, we're done
-        if current_champion is None or champion_points == 0:
-            return 0
-
-        # Award bonuses to correct predictors
-        users_to_award = UserModel.objects.filter(
-            predicted_champion=current_champion
-        )
-
-        count = 0
-        for user in users_to_award:
-            user.total_points += champion_points
-            user.champion_bonus_points = champion_points
-            user.save(update_fields=["total_points", "champion_bonus_points"])
-            count += 1
-
-        return count
-
-    @staticmethod
-    @transaction.atomic
     def score_champion_predictions() -> int:
         """
         Score champion predictions after tournament ends.
@@ -497,8 +446,6 @@ class ScoringService:
         Only scores when:
         - A team has is_champion=True
         - The final match is finished
-        
-        Idempotent: Only awards points to users who don't already have champion_bonus_points.
 
         Returns:
             Number of users who received champion points
@@ -528,18 +475,17 @@ class ScoringService:
         if champion_points == 0:
             return 0
 
-        # Award points only to users who predicted correctly AND don't already have bonus
+        # Award points to users who predicted correctly
+        # Only award if not already awarded (check champion_bonus_points == 0)
         users_to_award = UserModel.objects.filter(
             predicted_champion=champion,
-            champion_bonus_points=0,  # Only award if not already awarded
+            champion_bonus_points=0,
         )
 
-        count = 0
-        for user in users_to_award:
-            user.total_points += champion_points
-            user.champion_bonus_points = champion_points
-            user.save(update_fields=["total_points", "champion_bonus_points"])
-            count += 1
+        count = users_to_award.update(
+            total_points=F("total_points") + champion_points,
+            champion_bonus_points=champion_points,
+        )
 
         return count
 
@@ -587,9 +533,6 @@ class RankingService:
             )
             if not users.exists():
                 return []
-
-            # No need to calculate live bonuses here - they're already in total_points
-            # Just return the sorted users
             return RankingService._calculate_rank_numbers(list(users))
 
         # For round-filtered view, calculate from match predictions

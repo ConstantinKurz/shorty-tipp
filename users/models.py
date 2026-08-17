@@ -58,6 +58,11 @@ class User(AbstractUser):
         help_text="Number of jokers used on scored predictions (second tiebreaker)"
     )
 
+    champion_bonus_points: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Champion prediction bonus points (20 for category A, 30 for category B). Updated live during final."
+    )
+
     theme_preference: models.CharField = models.CharField(
         max_length=10,
         choices=THEME_CHOICES,

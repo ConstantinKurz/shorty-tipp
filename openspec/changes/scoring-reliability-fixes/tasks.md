@@ -15,12 +15,12 @@ Enable leaderboard to show provisional champion bonus during live final.
 - Integrating with leaderboard view (separate task if needed)
 
 ### Acceptance Criteria
-- [ ] Method returns None when final not started
-- [ ] Method returns leading team when final is live and one team leads
-- [ ] Method returns team with `is_champion=True` when final is live and drawn
-- [ ] Method returns winning team when final is finished
-- [ ] `get_live_champion_bonus_for_user()` calculates correct bonus (20/30)
-- [ ] Has docstring explaining the logic
+- [x] Method returns None when final not started
+- [x] Method returns leading team when final is live and one team leads
+- [x] Method returns team with `is_champion=True` when final is live and drawn
+- [x] Method returns winning team when final is finished
+- [x] `get_live_champion_bonus_for_user()` calculates correct bonus (20/30)
+- [x] Has docstring explaining the logic
 
 ### Required Tests
 - Test returns None for scheduled final
@@ -47,11 +47,11 @@ Track champion prediction bonus points separately to enable idempotent scoring.
 - Changing scoring logic (separate task)
 
 ### Acceptance Criteria
-- [ ] `champion_bonus_points` field added to User model with default=0
-- [ ] Field has help_text explaining its purpose
-- [ ] Migration file created and tested
-- [ ] UserAdmin shows field in readonly_fields
-- [ ] UserAdmin fieldsets include the new field in Statistics section
+- [x] `champion_bonus_points` field added to User model with default=0
+- [x] Field has help_text explaining its purpose
+- [x] Migration file created and tested
+- [x] UserAdmin shows field in readonly_fields
+- [x] UserAdmin fieldsets include the new field in Statistics section
 
 ### Required Tests
 - Test field default value is 0
@@ -76,11 +76,11 @@ Prevent double-awarding of champion bonus points.
 - Changing point values
 
 ### Acceptance Criteria
-- [ ] Method filters users by `champion_bonus_points=0`
-- [ ] Method sets `champion_bonus_points` to awarded amount
-- [ ] Calling method twice has same result as once
-- [ ] Users without correct prediction not affected
-- [ ] Category A gets 20 points, Category B gets 30 points
+- [x] Method filters users by `champion_bonus_points=0`
+- [x] Method sets `champion_bonus_points` to awarded amount
+- [x] Calling method twice has same result as once
+- [x] Users without correct prediction not affected
+- [x] Category A gets 20 points, Category B gets 30 points
 
 ### Required Tests
 - Test first call awards points correctly
@@ -105,10 +105,10 @@ Ensure existing users with champion predictions have correct tracking.
 - Recalculating total_points (should already be correct)
 
 ### Acceptance Criteria
-- [ ] Migration/command identifies users with correct champion prediction
-- [ ] Sets champion_bonus_points to appropriate value (20 or 30)
-- [ ] Handles case where tournament not yet finished
-- [ ] Safe to run multiple times (idempotent)
+- [x] Migration/command identifies users with correct champion prediction
+- [x] Sets champion_bonus_points to appropriate value (20 or 30)
+- [x] Handles case where tournament not yet finished
+- [x] Safe to run multiple times (idempotent)
 
 ### Required Tests
 - Test backfill sets correct bonus amount
@@ -132,12 +132,12 @@ Centralize locktime check to ensure consistent 3-minute buffer everywhere.
 - Updating views to use this method (separate task)
 
 ### Acceptance Criteria
-- [ ] `LOCK_BUFFER_MINUTES` constant defined as 3
-- [ ] Method added to PredictionLimitService in `predictions/services.py`
-- [ ] Returns True when `reference_time >= kickoff - 3 minutes`
-- [ ] Returns False when `reference_time < kickoff - 3 minutes`
-- [ ] Uses `timezone.now()` when reference_time not provided
-- [ ] Has docstring explaining 3-minute buffer rule
+- [x] `LOCK_BUFFER_MINUTES` constant defined as 3
+- [x] Method added to PredictionLimitService in `predictions/services.py`
+- [x] Returns True when `reference_time >= kickoff - 3 minutes`
+- [x] Returns False when `reference_time < kickoff - 3 minutes`
+- [x] Uses `timezone.now()` when reference_time not provided
+- [x] Has docstring explaining 3-minute buffer rule
 
 ### Required Tests
 - Test returns True when 2 minutes before kickoff
@@ -164,11 +164,11 @@ Replace all hardcoded locktime checks with the centralized method.
 - Changing lock behavior (just centralizing with 3-minute buffer)
 
 ### Acceptance Criteria
-- [ ] All locktime checks in predictions/views.py use `PredictionLimitService.is_match_locked()`
-- [ ] No direct `match.kickoff <= now` comparisons remain
-- [ ] No `match.kickoff - timedelta(...)` comparisons remain
-- [ ] 3-minute buffer consistently applied everywhere
-- [ ] All existing view tests pass
+- [x] All locktime checks in predictions/views.py use `PredictionLimitService.is_match_locked()`
+- [x] No direct `match.kickoff <= now` comparisons remain
+- [x] No `match.kickoff - timedelta(...)` comparisons remain
+- [x] 3-minute buffer consistently applied everywhere
+- [x] All existing view tests pass
 
 ### Required Tests
 - Test PredictionListView shows correct lock state
@@ -189,10 +189,10 @@ Verify champion scoring and locktime work correctly end-to-end.
 - Test dynamic champion detection during live final
 
 ### Acceptance Criteria
-- [ ] Integration test: score champion twice → verify no double points
-- [ ] Integration test: locktime consistent between page load and HTMX
-- [ ] Integration test: live champion bonus shown correctly during final
-- [ ] All existing tests pass
+- [x] Integration test: score champion twice → verify no double points
+- [x] Integration test: locktime consistent between page load and HTMX
+- [x] Integration test: live champion bonus shown correctly during final
+- [x] All existing tests pass
 
 ### Required Tests
 - Champion scoring idempotency test

@@ -301,3 +301,104 @@ class TestCanAddGroupStagePrediction:
     def test_returns_true_with_no_predictions(self, regular_user):
         """Should return True when user has no predictions."""
         assert PredictionLimitService.can_add_group_stage_prediction(regular_user) is True
+
+
+class TestIsMatchLocked:
+    """Tests for is_match_locked method."""
+
+    def test_returns_true_when_2_minutes_before_kickoff(self, db):
+        """Test match is locked 2 minutes before kickoff."""
+        from datetime import datetime
+
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+
+        kickoff = timezone.make_aware(datetime(2026, 6, 15, 18, 0))
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            status="scheduled",
+        )
+
+        # 2 minutes before kickoff - should be locked
+        reference_time = timezone.make_aware(datetime(2026, 6, 15, 17, 58))
+        assert PredictionLimitService.is_match_locked(match, reference_time) is True
+
+    def test_returns_false_when_4_minutes_before_kickoff(self, db):
+        """Test match is not locked 4 minutes before kickoff."""
+        from datetime import datetime
+
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+
+        kickoff = timezone.make_aware(datetime(2026, 6, 15, 18, 0))
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            status="scheduled",
+        )
+
+        # 4 minutes before kickoff - should NOT be locked
+        reference_time = timezone.make_aware(datetime(2026, 6, 15, 17, 56))
+        assert PredictionLimitService.is_match_locked(match, reference_time) is False
+
+    def test_boundary_at_exactly_3_minutes(self, db):
+        """Test boundary condition at exactly 3 minutes before kickoff."""
+        from datetime import datetime
+
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+
+        kickoff = timezone.make_aware(datetime(2026, 6, 15, 18, 0))
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            status="scheduled",
+        )
+
+        # Exactly 3 minutes before kickoff - should be locked (>= lock_time)
+        reference_time = timezone.make_aware(datetime(2026, 6, 15, 17, 57))
+        assert PredictionLimitService.is_match_locked(match, reference_time) is True
+
+    def test_uses_timezone_now_when_reference_time_not_provided(self, db):
+        """Test method uses timezone.now() when reference_time is None."""
+        from datetime import datetime
+
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+
+        # Kickoff in the past
+        kickoff = timezone.make_aware(datetime(2020, 6, 15, 18, 0))
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            status="scheduled",
+        )
+
+        # Should be locked (kickoff was 6 years ago)
+        assert PredictionLimitService.is_match_locked(match) is True
+

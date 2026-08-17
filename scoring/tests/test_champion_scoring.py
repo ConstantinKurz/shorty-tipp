@@ -238,3 +238,288 @@ class TestChampionMatchPredictionSeparation:
         user.refresh_from_db()
         # Should add champion points (20) to existing points (50)
         assert user.total_points == 70
+
+
+class TestDynamicChampionDetection:
+    """Test live champion detection during final."""
+
+    def test_returns_none_for_scheduled_final(self, db) -> None:
+        """Test returns None when final hasn't started."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="scheduled",
+            goals_home=None,
+            goals_away=None,
+        )
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion is None
+
+    def test_returns_home_team_when_home_leads_live(self, db) -> None:
+        """Test returns home team when they're leading during live final."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_home
+
+    def test_returns_away_team_when_away_leads_live(self, db) -> None:
+        """Test returns away team when they're leading during live final."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=1,
+            goals_away=3,
+        )
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_away
+
+    def test_returns_is_champion_team_on_draw_live(self, db) -> None:
+        """Test returns is_champion team on draw during live final (penalty shootout)."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=True
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=2,
+        )
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_away
+
+    def test_returns_winning_team_after_finished_final(self, db) -> None:
+        """Test returns winning team when final is finished."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=0,
+        )
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_home
+
+    def test_get_live_champion_bonus_returns_correct_points(self, db) -> None:
+        """Test get_live_champion_bonus_for_user calculates correct bonus."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        # User who predicted home team (category A = 20 points)
+        user_correct = User.objects.create_user(
+            username="correct_predictor",
+            password="test",
+            predicted_champion=team_home,
+        )
+
+        # User who predicted away team
+        user_wrong = User.objects.create_user(
+            username="wrong_predictor",
+            password="test",
+            predicted_champion=team_away,
+        )
+
+        # User with no champion prediction
+        user_no_prediction = User.objects.create_user(
+            username="no_predictor",
+            password="test",
+        )
+
+        assert ScoringService.get_live_champion_bonus_for_user(user_correct) == 20
+        assert ScoringService.get_live_champion_bonus_for_user(user_wrong) == 0
+        assert ScoringService.get_live_champion_bonus_for_user(user_no_prediction) == 0
+
+
+class TestChampionScoringIdempotency:
+    """Test champion scoring is idempotent (can be called multiple times safely)."""
+
+    def test_scoring_twice_same_as_scoring_once(self, db) -> None:
+        """Test calling score_champion_predictions() twice doesn't double-award points."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=0,
+        )
+
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=team_home,
+        )
+
+        # First call - should award points
+        count1 = ScoringService.score_champion_predictions()
+        assert count1 == 1
+
+        user.refresh_from_db()
+        assert user.total_points == 20
+        assert user.champion_bonus_points == 20
+
+        # Second call - should NOT award again
+        count2 = ScoringService.score_champion_predictions()
+        assert count2 == 0  # No users awarded (already have bonus)
+
+        user.refresh_from_db()
+        assert user.total_points == 20  # Still 20, not 40
+        assert user.champion_bonus_points == 20  # Still 20, not 40
+
+    def test_category_a_gets_20_points_tracked(self, db) -> None:
+        """Test category A champion awards 20 points and tracks it."""
+        team = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+        )
+        other_team = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team,
+            team_away=other_team,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=0,
+        )
+
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=team,
+        )
+
+        ScoringService.score_champion_predictions()
+
+        user.refresh_from_db()
+        assert user.champion_bonus_points == 20
+
+    def test_category_b_gets_30_points_tracked(self, db) -> None:
+        """Test category B champion awards 30 points and tracks it."""
+        team = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=True
+        )
+        other_team = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        Match.objects.create(
+            team_home=team,
+            team_away=other_team,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=team,
+        )
+
+        ScoringService.score_champion_predictions()
+
+        user.refresh_from_db()
+        assert user.champion_bonus_points == 30
+
+    def test_wrong_prediction_gets_zero_bonus(self, db) -> None:
+        """Test users with wrong prediction don't get champion bonus."""
+        champion = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+        )
+        runner_up = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=champion,
+            team_away=runner_up,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=0,
+        )
+
+        user = User.objects.create_user(
+            username="wrong_predictor",
+            password="test",
+            predicted_champion=runner_up,
+        )
+
+        ScoringService.score_champion_predictions()
+
+        user.refresh_from_db()
+        assert user.total_points == 0
+        assert user.champion_bonus_points == 0
+
+

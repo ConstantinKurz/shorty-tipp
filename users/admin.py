@@ -16,6 +16,7 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
         "total_points",
         "exact_match_count",
         "jokers_used",
+        "champion_bonus_points",
         "is_staff",
         "is_active",
     ]
@@ -27,7 +28,7 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
     ]
     search_fields = ["username", "email", "first_name", "last_name"]
     ordering = ["-total_points", "-exact_match_count", "jokers_used", "username"]
-    readonly_fields = ["total_points", "exact_match_count", "jokers_used"]
+    readonly_fields = ["total_points", "exact_match_count", "jokers_used", "champion_bonus_points"]
 
     # Extend BaseUserAdmin fieldsets to include predictions and statistics
     fieldsets = BaseUserAdmin.fieldsets + (  # type: ignore[operator]
@@ -40,7 +41,7 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
         (
             "Statistics (read-only, calculated by scoring service)",
             {
-                "fields": ("total_points", "exact_match_count", "jokers_used"),
+                "fields": ("total_points", "exact_match_count", "jokers_used", "champion_bonus_points"),
             },
         ),
     )

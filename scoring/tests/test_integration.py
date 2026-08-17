@@ -487,3 +487,203 @@ class TestRoundBasedRankingFullFlow:
             # All leaderboards should have rank 1 for alice, rank 2 for bob
             assert leaderboard[0]["rank"] == 1
             assert leaderboard[1]["rank"] == 2
+
+
+class TestScoringReliabilityIntegration:
+    """Integration tests for scoring reliability fixes."""
+
+    def test_champion_scoring_idempotency_integration(self, db) -> None:
+        """Test champion scoring called multiple times doesn't double-award points."""
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+        from users.models import User
+
+        # Create champion team (category A = 20 points)
+        champion = Team.objects.create(
+            name="Germany",
+            fifa_code="GER",
+            odds_category="A",
+            is_champion=True,
+        )
+        runner_up = Team.objects.create(
+            name="Brazil",
+            fifa_code="BRA",
+            odds_category="B",
+        )
+
+        # Create finished final
+        Match.objects.create(
+            team_home=champion,
+            team_away=runner_up,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=0,
+        )
+
+        # Create user
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=champion,
+        )
+
+        # Score champion predictions multiple times
+        count1 = ScoringService.score_champion_predictions()
+        assert count1 == 1
+
+        count2 = ScoringService.score_champion_predictions()
+        assert count2 == 0  # No users awarded second time
+
+        count3 = ScoringService.score_champion_predictions()
+        assert count3 == 0  # Still no users awarded
+
+        # Verify user only got 20 points, not 60
+        user.refresh_from_db()
+        assert user.total_points == 20
+        assert user.champion_bonus_points == 20
+
+    def test_locktime_consistency_across_views(self, db) -> None:
+        """Test locktime is consistent between page load and HTMX updates."""
+        from datetime import datetime, timedelta
+
+        from django.test import Client
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+        from predictions.services import PredictionLimitService
+        from users.models import User
+
+        # Create user
+        user = User.objects.create_user(
+            username="testuser",
+            password="testpass",
+        )
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+
+        # Create match with kickoff in 5 minutes
+        kickoff = timezone.now() + timedelta(minutes=5)
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            status="scheduled",
+        )
+
+        # Test 4 minutes before kickoff - should NOT be locked
+        reference_time_unlocked = kickoff - timedelta(minutes=4)
+        assert PredictionLimitService.is_match_locked(match, reference_time_unlocked) is False
+
+        # Test 2 minutes before kickoff - should be locked
+        reference_time_locked = kickoff - timedelta(minutes=2)
+        assert PredictionLimitService.is_match_locked(match, reference_time_locked) is True
+
+        # Test exactly 3 minutes - should be locked (boundary)
+        reference_time_boundary = kickoff - timedelta(minutes=3)
+        assert PredictionLimitService.is_match_locked(match, reference_time_boundary) is True
+
+    def test_live_champion_detection_during_final(self, db) -> None:
+        """Test live champion bonus shown correctly during various final states."""
+        from django.utils import timezone
+
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+        from users.models import User
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=False
+        )
+
+        # Create final match
+        final = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="scheduled",
+            goals_home=None,
+            goals_away=None,
+        )
+
+        # Create users with predictions
+        user_home = User.objects.create_user(
+            username="home_predictor",
+            password="test",
+            predicted_champion=team_home,
+        )
+        user_away = User.objects.create_user(
+            username="away_predictor",
+            password="test",
+            predicted_champion=team_away,
+        )
+
+        # Test 1: Final not started - no champion
+        champion = ScoringService.get_current_champion_team()
+        assert champion is None
+        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
+        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
+
+        # Test 2: Final live, home team leading
+        final.status = "live"
+        final.goals_home = 2
+        final.goals_away = 1
+        final.save()
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_home
+        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 20
+        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
+
+        # Test 3: Final live, away team leading
+        final.goals_home = 1
+        final.goals_away = 3
+        final.save()
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_away
+        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
+        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 30
+
+        # Test 4: Final live, draw - use is_champion flag
+        final.goals_home = 2
+        final.goals_away = 2
+        final.save()
+        team_away.is_champion = True
+        team_away.save()
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_away
+        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 0
+        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 30
+
+        # Test 5: Final finished
+        final.status = "finished"
+        final.goals_home = 1
+        final.goals_away = 0
+        final.save()
+        team_home.is_champion = True
+        team_home.save()
+        team_away.is_champion = False
+        team_away.save()
+
+        champion = ScoringService.get_current_champion_team()
+        assert champion == team_home
+        assert ScoringService.get_live_champion_bonus_for_user(user_home) == 20
+        assert ScoringService.get_live_champion_bonus_for_user(user_away) == 0
+
+

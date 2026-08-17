@@ -492,3 +492,226 @@ class TestBackwardCompatibility:
         assert leaderboard[0]["username"] == "alice"
         assert leaderboard[0]["total_points"] == 100
 
+
+class TestLiveChampionBonusInLeaderboard:
+    """Test that live champion bonus is stored in total_points during final."""
+
+    def test_live_champion_bonus_stored_in_total_points(self, db):
+        """Test live bonus is added to total_points during final."""
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+
+        # Create live final with home team leading
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        # Create users with champion predictions
+        user_correct = User.objects.create_user(
+            username="correct_predictor",
+            password="test",
+            predicted_champion=team_home,
+            total_points=50,
+            champion_bonus_points=0,
+        )
+        user_wrong = User.objects.create_user(
+            username="wrong_predictor",
+            password="test",
+            predicted_champion=team_away,
+            total_points=60,
+            champion_bonus_points=0,
+        )
+
+        # Update live champion bonuses (normally called by Match.save())
+        count = ScoringService.update_live_champion_bonuses()
+        assert count == 1
+
+        # Refresh users from DB
+        user_correct.refresh_from_db()
+        user_wrong.refresh_from_db()
+
+        # Correct predictor should have 50 + 20 = 70 in total_points
+        assert user_correct.total_points == 70
+        assert user_correct.champion_bonus_points == 20
+        # Wrong predictor should still have 60
+        assert user_wrong.total_points == 60
+        assert user_wrong.champion_bonus_points == 0
+
+        # Get leaderboard - should reflect stored total_points
+        leaderboard = RankingService.get_current_leaderboard()
+        correct_entry = next(e for e in leaderboard if e["user_id"] == user_correct.pk)
+        wrong_entry = next(e for e in leaderboard if e["user_id"] == user_wrong.pk)
+
+        assert correct_entry["total_points"] == 70
+        assert wrong_entry["total_points"] == 60
+        assert correct_entry["rank"] < wrong_entry["rank"]
+
+    def test_live_bonus_updates_when_champion_changes(self, db):
+        """Test live bonus is recalculated when leading team changes."""
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+
+        # Create live final
+        final = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        # Create users
+        user_home = User.objects.create_user(
+            username="home_predictor",
+            password="test",
+            predicted_champion=team_home,
+            total_points=50,
+        )
+        user_away = User.objects.create_user(
+            username="away_predictor",
+            password="test",
+            predicted_champion=team_away,
+            total_points=50,
+        )
+
+        # Scenario 1: Home team leading
+        ScoringService.update_live_champion_bonuses()
+        user_home.refresh_from_db()
+        user_away.refresh_from_db()
+
+        assert user_home.total_points == 70  # 50 + 20
+        assert user_home.champion_bonus_points == 20
+        assert user_away.total_points == 50
+        assert user_away.champion_bonus_points == 0
+
+        # Scenario 2: Away team takes the lead
+        final.goals_home = 1
+        final.goals_away = 3
+        final.save()
+
+        ScoringService.update_live_champion_bonuses()
+        user_home.refresh_from_db()
+        user_away.refresh_from_db()
+
+        assert user_home.total_points == 50  # Bonus removed
+        assert user_home.champion_bonus_points == 0
+        assert user_away.total_points == 80  # 50 + 30
+        assert user_away.champion_bonus_points == 30
+
+    def test_live_bonus_removed_when_final_finished(self, db):
+        """Test live bonus is replaced with final bonus when final ends."""
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=False
+        )
+
+        # Create live final
+        final = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        # Create user
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=team_home,
+            total_points=50,
+        )
+
+        # Give user live bonus
+        ScoringService.update_live_champion_bonuses()
+        user.refresh_from_db()
+        assert user.total_points == 70
+        assert user.champion_bonus_points == 20
+
+        # Finish the final
+        final.status = "finished"
+        team_home.is_champion = True
+        team_home.save()
+        final.save()
+
+        # Award final champion bonus
+        ScoringService.score_champion_predictions()
+        user.refresh_from_db()
+
+        # Should still have 70 points, champion_bonus_points unchanged
+        assert user.total_points == 70
+        assert user.champion_bonus_points == 20
+
+    def test_no_live_bonus_when_final_not_started(self, db):
+        """Test no live bonus when final hasn't started."""
+        from matches.models import Match, Team
+        from scoring.services import ScoringService
+
+        # Create teams
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+
+        # Create scheduled final
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="scheduled",
+            goals_home=None,
+            goals_away=None,
+        )
+
+        # Create user
+        user = User.objects.create_user(
+            username="predictor",
+            password="test",
+            predicted_champion=team_home,
+            total_points=50,
+        )
+
+        # Try to update live bonuses
+        count = ScoringService.update_live_champion_bonuses()
+        assert count == 0
+
+        user.refresh_from_db()
+        assert user.total_points == 50
+        assert user.champion_bonus_points == 0
+
+
