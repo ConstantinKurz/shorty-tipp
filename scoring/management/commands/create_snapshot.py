@@ -7,7 +7,7 @@ for historical tracking and trend analysis.
 
 from django.core.management.base import BaseCommand, CommandError
 
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 
 
 class Command(BaseCommand):

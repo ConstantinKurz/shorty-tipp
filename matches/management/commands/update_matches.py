@@ -12,7 +12,6 @@ from django.utils import timezone
 
 from matches.models import Match
 from matches.services import sync_matches_from_api
-from scoring.services import ScoringService
 
 logger = logging.getLogger(__name__)
 
@@ -50,31 +49,17 @@ class Command(BaseCommand):
                 iteration_time = timezone.now()
                 
                 # Sync matches from API
+                # Note: sync_matches_from_api() calls match.save() which triggers
+                # the match_result_entered signal, automatically scoring predictions
+                # and updating champion bonuses via signal receivers
                 results = sync_matches_from_api()
 
-                # Process matches with goal changes
-                scored_count = 0
-                champion_scored = False
+                # Track matches with goal changes for logging
                 matches_with_changes = []
-
                 for result in results:
                     if result.goals_changed:
                         matches_with_changes.append(result.match)
-                        count = ScoringService.score_all_predictions_for_match(result.match)
-                        scored_count += count
-
-                        logger.info(
-                            "Scored %d predictions for match %s",
-                            count,
-                            result.match,
-                        )
-
-                    # Check if final match finished
-                    if result.match.status == "finished" and result.match.round == "final":
-                        champion_count = ScoringService.update_live_champion_bonuses()
-                        if champion_count > 0:
-                            champion_scored = True
-                            logger.info("Awarded champion points to %d users", champion_count)
+                        # Scoring happens automatically via signal - no manual call needed!
 
                 # Calculate adaptive sleep interval
                 interval = self._calculate_sleep_interval()
@@ -83,8 +68,7 @@ class Command(BaseCommand):
                 timestamp = iteration_time.strftime("%Y-%m-%d %H:%M:%S")
                 self.stdout.write(
                     f"[{timestamp}] Synced {len(results)} matches, "
-                    f"{len(matches_with_changes)} with goal changes, "
-                    f"scored {scored_count} predictions. "
+                    f"{len(matches_with_changes)} with goal changes. "
                     f"Next check in {interval}s."
                 )
                 
@@ -93,10 +77,11 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING("  Matches with goal changes:"))
                     for match in matches_with_changes:
                         self.stdout.write(f"    • {match}")
-
-                if champion_scored:
-                    self.stdout.write(self.style.SUCCESS("✓ Champion predictions scored!"))
-
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            "  ✓ Predictions scored automatically via signals"
+                        )
+                    )
                 # Exit if --once flag
                 if once:
                     self.stdout.write(self.style.SUCCESS("✓ Single iteration complete"))

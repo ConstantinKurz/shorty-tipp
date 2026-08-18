@@ -3,7 +3,7 @@
 import pytest
 
 from scoring.models import LeaderboardSnapshot
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 from users.models import User
 
 

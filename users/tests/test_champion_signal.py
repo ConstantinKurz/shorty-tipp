@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from matches.models import Team
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 from users.models import User
 
 

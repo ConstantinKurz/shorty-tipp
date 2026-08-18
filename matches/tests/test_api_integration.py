@@ -10,7 +10,7 @@ import pytest
 from matches.models import Match, Team
 from matches.services import sync_matches_from_api
 from predictions.models import MatchPrediction
-from scoring.services import ScoringService
+from scoring.match_scoring import ScoringService
 from users.models import User
 
 

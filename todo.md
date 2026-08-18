@@ -26,7 +26,12 @@ Done
 
 - hier nochmal einen prompt als senior engineer laufen lassen und schauen was so gefunden wird done
 - feedback ob tipp gespeichert wurde done
+- kann das ranking nicht zwischen predictions und ranking service geteilt werden. done olympisches ranking wird geteilt.
 - predictions componenten verinheitlichen auf home und match predcitions 
+
+
+
+==============================
 
 - rule page stimmt noch nicht ganz:
 3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
@@ -35,12 +40,9 @@ Stimmt das:
 
 You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
 
-
-- kann das ranking nicht zwischen predictions und ranking service geteilt werden.
 - Email mit leaderboard
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - css klassen
-- python klassen in eigenen dateien schreiben?
 - frontend aufeinander abstimmen?
 - "error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."
 - Forum

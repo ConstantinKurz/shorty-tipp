@@ -11,7 +11,7 @@ from django.utils.html import format_html
 
 from scoring.exports import csv_response
 from scoring.models import LeaderboardSnapshot
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 
 
 @admin.register(LeaderboardSnapshot)

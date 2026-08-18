@@ -13,7 +13,7 @@ from django.views.generic.edit import UpdateView
 
 from matches.constants import ROUND_ORDER, get_available_rounds
 from matches.models import Match, Team
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 from users.forms import UserSettingsForm
 from users.models import User
 

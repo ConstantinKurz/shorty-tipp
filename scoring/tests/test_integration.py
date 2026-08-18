@@ -5,7 +5,8 @@ from django.utils import timezone
 
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
-from scoring.services import RankingService, ScoringService
+from scoring.match_scoring import ScoringService
+from scoring.ranking_service import RankingService
 from users.models import User
 
 
@@ -497,7 +498,7 @@ class TestScoringReliabilityIntegration:
         from django.utils import timezone
 
         from matches.models import Match, Team
-        from scoring.services import ScoringService
+        from scoring.champion_scoring import update_live_champion_bonuses
         from users.models import User
 
         # Create champion team (category A = 20 points)
@@ -532,13 +533,13 @@ class TestScoringReliabilityIntegration:
         )
 
         # Update champion bonuses multiple times
-        count1 = ScoringService.update_live_champion_bonuses()
+        count1 = update_live_champion_bonuses()
         assert count1 == 1
 
-        count2 = ScoringService.update_live_champion_bonuses()
+        count2 = update_live_champion_bonuses()
         assert count2 == 1  # User still awarded (bonuses are recalculated)
 
-        count3 = ScoringService.update_live_champion_bonuses()
+        count3 = update_live_champion_bonuses()
         assert count3 == 1  # User still awarded (bonuses are recalculated)
 
         # Verify user only got 20 points, not 60 (reset and re-awarded each time)

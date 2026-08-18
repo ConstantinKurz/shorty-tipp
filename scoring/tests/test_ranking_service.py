@@ -3,7 +3,7 @@
 import pytest
 from django.utils import timezone
 
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 from users.models import User
 
 
@@ -499,7 +499,7 @@ class TestLiveChampionBonusInLeaderboard:
     def test_live_champion_bonus_stored_in_total_points(self, db):
         """Test live bonus is added to total_points during final."""
         from matches.models import Match, Team
-        from scoring.services import ScoringService
+        from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
         team_home = Team.objects.create(
@@ -537,7 +537,7 @@ class TestLiveChampionBonusInLeaderboard:
         )
 
         # Update live champion bonuses (normally called by Match.save())
-        count = ScoringService.update_live_champion_bonuses()
+        count = update_live_champion_bonuses()
         assert count == 1
 
         # Refresh users from DB
@@ -563,7 +563,7 @@ class TestLiveChampionBonusInLeaderboard:
     def test_live_bonus_updates_when_champion_changes(self, db):
         """Test live bonus is recalculated when leading team changes."""
         from matches.models import Match, Team
-        from scoring.services import ScoringService
+        from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
         team_home = Team.objects.create(
@@ -599,7 +599,7 @@ class TestLiveChampionBonusInLeaderboard:
         )
 
         # Scenario 1: Home team leading
-        ScoringService.update_live_champion_bonuses()
+        update_live_champion_bonuses()
         user_home.refresh_from_db()
         user_away.refresh_from_db()
 
@@ -613,7 +613,7 @@ class TestLiveChampionBonusInLeaderboard:
         final.goals_away = 3
         final.save()
 
-        ScoringService.update_live_champion_bonuses()
+        update_live_champion_bonuses()
         user_home.refresh_from_db()
         user_away.refresh_from_db()
 
@@ -625,7 +625,7 @@ class TestLiveChampionBonusInLeaderboard:
     def test_live_bonus_removed_when_final_finished(self, db):
         """Test live bonus is replaced with final bonus when final ends."""
         from matches.models import Match, Team
-        from scoring.services import ScoringService
+        from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
         team_home = Team.objects.create(
@@ -655,7 +655,7 @@ class TestLiveChampionBonusInLeaderboard:
         )
 
         # Give user live bonus
-        ScoringService.update_live_champion_bonuses()
+        update_live_champion_bonuses()
         user.refresh_from_db()
         assert user.total_points == 70
         assert user.champion_bonus_points == 20
@@ -667,7 +667,7 @@ class TestLiveChampionBonusInLeaderboard:
         final.save()
 
         # Update final champion bonus
-        ScoringService.update_live_champion_bonuses()
+        update_live_champion_bonuses()
         user.refresh_from_db()
 
         # Should still have 70 points, champion_bonus_points unchanged
@@ -677,7 +677,7 @@ class TestLiveChampionBonusInLeaderboard:
     def test_no_live_bonus_when_final_not_started(self, db):
         """Test no live bonus when final hasn't started."""
         from matches.models import Match, Team
-        from scoring.services import ScoringService
+        from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
         team_home = Team.objects.create(
@@ -707,7 +707,7 @@ class TestLiveChampionBonusInLeaderboard:
         )
 
         # Try to update live bonuses
-        count = ScoringService.update_live_champion_bonuses()
+        count = update_live_champion_bonuses()
         assert count == 0
 
         user.refresh_from_db()

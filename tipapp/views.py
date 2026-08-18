@@ -18,7 +18,7 @@ from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
 from predictions.views import get_polling_interval
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 from users.models import User
 
 

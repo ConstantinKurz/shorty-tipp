@@ -42,8 +42,7 @@ API_ROUND_MAP = {
     "FINAL": "final",
 }
 
-
-def sync_teams_from_api(competition: str = "WC") -> tuple[int, int]:
+def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
     """
     Sync teams from football-data.org API to database.
 
@@ -64,6 +63,7 @@ def sync_teams_from_api(competition: str = "WC") -> tuple[int, int]:
 
     created_count = 0
     updated_count = 0
+    unchanged_count = 0
 
     for team_data in teams_data:
         fifa_code = team_data.get("tla")
@@ -73,7 +73,7 @@ def sync_teams_from_api(competition: str = "WC") -> tuple[int, int]:
             logger.warning("Skipping team with missing tla or name: %s", team_data)
             continue
 
-        team, created = Team.objects.update_or_create(
+        team, created = Team.objects.get_or_create(
             fifa_code=fifa_code,
             defaults={"name": name},
         )
@@ -81,17 +81,35 @@ def sync_teams_from_api(competition: str = "WC") -> tuple[int, int]:
         if created:
             created_count += 1
             logger.info("Created team: %s (%s)", name, fifa_code)
-        else:
+            continue
+
+        changed_fields: list[str] = []
+
+        if team.name != name:
+            team.name = name
+            changed_fields.append("name")
+
+        if changed_fields:
+            team.save(update_fields=changed_fields)
             updated_count += 1
-            logger.debug("Updated team: %s (%s)", name, fifa_code)
+            logger.info(
+                "Updated team: %s (%s), changed fields: %s",
+                name,
+                fifa_code,
+                changed_fields,
+            )
+        else:
+            unchanged_count += 1
+            logger.debug("Team unchanged: %s (%s)", name, fifa_code)
 
     logger.info(
-        "Team sync complete: %d created, %d updated",
+        "Team sync complete: %d created, %d updated, %d unchanged",
         created_count,
         updated_count,
+        unchanged_count,
     )
 
-    return (created_count, updated_count)
+    return (created_count, updated_count, unchanged_count)
 
 
 def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
@@ -224,7 +242,7 @@ def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
             team_away.name,
         )
     else:
-        logger.debug(
+        logger.info(
             "Updated match %d: %s vs %s (goals changed: %s)",
             external_id,
             team_home.name,

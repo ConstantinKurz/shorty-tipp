@@ -535,7 +535,7 @@ class Command(BaseCommand):
         """Calculate scores for finished matches."""
         self.stdout.write("  Calculating scores...")
 
-        from scoring.services import ScoringService
+        from scoring.match_scoring import ScoringService
 
         finished_matches = Match.objects.filter(status="finished")
         scored_count = 0

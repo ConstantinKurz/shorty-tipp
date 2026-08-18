@@ -12,7 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 
 from scoring.exports import csv_response
-from scoring.services import RankingService
+from scoring.ranking_service import RankingService
 
 
 @method_decorator(staff_member_required, name="dispatch")

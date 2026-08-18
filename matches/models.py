@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from django.db import models
+from matches.signals import match_result_entered
 
 logger = logging.getLogger(__name__)
 
@@ -130,37 +131,32 @@ class Match(models.Model):
         """
         Save the match and trigger scoring if results are set.
 
-        When goals_home and goals_away are both set:
-        1. Scores all predictions for this match
-        2. If this is the final match, also scores champion predictions
+        When goals_home and goals_away are both set, sends the
+        match_result_entered signal to trigger scoring.
 
-        Scoring errors are logged but don't prevent the save.
+        Signal receivers handle:
+        1. Scoring all predictions for this match
+        2. Updating champion bonuses if this is the final match
         """
+        old_home = None
+        old_away = None
+
+        if self.pk:
+            old = Match.objects.get(pk=self.pk)
+            old_home = old.goals_home
+            old_away = old.goals_away
+
         super().save(*args, **kwargs)
 
-        # Trigger scoring if match has results
-        if self.goals_home is not None and self.goals_away is not None:
-            try:
-                from scoring.services import ScoringService
-
-                scored_count = ScoringService.score_all_predictions_for_match(self)
-                logger.info(
-                    "Scored %d predictions for match %s",
-                    scored_count,
-                    self,
-                )
-
-                # Handle champion predictions for final match
-                if self.round == "final":
-                        # Final is live - update live champion bonuses
-                        live_bonus_count = ScoringService.update_live_champion_bonuses()
-                        logger.info(
-                            "Updated live champion bonuses for %d users",
-                            live_bonus_count,
-                        )
-
-            except Exception:
-                logger.exception(
-                    "Error scoring predictions for match %s",
-                    self,
-                )
+        if (
+            self.goals_home is not None
+            and self.goals_away is not None
+            and (
+                old_home != self.goals_home
+                or old_away != self.goals_away
+            )
+        ):
+            match_result_entered.send(
+                sender=self.__class__,
+                match=self
+            )

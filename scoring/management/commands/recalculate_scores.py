@@ -10,7 +10,8 @@ from django.core.management.base import BaseCommand
 
 from matches.models import Match
 from predictions.models import MatchPrediction
-from scoring.services import ScoringService
+from scoring.match_scoring import ScoringService
+from scoring.champion_scoring import update_live_champion_bonuses
 from users.models import User
 
 
@@ -51,7 +52,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  {match}: {scored} predictions")
 
         # Update champion bonuses if applicable
-        champion_count = ScoringService.update_live_champion_bonuses()
+        champion_count = update_live_champion_bonuses()
         if champion_count > 0:
             self.stdout.write(f"\nAwarded champion points to {champion_count} users")
 

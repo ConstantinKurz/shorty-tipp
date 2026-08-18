@@ -51,6 +51,6 @@ def recalculate_ranking_on_champion_change(
 
     if original_champion_id != current_champion_id:
         # Import here to avoid circular imports
-        from scoring.services import RankingService
+        from scoring.ranking_service import RankingService
 
         RankingService.recalculate_user_score(instance)

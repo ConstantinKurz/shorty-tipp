@@ -5,7 +5,8 @@ from django.utils import timezone
 
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
-from scoring.services import ScoringService
+from scoring.champion_scoring import calculate_champion_points
+from scoring.match_scoring import ScoringService
 from users.models import User
 
 
@@ -322,7 +323,7 @@ class TestChampionPrediction:
         team_home.odds_category = "A"
         team_home.save()
 
-        points = ScoringService.calculate_champion_points(team_home)
+        points = calculate_champion_points(team_home)
         assert points == 20
 
     def test_champion_category_b_30_points(self, db, team_away: Team) -> None:
@@ -330,7 +331,7 @@ class TestChampionPrediction:
         team_away.odds_category = "B"
         team_away.save()
 
-        points = ScoringService.calculate_champion_points(team_away)
+        points = calculate_champion_points(team_away)
         assert points == 30
 
     def test_champion_no_category_0_points(self, db) -> None:
@@ -338,7 +339,7 @@ class TestChampionPrediction:
         team = Team.objects.create(
             name="Unknown", fifa_code="UNK", odds_category=None
         )
-        points = ScoringService.calculate_champion_points(team)
+        points = calculate_champion_points(team)
         assert points == 0
 
 

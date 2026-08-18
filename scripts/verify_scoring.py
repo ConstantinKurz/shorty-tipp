@@ -17,7 +17,8 @@ from matches.models import Match, Team
 from predictions.models import MatchPrediction
 from users.models import User
 from scoring.models import LeaderboardSnapshot
-from scoring.services import ScoringService, RankingService
+from scoring.match_scoring import ScoringService
+from scoring.ranking_service import RankingService
 
 print("=" * 60)
 print("SCORING & RANKING VERIFICATION SCRIPT")

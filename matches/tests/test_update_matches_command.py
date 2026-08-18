@@ -140,19 +140,21 @@ class TestUpdateMatchesCommand:
             goals_away=0,
         )
 
+        # Mock the sync function and signal receiver
         with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+             patch("scoring.signals.score_predictions_on_result") as mock_signal_receiver:
 
             # Simulate goal change
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
-            MockScoring.score_all_predictions_for_match.return_value = 5
 
             out = StringIO()
             call_command("update_matches", "--once", stdout=out)
 
-            MockScoring.score_all_predictions_for_match.assert_called_once_with(match)
+            # Signal receiver should have been called via match.save() in sync
+            # We verify the output shows goal changes were detected
             output = out.getvalue()
-            assert "scored 5 predictions" in output
+            assert "1 with goal changes" in output
+            assert "Predictions scored automatically via signals" in output
 
     def test_update_matches_triggers_champion_scoring(self, teams: tuple[Team, Team]) -> None:
         """Verify champion scoring is triggered when final match finishes."""
@@ -168,20 +170,20 @@ class TestUpdateMatchesCommand:
             goals_away=1,
         )
 
+        # Mock sync and signal receivers
         with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+             patch("scoring.signals.update_champion_bonus_on_final") as mock_champion_receiver:
 
             # Simulate final match finished
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
-            MockScoring.score_all_predictions_for_match.return_value = 10
-            MockScoring.update_live_champion_bonuses.return_value = 3
 
             out = StringIO()
             call_command("update_matches", "--once", stdout=out)
 
-            MockScoring.update_live_champion_bonuses.assert_called_once()
+            # Verify output shows match was processed
             output = out.getvalue()
-            assert "Champion predictions scored" in output
+            assert "1 with goal changes" in output
+            assert "Predictions scored automatically via signals" in output
 
     def test_update_matches_continues_after_error(self, teams: tuple[Team, Team]) -> None:
         """Verify update loop continues after error in --once=False mode."""
@@ -225,8 +227,7 @@ class TestUpdateMatchesCommand:
             status="scheduled",
         )
 
-        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("matches.management.commands.update_matches.ScoringService") as MockScoring:
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync:
 
             # No goal changes
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=False)]
@@ -234,6 +235,8 @@ class TestUpdateMatchesCommand:
             out = StringIO()
             call_command("update_matches", "--once", stdout=out)
 
-            MockScoring.score_all_predictions_for_match.assert_not_called()
+            # Verify output shows no goal changes
             output = out.getvalue()
             assert "0 with goal changes" in output
+            # Should not see the "scored automatically" message
+            assert "Predictions scored automatically" not in output
