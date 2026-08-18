@@ -26,7 +26,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api()
 
             assert created == 2
             assert updated == 0
@@ -47,7 +47,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api()
 
             assert created == 0
             assert updated == 1
@@ -68,7 +68,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api()
 
             assert created == 1
             assert updated == 0
