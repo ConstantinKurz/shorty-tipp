@@ -33,12 +33,9 @@ Done
 
 ==============================
 
-- rule page stimmt noch nicht ganz:
-3 min vor spiel kann man noch eingeben. icons stimmen nicht etc.
-Stimmt das:
-🔒 Privacy Protection
-
-You can only see other players' predictions after the match has started. This prevents copying predictions before kickoff!
+- ✅ rule page korrigiert:
+  - Locktime auf "3 Minuten vor Kickoff" geändert (war falsch: "before match starts")
+  - Privacy Protection entfernt (war falsch: predictions sind IMMER sichtbar)
 
 - Email mit leaderboard
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
