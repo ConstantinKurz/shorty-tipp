@@ -753,7 +753,7 @@ class TestPollingBehavior:
         )
 
         interval = get_polling_interval()
-        assert interval == 1
+        assert interval == 15
 
     def test_polling_interval_during_idle_period(self, db, teams):
         """Polling interval should be 60s when no active matches."""

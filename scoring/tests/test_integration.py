@@ -213,10 +213,6 @@ class TestChampionPredictionFlow:
         teams = tournament_setup["teams"]
         alice = tournament_setup["users"]["alice"]
 
-        # Set Germany as champion (category A = 20 pts)
-        teams["germany"].is_champion = True
-        teams["germany"].save()
-
         # Use update() to set predicted_champion and base points
         # This bypasses the champion change signal which would reset points
         User.objects.filter(pk=alice.pk).update(
@@ -506,7 +502,6 @@ class TestScoringReliabilityIntegration:
             name="Germany",
             fifa_code="GER",
             odds_category="A",
-            is_champion=True,
         )
         runner_up = Team.objects.create(
             name="Brazil",

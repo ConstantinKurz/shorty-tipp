@@ -27,10 +27,6 @@ class Team(models.Model):
         default=0,
         help_text="Championship points"
     )
-    is_champion: models.BooleanField = models.BooleanField(
-        default=False,
-        help_text="Whether this team won the tournament"
-    )
     odds_category: models.CharField = models.CharField(
         max_length=1,
         choices=ODDS_CATEGORY_CHOICES,

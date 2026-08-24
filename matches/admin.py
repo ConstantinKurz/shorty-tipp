@@ -7,9 +7,9 @@ from matches.models import Match, Team
 class TeamAdmin(admin.ModelAdmin):
     """Admin interface for Team model."""
 
-    list_display = ['name', 'fifa_code', 'odds_category', 'points', 'is_champion']
+    list_display = ['name', 'fifa_code', 'odds_category', 'points']
     list_display_links = ['name']
-    list_filter = ['is_champion', 'odds_category']
+    list_filter = ['odds_category']
     search_fields = ['name', 'fifa_code']
     ordering = ['name']
     list_editable = ['odds_category']

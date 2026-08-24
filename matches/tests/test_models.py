@@ -20,7 +20,6 @@ class TestTeamModel:
         assert team.name == "Germany"
         assert team.fifa_code == "GER"
         assert team.points == 0
-        assert team.is_champion is False
 
     def test_team_str_returns_name(self):
         """Test __str__ returns team name."""
@@ -70,29 +69,6 @@ class TestTeamModel:
         """Test team can have negative points."""
         team = Team.objects.create(name="Italy", fifa_code="ITA", points=-10)
         assert team.points == -10
-
-    def test_default_is_champion_false(self):
-        """Test team creation with default is_champion=False."""
-        team = Team.objects.create(name="England", fifa_code="ENG")
-        assert team.is_champion is False
-
-    def test_mark_team_as_champion(self):
-        """Test marking a team as champion."""
-        team = Team.objects.create(name="Portugal", fifa_code="POR")
-        team.is_champion = True
-        team.save()
-        team.refresh_from_db()
-        assert team.is_champion is True
-
-    def test_filter_champion_teams(self):
-        """Test filtering champion teams."""
-        Team.objects.create(name="Netherlands", fifa_code="NED", is_champion=False)
-        champion = Team.objects.create(name="Belgium", fifa_code="BEL", is_champion=True)
-        Team.objects.create(name="Croatia", fifa_code="CRO", is_champion=False)
-
-        champions = list(Team.objects.filter(is_champion=True))
-        assert len(champions) == 1
-        assert champions[0] == champion
 
 
 @pytest.mark.django_db

@@ -208,8 +208,7 @@ class TestFinalMatchChampionScoring:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Test champion predictions are scored when final match saved."""
-        # Make home team the champion
-        team_home.is_champion = True
+        # Set odds category for champion points calculation
         team_home.odds_category = "A"
         team_home.save()
 

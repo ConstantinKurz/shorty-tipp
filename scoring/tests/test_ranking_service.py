@@ -629,10 +629,10 @@ class TestLiveChampionBonusInLeaderboard:
 
         # Create teams
         team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=False
+            name="Brazil", fifa_code="BRA", odds_category="B"
         )
 
         # Create live final
@@ -662,8 +662,6 @@ class TestLiveChampionBonusInLeaderboard:
 
         # Finish the final
         final.status = "finished"
-        team_home.is_champion = True
-        team_home.save()
         final.save()
 
         # Update final champion bonus

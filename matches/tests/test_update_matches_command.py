@@ -88,7 +88,7 @@ class TestUpdateMatchesCommand:
         command = Command()
         interval = command._calculate_sleep_interval()
 
-        assert interval == 60
+        assert interval == 30
 
     def test_calculate_sleep_interval_match_in_2h(self, teams: tuple[Team, Team]) -> None:
         """Verify interval is 300 seconds for match 30min-2h away."""

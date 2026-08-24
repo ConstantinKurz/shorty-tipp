@@ -7,21 +7,31 @@ def backfill_champion_bonus_points(apps, schema_editor):
     """
     Backfill champion_bonus_points for users who already received the bonus.
     
+    OBSOLETE: This migration is obsolete as Team.is_champion field has been removed.
+    The migration is kept for historical database compatibility but does nothing
+    if the field doesn't exist.
+    
     Logic:
     - Find users who predicted the champion team (is_champion=True)
     - Calculate what their bonus should be based on team's odds_category
     - Set champion_bonus_points to that value
     - Safe to run multiple times (only updates users with champion_bonus_points=0)
     """
+    from django.core.exceptions import FieldError
+    
     User = apps.get_model("users", "User")
     Team = apps.get_model("matches", "Team")
     Match = apps.get_model("matches", "Match")
     
     # Find the champion team
+    # Note: is_champion field may not exist if this migration runs after field removal
     try:
         champion = Team.objects.get(is_champion=True)
     except (Team.DoesNotExist, Team.MultipleObjectsReturned):
         # No champion set yet, or data integrity issue - skip backfill
+        return
+    except FieldError:
+        # Field doesn't exist (removed in later migration) - skip backfill
         return
     
     # Check if final is finished

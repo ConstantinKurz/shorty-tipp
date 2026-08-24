@@ -17,7 +17,7 @@ def teams(db) -> dict[str, Team]:
             name="Germany", fifa_code="GER", odds_category="A"
         ),
         "brazil": Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=True
+            name="Brazil", fifa_code="BRA", odds_category="B"
         ),
     }
 
@@ -119,7 +119,7 @@ class TestChampionRecalculationIntegration:
         """
         user = user_without_champion
 
-        # Set champion to the actual champion team (brazil is_champion=True)
+        # Set champion prediction to brazil
         user.predicted_champion = teams["brazil"]
         user.save()
 

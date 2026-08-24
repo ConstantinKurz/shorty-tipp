@@ -43,9 +43,9 @@ def get_current_champion_team() -> Team | None:
     Logic:
     - Final not started: None
     - Final live & one team leading: leading team is provisional champion
-    - Final live & draw: team with is_champion=True (set by admin for penalty winner)
+    - Final live & draw: team indicated by Match.winner field (penalty shootout winner)
     - Final finished & one team won: winning team
-    - Final finished & draw: team with is_champion=True
+    - Final finished & draw: team indicated by Match.winner field
 
     Returns:
         Team instance or None if no champion can be determined

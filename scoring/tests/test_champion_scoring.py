@@ -20,7 +20,6 @@ def champion_team(db) -> Team:
         name="Germany",
         fifa_code="GER",
         odds_category="A",
-        is_champion=True,
     )
 
 
@@ -31,7 +30,6 @@ def runner_up_team(db) -> Team:
         name="Brazil",
         fifa_code="BRA",
         odds_category="B",
-        is_champion=False,
     )
 
 
@@ -110,15 +108,14 @@ class TestChampionCategories:
         self, db, runner_up_team: Team
     ) -> None:
         """Test category B champion awards 30 points."""
-        # Make runner_up the champion
-        runner_up_team.is_champion = True
+        # Set odds category for champion
         runner_up_team.odds_category = "B"
         runner_up_team.save()
 
         # Create a team for home (doesn't matter who)
         home_team = Team.objects.create(name="France", fifa_code="FRA")
 
-        # Create final match
+        # Create final match with runner_up winning
         Match.objects.create(
             team_home=home_team,
             team_away=runner_up_team,
@@ -145,11 +142,10 @@ class TestChampionScoringTriggers:
     """Test when champion scoring triggers."""
 
     def test_no_scoring_without_champion_set(self, db) -> None:
-        """Test no scoring when no team has is_champion=True."""
+        """Test no scoring when no final match exists."""
         team = Team.objects.create(
             name="Germany",
             fifa_code="GER",
-            is_champion=False,
         )
 
         user = User.objects.create_user(
@@ -336,7 +332,7 @@ class TestDynamicChampionDetection:
     def test_returns_winning_team_after_finished_final(self, db) -> None:
         """Test returns winning team when final is finished."""
         team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         team_away = Team.objects.create(
             name="Brazil", fifa_code="BRA", odds_category="B"
@@ -450,7 +446,7 @@ class TestChampionScoringIdempotency:
     def test_scoring_twice_same_as_scoring_once(self, db) -> None:
         """Test calling update_live_champion_bonuses() twice doesn't double-award points."""
         team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         team_away = Team.objects.create(
             name="Brazil", fifa_code="BRA", odds_category="B"
@@ -490,7 +486,7 @@ class TestChampionScoringIdempotency:
     def test_category_a_gets_20_points_tracked(self, db) -> None:
         """Test category A champion awards 20 points and tracks it."""
         team = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         other_team = Team.objects.create(
             name="Brazil", fifa_code="BRA", odds_category="B"
@@ -519,7 +515,7 @@ class TestChampionScoringIdempotency:
     def test_category_b_gets_30_points_tracked(self, db) -> None:
         """Test category B champion awards 30 points and tracks it."""
         team = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=True
+            name="Brazil", fifa_code="BRA", odds_category="B"
         )
         other_team = Team.objects.create(
             name="Germany", fifa_code="GER", odds_category="A"
@@ -548,7 +544,7 @@ class TestChampionScoringIdempotency:
     def test_wrong_prediction_gets_zero_bonus(self, db) -> None:
         """Test users with wrong prediction don't get champion bonus."""
         champion = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=True
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         runner_up = Team.objects.create(
             name="Brazil", fifa_code="BRA", odds_category="B"
