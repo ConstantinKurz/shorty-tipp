@@ -37,10 +37,15 @@ Done
   - Locktime auf "3 Minuten vor Kickoff" geändert (war falsch: "before match starts")
   - Privacy Protection entfernt (war falsch: predictions sind IMMER sichtbar)
 
+done
 - Email mit leaderboard
+done
 - chat gpt empfehlungen:
     - ich brauche kein is champion flag api gibt matchwinner wieder.
-- alles mal aufräumen
+
+- könnte ich nicht doch das globale ranking zentral berechnen und in user ranks speichern und einfach nur ordnen? anstelle in predictions/vioews.py und ranking_service?
+
+- alles mal aufräumen (views.py nutzt noch eigenes ranking warum?)
 - last test
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - css klassen

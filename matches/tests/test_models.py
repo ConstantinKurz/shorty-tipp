@@ -300,3 +300,58 @@ class TestMatchModel:
             external_id=None
         )
         assert match2.external_id is None
+
+    def test_match_winner_field_nullable(self, team_home, team_away):
+        """Test winner field can be null for scheduled matches."""
+        kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            winner=None
+        )
+        assert match.winner is None
+
+    def test_match_winner_choices_valid(self, team_home, team_away):
+        """Test all valid winner choice values."""
+        kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        
+        # Test home
+        match_home = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            winner="home",
+            goals_home=2,
+            goals_away=1,
+            status="finished"
+        )
+        assert match_home.winner == "home"
+
+        # Test away
+        match_away = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            winner="away",
+            goals_home=0,
+            goals_away=1,
+            status="finished"
+        )
+        assert match_away.winner == "away"
+
+        # Test draw
+        match_draw = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=kickoff,
+            round="group",
+            winner="draw",
+            goals_home=1,
+            goals_away=1,
+            status="finished"
+        )
+        assert match_draw.winner == "draw"

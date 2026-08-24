@@ -76,11 +76,13 @@ def get_current_champion_team() -> Team | None:
             # Away team is leading/won
             return final_match.team_away
         else:
-            # Draw - use is_champion flag (penalty shootout winner)
-            try:
-                return TeamModel.objects.get(is_champion=True)
-            except (TeamModel.DoesNotExist, TeamModel.MultipleObjectsReturned):
-                return None
+            # Draw - use winner field (penalty shootout winner)
+            if final_match.winner == "home":
+                return final_match.team_home
+            elif final_match.winner == "away":
+                return final_match.team_away
+            # No winner determined yet or draw remains
+            return None
 
     return None
 

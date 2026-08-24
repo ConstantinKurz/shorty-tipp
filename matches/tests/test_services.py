@@ -287,3 +287,108 @@ class TestSyncMatchesFromAPI:
 
             assert len(results) == 0  # Match skipped
             assert Match.objects.count() == 0
+
+    def test_sync_match_stores_winner_home_team(self, teams: tuple[Team, Team]) -> None:
+        """Verify sync stores winner='home' when API returns HOME_TEAM."""
+        mock_matches_data = [
+            {
+                "id": 1001,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "FINISHED",
+                "stage": "FINAL",
+                "score": {
+                    "winner": "HOME_TEAM",
+                    "fullTime": {"home": 2, "away": 1},
+                },
+            }
+        ]
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            results = sync_matches_from_api()
+
+            assert len(results) == 1
+            match = results[0].match
+            assert match.winner == "home"
+
+    def test_sync_match_stores_winner_away_team(self, teams: tuple[Team, Team]) -> None:
+        """Verify sync stores winner='away' when API returns AWAY_TEAM."""
+        mock_matches_data = [
+            {
+                "id": 1001,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "FINISHED",
+                "stage": "FINAL",
+                "score": {
+                    "winner": "AWAY_TEAM",
+                    "fullTime": {"home": 0, "away": 1},
+                },
+            }
+        ]
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            results = sync_matches_from_api()
+
+            assert len(results) == 1
+            match = results[0].match
+            assert match.winner == "away"
+
+    def test_sync_match_stores_winner_draw(self, teams: tuple[Team, Team]) -> None:
+        """Verify sync stores winner='draw' when API returns DRAW."""
+        mock_matches_data = [
+            {
+                "id": 1001,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "FINISHED",
+                "stage": "GROUP_STAGE",
+                "score": {
+                    "winner": "DRAW",
+                    "fullTime": {"home": 1, "away": 1},
+                },
+            }
+        ]
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            results = sync_matches_from_api()
+
+            assert len(results) == 1
+            match = results[0].match
+            assert match.winner == "draw"
+
+    def test_sync_match_winner_null_for_scheduled(self, teams: tuple[Team, Team]) -> None:
+        """Verify winner is None when match is scheduled (no winner field in API)."""
+        mock_matches_data = [
+            {
+                "id": 1001,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "SCHEDULED",
+                "stage": "GROUP_STAGE",
+                "score": {"fullTime": {"home": None, "away": None}},
+            }
+        ]
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            results = sync_matches_from_api()
+
+            assert len(results) == 1
+            match = results[0].match
+            assert match.winner is None

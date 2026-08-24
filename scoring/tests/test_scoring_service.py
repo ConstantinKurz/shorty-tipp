@@ -397,3 +397,34 @@ class TestScorePrediction:
 
         user.refresh_from_db()
         assert user.jokers_used == 1
+
+
+class TestRoundValidation:
+    """Test round code validation."""
+
+    def test_invalid_round_code_raises_error(self) -> None:
+        """Unknown round codes must raise ValueError, not silently default to 1."""
+        with pytest.raises(ValueError, match="Unknown round 'playoffs'"):
+            ScoringService._get_round_multiplier("playoffs")
+
+    def test_all_valid_round_codes_return_correct_multipliers(self) -> None:
+        """All valid round codes return correct multipliers."""
+        assert ScoringService._get_round_multiplier("group") == 1
+        assert ScoringService._get_round_multiplier("r32") == 2
+        assert ScoringService._get_round_multiplier("r16") == 2
+        assert ScoringService._get_round_multiplier("qf") == 3
+        assert ScoringService._get_round_multiplier("sf") == 3
+        assert ScoringService._get_round_multiplier("3rd") == 3
+        assert ScoringService._get_round_multiplier("final") == 3
+
+    def test_invalid_round_error_message_lists_valid_rounds(self) -> None:
+        """Error message for invalid round should list all valid rounds."""
+        with pytest.raises(ValueError) as exc_info:
+            ScoringService._get_round_multiplier("invalid")
+        
+        error_message = str(exc_info.value)
+        assert "Unknown round 'invalid'" in error_message
+        assert "Valid rounds:" in error_message
+        # Check that at least some valid rounds are mentioned
+        assert "group" in error_message
+        assert "final" in error_message

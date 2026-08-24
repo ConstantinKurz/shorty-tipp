@@ -74,6 +74,12 @@ class Match(models.Model):
         ('finished', 'Finished'),
     ]
 
+    WINNER_CHOICES = [
+        ('home', 'Home Team'),
+        ('away', 'Away Team'),
+        ('draw', 'Draw'),
+    ]
+
     external_id: models.IntegerField = models.IntegerField(
         unique=True,
         null=True,
@@ -108,6 +114,14 @@ class Match(models.Model):
         null=True,
         blank=True,
         help_text="Goals scored by away team"
+    )
+    winner: models.CharField = models.CharField(
+        max_length=10,
+        choices=WINNER_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Match winner from API (home/away/draw). For knockout matches with penalties, "
+                  "this shows the actual winner while goals_home/goals_away contain the score before penalties."
     )
     status: models.CharField = models.CharField(
         max_length=10,

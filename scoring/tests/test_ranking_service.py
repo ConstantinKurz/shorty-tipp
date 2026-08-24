@@ -715,3 +715,51 @@ class TestLiveChampionBonusInLeaderboard:
         assert user.champion_bonus_points == 0
 
 
+class TestRecalculateUserScore:
+    """Test recalculate_user_score preserves champion bonus."""
+
+    def test_recalculate_user_score_preserves_champion_bonus(self, db) -> None:
+        """recalculate_user_score() must preserve champion_bonus_points in total_points."""
+        from matches.models import Match, Team
+        from predictions.models import MatchPrediction
+
+        # Create a finished match
+        team_a = Team.objects.create(name="Team A", fifa_code="TEA")
+        team_b = Team.objects.create(name="Team B", fifa_code="TEB")
+        match = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="group",
+            kickoff=timezone.now(),
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        )
+
+        # Create user with champion bonus already awarded
+        user = User.objects.create_user(username="test", password="test")
+        user.champion_bonus_points = 20
+        user.total_points = 26  # 6 from match + 20 champion
+        user.save()
+
+        # Create a scored prediction worth 6 points
+        MatchPrediction.objects.create(
+            user=user,
+            match=match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,
+            is_exact_match=True,
+        )
+
+        # Recalculate user score
+        RankingService.recalculate_user_score(user)
+        user.refresh_from_db()
+
+        # total_points should be 6 (match) + 20 (champion bonus) = 26
+        assert user.total_points == 26, "Champion bonus must be preserved in total_points"
+        assert user.champion_bonus_points == 20
+        assert user.exact_match_count == 1
+        assert user.jokers_used == 0
+
+

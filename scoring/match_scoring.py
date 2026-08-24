@@ -42,6 +42,8 @@ class ScoringService:
         "3rd": 3,  # Third place
         "final": 3,  # Final
     }
+    
+    VALID_ROUNDS = frozenset(ROUND_MULTIPLIERS.keys())
 
     @staticmethod
     def _calculate_base_points(
@@ -187,8 +189,16 @@ class ScoringService:
 
         Returns:
             Multiplier value (1, 2, or 3)
+            
+        Raises:
+            ValueError: If match_round is not a valid round code
         """
-        return ScoringService.ROUND_MULTIPLIERS.get(match_round, 1)
+        if match_round not in ScoringService.VALID_ROUNDS:
+            raise ValueError(
+                f"Unknown round '{match_round}'. "
+                f"Valid rounds: {', '.join(sorted(ScoringService.VALID_ROUNDS))}"
+            )
+        return ScoringService.ROUND_MULTIPLIERS[match_round]
 
     @staticmethod
     def _apply_joker_multiplier(points: int, joker_active: bool) -> int:
@@ -268,7 +278,6 @@ class ScoringService:
         """
         # Lazy imports to avoid circular dependencies
         # TYPE_CHECKING imports above are only for type hints
-        from predictions.models import MatchPrediction as MatchPredictionModel
         from users.models import User as UserModel
 
         match = prediction.match
@@ -291,8 +300,6 @@ class ScoringService:
         joker_delta = (1 if prediction.joker_active else 0) - (1 if old_joker_counted else 0)
 
         # Use F() expressions for atomic updates
-        MatchPredictionModel.objects.filter(user=user).exists()  # Ensure user relationship
-
         UserModel.objects.filter(pk=user.pk).update(
             total_points=F("total_points") + points_delta,
             exact_match_count=F("exact_match_count") + exact_delta,

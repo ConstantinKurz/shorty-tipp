@@ -226,7 +226,7 @@ class RankingService:
 
         # Update user with recalculated values
         # Note: Champion bonus is handled separately by update_live_champion_bonuses
-        user.total_points = total_points
+        user.total_points = total_points + user.champion_bonus_points
         user.exact_match_count = exact_match_count
         user.jokers_used = jokers_used
         user.save(update_fields=["total_points", "exact_match_count", "jokers_used"])

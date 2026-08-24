@@ -42,6 +42,13 @@ API_ROUND_MAP = {
     "FINAL": "final",
 }
 
+# Winner mapping from API to Django
+API_WINNER_MAP = {
+    "HOME_TEAM": "home",
+    "AWAY_TEAM": "away",
+    "DRAW": "draw",
+}
+
 def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
     """
     Sync teams from football-data.org API to database.
@@ -204,17 +211,24 @@ def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
         logger.warning("Skipping match %d with invalid utcDate: %s", external_id, kickoff_str)
         return None
 
-    # Extract score
+    # Extract score - can be None for scheduled matches
     score = match_data.get("score", {})
     full_time = score.get("fullTime", {})
-    goals_home = full_time.get("home")
+    goals_home = full_time.get("home")  # None for scheduled, 0+ for finished/live
     goals_away = full_time.get("away")
 
+    # Extract winner - indicates match winner after penalties (if applicable)
+    winner_api = score.get("winner")
+    winner = API_WINNER_MAP.get(winner_api) if winner_api else None
+
     # Check for existing match and detect goal changes
+    # Only report goals_changed if both new values exist and differ
     try:
         existing_match = Match.objects.get(external_id=external_id)
         goals_changed = (
-            existing_match.goals_home != goals_home or existing_match.goals_away != goals_away
+            goals_home is not None
+            and goals_away is not None
+            and (existing_match.goals_home != goals_home or existing_match.goals_away != goals_away)
         )
     except Match.DoesNotExist:
         existing_match = None
@@ -231,6 +245,7 @@ def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
             "status": status,
             "goals_home": goals_home,
             "goals_away": goals_away,
+            "winner": winner,
         },
     )
 

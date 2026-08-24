@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import signal
 import time
+from datetime import timedelta
 from typing import Any
 
 from django.core.management.base import BaseCommand
@@ -14,6 +15,10 @@ from matches.models import Match
 from matches.services import sync_matches_from_api
 
 logger = logging.getLogger(__name__)
+
+# Active window for frequent polling
+ACTIVE_WINDOW_BEFORE = timedelta(minutes=30)
+ACTIVE_WINDOW_AFTER = timedelta(hours=3)
 
 
 class Command(BaseCommand):
@@ -120,11 +125,25 @@ class Command(BaseCommand):
         """
         now = timezone.now()
 
-        # Check for live matches - poll frequently
+        # Check for live matches - poll very frequently
         if Match.objects.filter(status="live").exists():
-            return 30  # 30 seconds
+            return 10  # 10 seconds for live matches
 
-        # Find next scheduled match
+        # Check for matches in active window (kickoff passed but not finished yet)
+        # This catches matches where kickoff has passed but API still reports "scheduled"
+        active_window_start = now - ACTIVE_WINDOW_AFTER
+        active_window_end = now + ACTIVE_WINDOW_BEFORE
+
+        has_active_window_match = Match.objects.filter(
+            kickoff__gte=active_window_start,
+            kickoff__lte=active_window_end,
+            status__in=["scheduled", "live"],
+        ).exists()
+
+        if has_active_window_match:
+            return 30  # Poll frequently during active window
+
+        # Find next upcoming match
         next_match = (
             Match.objects.filter(kickoff__gt=now, status="scheduled")
             .order_by("kickoff")

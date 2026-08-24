@@ -312,12 +312,12 @@ class TestDynamicChampionDetection:
         assert champion == team_away
 
     def test_returns_is_champion_team_on_draw_live(self, db) -> None:
-        """Test returns is_champion team on draw during live final (penalty shootout)."""
+        """Test returns winner team on draw during live final (penalty shootout)."""
         team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A", is_champion=False
+            name="Germany", fifa_code="GER", odds_category="A"
         )
         team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B", is_champion=True
+            name="Brazil", fifa_code="BRA", odds_category="B"
         )
         Match.objects.create(
             team_home=team_home,
@@ -327,6 +327,7 @@ class TestDynamicChampionDetection:
             status="live",
             goals_home=2,
             goals_away=2,
+            winner="away",  # Brazil wins on penalties
         )
 
         champion = get_current_champion_team()
@@ -352,6 +353,95 @@ class TestDynamicChampionDetection:
 
         champion = get_current_champion_team()
         assert champion == team_home
+
+    def test_champion_from_winner_home(self, db) -> None:
+        """Test returns home team when winner='home' (penalty shootout)."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=1,
+            winner="home",
+        )
+
+        champion = get_current_champion_team()
+        assert champion == team_home
+
+    def test_champion_from_winner_away(self, db) -> None:
+        """Test returns away team when winner='away' (penalty shootout)."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=1,
+            winner="away",
+        )
+
+        champion = get_current_champion_team()
+        assert champion == team_away
+
+    def test_champion_penalty_shootout_winner_correct(self, db) -> None:
+        """Test penalty shootout winner takes precedence over goals for draw."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        # Simulates final: 1-1 after extra time, Brazil wins on penalties
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="finished",
+            goals_home=1,
+            goals_away=1,
+            winner="away",  # Brazil won on penalties
+        )
+
+        champion = get_current_champion_team()
+        assert champion == team_away
+
+    def test_no_champion_if_final_not_finished(self, db) -> None:
+        """Test returns None if final is still scheduled with no winner."""
+        team_home = Team.objects.create(
+            name="Germany", fifa_code="GER", odds_category="A"
+        )
+        team_away = Team.objects.create(
+            name="Brazil", fifa_code="BRA", odds_category="B"
+        )
+        Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="scheduled",
+            goals_home=None,
+            goals_away=None,
+            winner=None,
+        )
+
+        champion = get_current_champion_team()
+        assert champion is None
 
 
 class TestChampionScoringIdempotency:

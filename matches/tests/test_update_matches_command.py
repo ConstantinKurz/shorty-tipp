@@ -49,7 +49,7 @@ class TestUpdateMatchesCommand:
             mock_sync.assert_called_once()
 
     def test_calculate_sleep_interval_live_match(self, teams: tuple[Team, Team]) -> None:
-        """Verify interval is 30 seconds when live match exists."""
+        """Verify interval is 10 seconds when live match exists."""
         team_home, team_away = teams
         Match.objects.create(
             external_id=1001,
@@ -63,7 +63,7 @@ class TestUpdateMatchesCommand:
         command = Command()
         interval = command._calculate_sleep_interval()
 
-        assert interval == 30
+        assert interval == 10
 
     def test_calculate_sleep_interval_no_matches(self) -> None:
         """Verify interval is 1800 seconds when no upcoming matches."""
@@ -240,3 +240,57 @@ class TestUpdateMatchesCommand:
             assert "0 with goal changes" in output
             # Should not see the "scored automatically" message
             assert "Predictions scored automatically" not in output
+
+    def test_active_window_match_after_kickoff_not_live(self, teams: tuple[Team, Team]) -> None:
+        """Match with kickoff passed but status still scheduled should trigger fast polling."""
+        team_home, team_away = teams
+        # Kickoff was 1 minute ago, status still "scheduled"
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() - timedelta(minutes=1),
+            round="group",
+            status="scheduled",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 30, "Should poll frequently during active window"
+
+    def test_active_window_excludes_finished_matches(self, teams: tuple[Team, Team]) -> None:
+        """Finished matches should not trigger active window polling."""
+        team_home, team_away = teams
+        # Match finished 1 hour ago
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() - timedelta(hours=1),
+            round="group",
+            status="finished",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 1800, "Finished matches should not trigger active window"
+
+    def test_active_window_before_kickoff(self, teams: tuple[Team, Team]) -> None:
+        """Match approaching kickoff (within 30 min) should trigger active window."""
+        team_home, team_away = teams
+        # Match starts in 15 minutes
+        Match.objects.create(
+            external_id=1001,
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now() + timedelta(minutes=15),
+            round="group",
+            status="scheduled",
+        )
+
+        command = Command()
+        interval = command._calculate_sleep_interval()
+
+        assert interval == 30, "Should poll frequently during active window before kickoff"

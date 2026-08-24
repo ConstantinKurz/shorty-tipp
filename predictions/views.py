@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from users.models import User
 
 # Polling configuration
-POLLING_INTERVAL_ACTIVE = 1  # seconds - during active matches
+POLLING_INTERVAL_ACTIVE = 15  # seconds - during active matches (balance between freshness and load)
 POLLING_INTERVAL_IDLE = 60  # seconds - no active matches
 MATCH_ACTIVE_WINDOW_MINUTES = 160  # kickoff + 160 min covers extra time + penalties
 
