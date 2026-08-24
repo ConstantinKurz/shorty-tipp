@@ -761,3 +761,231 @@ class TestRecalculateUserScore:
         assert user.jokers_used == 0
 
 
+class TestUpdateAllUserRanks:
+    """Tests for RankingService.update_all_user_ranks()."""
+
+    def test_update_all_user_ranks_basic(self, db):
+        """Ranks assigned correctly for users with different scores."""
+        # Create users with different scores
+        user1 = User.objects.create_user("alice", password="test")
+        user1.total_points = 100
+        user1.exact_match_count = 5
+        user1.jokers_used = 2
+        user1.save()
+
+        user2 = User.objects.create_user("bob", password="test")
+        user2.total_points = 80
+        user2.exact_match_count = 4
+        user2.jokers_used = 3
+        user2.save()
+
+        count = RankingService.update_all_user_ranks()
+
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+
+        assert count == 2
+        assert user1.global_rank == 1
+        assert user2.global_rank == 2
+
+    def test_update_all_user_ranks_olympic_ties(self, db):
+        """Users with identical tiebreakers share rank, next rank skips."""
+        user1 = User.objects.create_user("alice", password="test")
+        user1.total_points = 100
+        user1.exact_match_count = 5
+        user1.jokers_used = 2
+        user1.save()
+
+        user2 = User.objects.create_user("bob", password="test")
+        user2.total_points = 100  # Same
+        user2.exact_match_count = 5  # Same
+        user2.jokers_used = 2  # Same
+        user2.save()
+
+        user3 = User.objects.create_user("carol", password="test")
+        user3.total_points = 80
+        user3.exact_match_count = 4
+        user3.jokers_used = 3
+        user3.save()
+
+        RankingService.update_all_user_ranks()
+
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+        user3.refresh_from_db()
+
+        assert user1.global_rank == 1
+        assert user2.global_rank == 1  # Tied
+        assert user3.global_rank == 3  # Skips 2
+
+    def test_update_all_user_ranks_empty_users(self, db):
+        """Handles no active users gracefully."""
+        count = RankingService.update_all_user_ranks()
+        assert count == 0
+
+    def test_update_all_user_ranks_excludes_inactive(self, db):
+        """Inactive users are not ranked."""
+        active_user = User.objects.create_user("active", password="test")
+        active_user.total_points = 100
+        active_user.save()
+
+        inactive_user = User.objects.create_user("inactive", password="test")
+        inactive_user.total_points = 200
+        inactive_user.is_active = False
+        inactive_user.save()
+
+        count = RankingService.update_all_user_ranks()
+
+        active_user.refresh_from_db()
+        inactive_user.refresh_from_db()
+
+        assert count == 1
+        assert active_user.global_rank == 1
+        assert inactive_user.global_rank is None
+
+
+class TestRankUpdateSignal:
+    """Tests for rank updates via match result signal."""
+
+    def test_ranks_update_after_match_result(self, db):
+        """Global ranks update after match result is entered."""
+        from matches.models import Match, Team
+        from matches.signals import match_result_entered
+        from predictions.models import MatchPrediction
+
+        # Create teams
+        team_a = Team.objects.create(name="Team A", fifa_code="TEA")
+        team_b = Team.objects.create(name="Team B", fifa_code="TEB")
+
+        # Create match
+        match = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="group",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        # Create users with predictions
+        user1 = User.objects.create_user("alice", password="test")
+        user2 = User.objects.create_user("bob", password="test")
+
+        MatchPrediction.objects.create(
+            user=user1,
+            match=match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
+        MatchPrediction.objects.create(
+            user=user2,
+            match=match,
+            predicted_goals_home=1,
+            predicted_goals_away=2,
+        )
+
+        # Verify ranks are None initially
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+        assert user1.global_rank is None
+        assert user2.global_rank is None
+
+        # Enter match result (triggers signal)
+        match.goals_home = 2
+        match.goals_away = 1
+        match.status = "finished"
+        match.save()
+
+        # Manually trigger signal (to avoid relying on model save)
+        match_result_entered.send(sender=match.__class__, match=match)
+
+        # Verify ranks are now set
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+        assert user1.global_rank is not None
+        assert user2.global_rank is not None
+
+    def test_ranks_correct_after_multiple_match_results(self, db):
+        """Global ranks update correctly after multiple match results."""
+        from matches.models import Match, Team
+        from matches.signals import match_result_entered
+        from predictions.models import MatchPrediction
+
+        # Create teams
+        team_a = Team.objects.create(name="Team A", fifa_code="TEA")
+        team_b = Team.objects.create(name="Team B", fifa_code="TEB")
+
+        # Create two matches
+        match1 = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            round="group",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+        match2 = Match.objects.create(
+            team_home=team_b,
+            team_away=team_a,
+            round="group",
+            kickoff=timezone.now(),
+            status="scheduled",
+        )
+
+        # Create users with predictions
+        user1 = User.objects.create_user("alice", password="test")
+        user2 = User.objects.create_user("bob", password="test")
+
+        # Alice predicts both matches correctly
+        MatchPrediction.objects.create(
+            user=user1,
+            match=match1,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
+        MatchPrediction.objects.create(
+            user=user1,
+            match=match2,
+            predicted_goals_home=1,
+            predicted_goals_away=2,
+        )
+
+        # Bob predicts both matches incorrectly
+        MatchPrediction.objects.create(
+            user=user2,
+            match=match1,
+            predicted_goals_home=0,
+            predicted_goals_away=0,
+        )
+        MatchPrediction.objects.create(
+            user=user2,
+            match=match2,
+            predicted_goals_home=0,
+            predicted_goals_away=0,
+        )
+
+        # Enter first match result
+        match1.goals_home = 2
+        match1.goals_away = 1
+        match1.status = "finished"
+        match1.save()
+        match_result_entered.send(sender=match1.__class__, match=match1)
+
+        # Verify ranks after first match
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+        assert user1.global_rank == 1  # Alice should be first
+        assert user2.global_rank == 2  # Bob should be second
+
+        # Enter second match result
+        match2.goals_home = 1
+        match2.goals_away = 2
+        match2.status = "finished"
+        match2.save()
+        match_result_entered.send(sender=match2.__class__, match=match2)
+
+        # Verify ranks after second match
+        user1.refresh_from_db()
+        user2.refresh_from_db()
+        assert user1.global_rank == 1  # Alice should still be first (more points)
+        assert user2.global_rank == 2  # Bob should still be second
+
+

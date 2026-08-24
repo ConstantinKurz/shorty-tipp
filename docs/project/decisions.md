@@ -51,3 +51,37 @@ This document tracks major architectural and design decisions made during the de
 - `matches/signals.py`
 - `matches/models.py` (Match.save())
 - `scoring/apps.py` (signal registration)
+
+## 2026-08-24: Global Rank Caching
+
+**Context**: Every leaderboard request was computing Olympic-style ranking via Python loop. With HTMX-heavy UI and concurrent users, this caused redundant calculations. During live matches with ~50 concurrent users, identical rank calculations were performed repeatedly for every leaderboard view.
+
+**Decision**: Store computed `global_rank` on User model, updated via signal after match scoring.
+
+**Implementation**:
+- Added `global_rank` IntegerField to User model with database index
+- Created `RankingService.update_all_user_ranks()` for bulk rank calculation
+- Signal receiver calls `update_all_user_ranks()` after match scoring
+- `get_current_leaderboard()` uses stored ranks when available, falls back to dynamic calculation
+- Created `seed_global_ranks` management command for initial population and recovery
+
+**Consequences**:
+
+*Positive*:
+- Leaderboard queries simplified to `ORDER BY global_rank`
+- Single-column index scan vs. multi-column sort + Python loop
+- Rank computed once per match result, read many times
+- Atomic updates ensure consistency
+- Backward compatible - fallback to dynamic calculation if ranks not populated
+
+*Negative*:
+- Ranks must be re-seeded if data is manually modified
+- Additional field on User model
+- Round-filtered rankings remain dynamic (acceptable trade-off)
+
+*Mitigation*:
+- Management command available for re-seeding
+- Signal-based updates ensure ranks stay current
+- Round-filtered views continue working as before
+
+**Status**: Implemented

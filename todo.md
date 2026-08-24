@@ -42,10 +42,14 @@ done
 done
 - chat gpt empfehlungen:
     - ich brauche kein is champion flag api gibt matchwinner wieder.
+done
 
 - könnte ich nicht doch das globale ranking zentral berechnen und in user ranks speichern und einfach nur ordnen? anstelle in predictions/vioews.py und ranking_service?
+Bei ~100 Usern und ~64 Matches: Kein echter Performance-Gewinn, mehr Code, mehr Bugs.
 
-- alles mal aufräumen (views.py nutzt noch eigenes ranking warum?)
+
+
+- alles mal aufräumen (from import noch in funktionen. viele klassen in einer datei.)
 - last test
 - Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - css klassen

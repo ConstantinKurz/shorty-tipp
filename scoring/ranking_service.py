@@ -113,8 +113,8 @@ class RankingService:
         """
         Generate the current leaderboard with rankings.
 
-        This is a convenience wrapper around get_leaderboard_up_to_round(None)
-        for backward compatibility.
+        Uses stored global_rank for efficiency. Falls back to dynamic
+        calculation if ranks are not populated.
 
         Returns:
             List of dicts with: rank, user_id, username, total_points,
@@ -128,6 +128,32 @@ class RankingService:
                 {"rank": 4, "user_id": 1, "username": "dave", "total_points": 90, ...},
             ]
         """
+        # Check if ranks are populated
+        has_ranks = UserModel.objects.filter(
+            is_active=True,
+            global_rank__isnull=False
+        ).exists()
+        
+        if has_ranks:
+            # Use stored ranks
+            users = UserModel.objects.filter(
+                is_active=True,
+                global_rank__isnull=False
+            ).order_by("global_rank")
+            
+            return [
+                {
+                    "rank": user.global_rank,
+                    "user_id": user.pk,
+                    "username": user.username,
+                    "total_points": user.total_points,
+                    "exact_match_count": user.exact_match_count,
+                    "jokers_used": user.jokers_used,
+                }
+                for user in users
+            ]
+        
+        # Fallback: Calculate dynamically
         return RankingService.get_leaderboard_up_to_round(round_code=None)
 
     @staticmethod
@@ -230,3 +256,55 @@ class RankingService:
         user.exact_match_count = exact_match_count
         user.jokers_used = jokers_used
         user.save(update_fields=["total_points", "exact_match_count", "jokers_used"])
+
+    @staticmethod
+    @transaction.atomic
+    def update_all_user_ranks() -> int:
+        """
+        Calculate Olympic-style ranking and persist to User.global_rank.
+        
+        Uses the same tiebreaker logic as get_current_leaderboard():
+        1. Total points (higher is better)
+        2. Exact match count (higher is better)
+        3. Jokers used (fewer is better)
+        
+        Returns:
+            Number of users updated
+        """
+        # Get all active users sorted by ranking criteria
+        users = list(
+            UserModel.objects.filter(is_active=True)
+            .select_for_update()
+            .order_by("-total_points", "-exact_match_count", "jokers_used")
+        )
+        
+        if not users:
+            return 0
+        
+        # Apply Olympic ranking
+        current_rank = 1
+        users_at_rank = 0
+        prev_user = None
+        
+        for user in users:
+            if prev_user is not None:
+                same_rank = (
+                    user.total_points == prev_user.total_points
+                    and user.exact_match_count == prev_user.exact_match_count
+                    and user.jokers_used == prev_user.jokers_used
+                )
+                if not same_rank:
+                    current_rank += users_at_rank
+                    users_at_rank = 1
+                else:
+                    users_at_rank += 1
+            else:
+                users_at_rank = 1
+            
+            user.global_rank = current_rank
+            prev_user = user
+        
+        # Bulk update all ranks
+        UserModel.objects.bulk_update(users, ["global_rank"])
+        
+        return len(users)

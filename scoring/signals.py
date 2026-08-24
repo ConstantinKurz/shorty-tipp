@@ -12,6 +12,7 @@ from django.dispatch import receiver
 from matches.signals import match_result_entered
 from scoring.champion_scoring import update_live_champion_bonuses
 from scoring.match_scoring import ScoringService
+from scoring.ranking_service import RankingService
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 def score_predictions_on_result(sender, match, **kwargs):
     """
     Score all predictions when a match result is entered.
+    After scoring, update all global ranks.
 
     This receiver is triggered when match goals are set or updated.
     It automatically scores all predictions for the match.
@@ -36,37 +38,22 @@ def score_predictions_on_result(sender, match, **kwargs):
             scored_count,
             match,
         )
+        if match.round == "final":
+            live_bonus_count = update_live_champion_bonuses()
+            logger.info(
+                "Updated live champion bonuses for %d users",
+                live_bonus_count,
+            )
+
+        
+        # Update global ranks after scoring
+        rank_count = RankingService.update_all_user_ranks()
+        logger.info(
+            "Updated global ranks for %d users",
+            rank_count,
+        )
     except Exception:
         logger.exception(
             "Error scoring predictions for match %s",
-            match,
-        )
-
-
-@receiver(match_result_entered)
-def update_champion_bonus_on_final(sender, match, **kwargs):
-    """
-    Update champion bonuses when the final match result changes.
-
-    This receiver is triggered when any match result is entered,
-    but only processes champion bonuses if it's the final match.
-
-    Args:
-        sender: The Match model class
-        match: The Match instance with updated results
-        **kwargs: Additional signal arguments
-    """
-    if match.round != "final":
-        return
-
-    try:
-        live_bonus_count = update_live_champion_bonuses()
-        logger.info(
-            "Updated live champion bonuses for %d users",
-            live_bonus_count,
-        )
-    except Exception:
-        logger.exception(
-            "Error updating champion bonuses for final match %s",
             match,
         )

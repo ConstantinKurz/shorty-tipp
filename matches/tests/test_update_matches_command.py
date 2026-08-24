@@ -171,8 +171,7 @@ class TestUpdateMatchesCommand:
         )
 
         # Mock sync and signal receivers
-        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("scoring.signals.update_champion_bonus_on_final") as mock_champion_receiver:
+        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync:
 
             # Simulate final match finished
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]

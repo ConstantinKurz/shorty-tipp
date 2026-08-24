@@ -63,6 +63,13 @@ class User(AbstractUser):
         help_text="Champion prediction bonus points (20 for category A, 30 for category B). Updated live during final."
     )
 
+    global_rank: models.IntegerField = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Current global leaderboard rank (Olympic-style, updated after each match result)"
+    )
+
     theme_preference: models.CharField = models.CharField(
         max_length=10,
         choices=THEME_CHOICES,
