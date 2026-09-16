@@ -28,22 +28,18 @@ Done
 - feedback ob tipp gespeichert wurde done
 - kann das ranking nicht zwischen predictions und ranking service geteilt werden. done olympisches ranking wird geteilt.
 - predictions componenten verinheitlichen auf home und match predcitions 
-
-
+- chat gpt empfehlungen nochmal anschauen
+    - ich brauche kein is champion flag api gibt matchwinner wieder.
 
 ==============================
 
-- ✅ rule page korrigiert:
+-  rule page korrigiert:
   - Locktime auf "3 Minuten vor Kickoff" geändert (war falsch: "before match starts")
   - Privacy Protection entfernt (war falsch: predictions sind IMMER sichtbar)
 
 done
 - Email mit leaderboard
-done
-- chat gpt empfehlungen:
-    - ich brauche kein is champion flag api gibt matchwinner wieder.
-done
-
+schaue dir das hier nochmal an 
 - könnte ich nicht doch das globale ranking zentral berechnen und in user ranks speichern und einfach nur ordnen? anstelle in predictions/vioews.py und ranking_service?
 Bei ~100 Usern und ~64 Matches: Kein echter Performance-Gewinn, mehr Code, mehr Bugs.
 

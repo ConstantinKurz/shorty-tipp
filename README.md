@@ -12,6 +12,9 @@ This application allows participants to:
 
 Game rules are documented in [`docs/rules/wm2026-rules.md`](docs/rules/wm2026-rules.md).
 
+System architecture, data model, HTMX patterns, and known issues are documented in
+[`docs/project/architecture.md`](docs/project/architecture.md).
+
 ## Technology Stack
 
 - **Language**: Python 3.12+
