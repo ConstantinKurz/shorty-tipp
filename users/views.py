@@ -106,7 +106,8 @@ class UserSettingsView(LoginRequiredMixin, UpdateView):
     Allows users to update:
     - Username (max 20 characters)
     - Email address
-    - Predicted World Cup champion (before first match only)
+    - Predicted World Cup champion (before first match only, enforced server-side
+      by removing the field from the form once the lock applies)
     - Theme preference (light/dark/system)
     """
 
@@ -137,6 +138,12 @@ class UserSettingsView(LoginRequiredMixin, UpdateView):
         if not first_match:
             return True
         return timezone.now() < first_match.kickoff
+
+    def get_form_kwargs(self) -> dict[str, Any]:
+        """Pass the champion lock state into the form."""
+        kwargs = super().get_form_kwargs()
+        kwargs["champion_locked"] = not self.can_change_champion()
+        return kwargs
 
     def form_valid(self, form: UserSettingsForm) -> Any:
         """Save form and show success message."""

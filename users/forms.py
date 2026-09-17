@@ -1,5 +1,7 @@
 """Forms for user management."""
 
+from typing import Any
+
 from django import forms
 from django.core.validators import MaxLengthValidator
 
@@ -50,6 +52,21 @@ class UserSettingsForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ["username", "email", "predicted_champion", "theme_preference"]
+
+    def __init__(
+        self, *args: Any, champion_locked: bool = False, **kwargs: Any
+    ) -> None:
+        """Initialize the form and drop the champion field when the pick is locked.
+
+        Args:
+            champion_locked: True once the first match has kicked off. When True the
+                ``predicted_champion`` field is removed, so posted values are ignored and
+                the stored pick is never overwritten.
+        """
+        super().__init__(*args, **kwargs)
+        self.champion_locked = champion_locked
+        if champion_locked:
+            self.fields.pop("predicted_champion", None)
 
     def clean_username(self) -> str:
         """Validate username: max 20 chars, unique."""

@@ -253,10 +253,12 @@ this can blank the panel on a stray/duplicate poll. See Known Issue §1.
 
 ### 8.6 Settings (`/settings/`) — `UserSettingsView` / `UserSettingsForm`
 `UpdateView` always operating on `request.user`. `can_change_champion()` checks whether
-`timezone.now()` is before the first match's kickoff, but this only affects whether the
-template *shows* the champion field —
-[users/forms.py](../../users/forms.py) has no matching server-side validation. See
-Known Issue §3.
+`timezone.now()` is before the first match's kickoff and is the single source of truth for the
+lock: the view passes `champion_locked = not can_change_champion()` into the form via
+`get_form_kwargs()`, and [users/forms.py](../../users/forms.py) removes `predicted_champion`
+from `form.fields` when locked. A posted champion value is therefore never bound, validated or
+written once the tournament has started, and an unrelated settings save cannot clear the pick.
+The template renders the editable widget only when the form still exposes the field.
 
 ### 8.7 Rules (`/rules/`) — `RulesView`
 Plain `TemplateView`; collapsible sections are pure client-side JS, no HTMX involved.
@@ -454,9 +456,10 @@ change during import — no manual scoring call is needed in the command itself.
    excludes `status="finished"` from the matches it refreshes; if a match's final goal
    and `finished` status land in the same update, an already-open list may show a stale
    score. — [predictions/views.py](../../predictions/views.py)
-3. **Champion lock is UI-only.** `can_change_champion()` only gates what the settings
-   template renders; a direct POST to `/settings/` after the tournament start is not
-   rejected server-side, and could clear/replace the champion pick. —
+3. **~~Champion lock is UI-only.~~ RESOLVED** (change `enforce-champion-lock-server-side`).
+   `UserSettingsView.get_form_kwargs()` passes `champion_locked` into `UserSettingsForm`, which
+   removes `predicted_champion` from its fields once the first match has kicked off. A direct POST
+   to `/settings/` after the tournament start can neither replace nor clear the pick. —
    [users/views.py](../../users/views.py), [users/forms.py](../../users/forms.py)
 4. **36-prediction group limit is effectively 35.** `PredictionSaveView.post()` creates
    the prediction via `get_or_create()` *before* checking the limit, so the count already

@@ -46,7 +46,7 @@
         <section class="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-700">
             <h2 class="text-lg font-semibold mb-4 text-zinc-900 dark:text-white">Weltmeister-Tipp</h2>
             
-            {% if can_change_champion %}
+            {% if form.predicted_champion %}
                 <div>
                     <label for="id_predicted_champion" class="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">Dein Tipp</label>
                     {{ form.predicted_champion }}
