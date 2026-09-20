@@ -18,11 +18,13 @@ logger = logging.getLogger(__name__)
 
 class FootballDataAPIError(Exception):
     """Base exception for Football-Data API errors."""
+
     pass
 
 
 class FootballDataRateLimitError(FootballDataAPIError):
     """Raised when API rate limit is exceeded."""
+
     pass
 
 
@@ -45,9 +47,11 @@ class FootballDataClient:
         self.api_key = api_key or settings.FOOTBALL_DATA_API_KEY
         self.base_url = base_url or settings.FOOTBALL_DATA_BASE_URL
         self.session = requests.Session()
-        self.session.headers.update({
-            "X-Auth-Token": self.api_key,
-        })
+        self.session.headers.update(
+            {
+                "X-Auth-Token": self.api_key,
+            }
+        )
         # Disable proxies - direct connection required for football-data.org
         self.session.proxies = {}
 
@@ -147,7 +151,9 @@ class FootballDataClient:
             except requests.exceptions.RequestException as e:
                 logger.error("Network error on attempt %d/%d: %s", attempt + 1, max_retries, e)
                 if attempt + 1 >= max_retries:
-                    raise FootballDataAPIError(f"Request failed after {max_retries} attempts") from e
+                    raise FootballDataAPIError(
+                        f"Request failed after {max_retries} attempts"
+                    ) from e
                 time.sleep(backoff_seconds)
                 backoff_seconds *= 2
                 attempt += 1

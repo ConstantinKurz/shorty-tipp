@@ -16,14 +16,11 @@ class TestFootballDataClient:
     @pytest.fixture
     def client(self) -> FootballDataClient:
         """Create a test client instance."""
-        return FootballDataClient(
-            api_key="test-api-key",
-            base_url="https://api.test.com/v4"
-        )
+        return FootballDataClient(api_key="test-api-key", base_url="https://api.test.com/v4")
 
     def test_api_client_sends_auth_header(self, client: FootballDataClient) -> None:
         """Verify that API client includes X-Auth-Token header in requests."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"teams": []}
@@ -36,7 +33,7 @@ class TestFootballDataClient:
 
     def test_api_client_retries_on_429(self, client: FootballDataClient) -> None:
         """Verify that API client retries on 429 rate limit response."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             # First call returns 429, second succeeds
             mock_429 = Mock()
             mock_429.status_code = 429
@@ -55,7 +52,7 @@ class TestFootballDataClient:
 
     def test_api_client_retries_on_500(self, client: FootballDataClient) -> None:
         """Verify that API client retries on 5xx server errors with exponential backoff."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             # First call returns 500, second succeeds
             mock_500 = Mock()
             mock_500.status_code = 500
@@ -73,9 +70,10 @@ class TestFootballDataClient:
 
     def test_api_client_respects_retry_after_header(self, client: FootballDataClient) -> None:
         """Verify that API client waits for Retry-After duration on 429."""
-        with patch.object(client.session, 'get') as mock_get, \
-             patch('matches.api_client.time.sleep') as mock_sleep:
-
+        with (
+            patch.object(client.session, "get") as mock_get,
+            patch("matches.api_client.time.sleep") as mock_sleep,
+        ):
             mock_429 = Mock()
             mock_429.status_code = 429
             mock_429.headers = {"Retry-After": "42"}
@@ -93,7 +91,7 @@ class TestFootballDataClient:
 
     def test_api_client_raises_after_max_retries(self, client: FootballDataClient) -> None:
         """Verify that API client raises exception after max retries are exhausted."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             # All attempts return 500
             mock_500 = Mock()
             mock_500.status_code = 500
@@ -106,11 +104,11 @@ class TestFootballDataClient:
 
     def test_api_client_handles_network_error(self, client: FootballDataClient) -> None:
         """Verify that API client handles network errors with retries."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             # First call raises network error, second succeeds
             mock_get.side_effect = [
                 requests.exceptions.ConnectionError("Network error"),
-                Mock(status_code=200, json=lambda: {"teams": []})
+                Mock(status_code=200, json=lambda: {"teams": []}),
             ]
 
             result = client.get_teams()
@@ -120,7 +118,7 @@ class TestFootballDataClient:
 
     def test_get_teams_returns_team_list(self, client: FootballDataClient) -> None:
         """Verify that get_teams returns list of teams from API response."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
@@ -139,7 +137,7 @@ class TestFootballDataClient:
 
     def test_get_matches_returns_match_list(self, client: FootballDataClient) -> None:
         """Verify that get_matches returns list of matches from API response."""
-        with patch.object(client.session, 'get') as mock_get:
+        with patch.object(client.session, "get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {

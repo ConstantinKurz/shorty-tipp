@@ -42,17 +42,23 @@ class Command(BaseCommand):
 
                 if user in users_with_missing:
                     matches = users_with_missing[user]
-                    self.stdout.write(f"Sending reminder to {username} for {len(matches)} matches...")
+                    self.stdout.write(
+                        f"Sending reminder to {username} for {len(matches)} matches..."
+                    )
                     success, message = EmailService.send_prediction_reminder(user, matches)
                     if success:
                         self.stdout.write(self.style.SUCCESS(f"✓ {message}"))
                     else:
                         self.stdout.write(self.style.ERROR(f"✗ {message}"))
                 else:
-                    self.stdout.write(self.style.WARNING(f"{username} has no missing predictions in next 24h"))
+                    self.stdout.write(
+                        self.style.WARNING(f"{username} has no missing predictions in next 24h")
+                    )
 
             except User.DoesNotExist:
                 self.stdout.write(self.style.ERROR(f"User '{username}' not found"))
 
         else:
-            self.stdout.write(self.style.WARNING("Specify --leaderboard or --reminder=USERNAME to test email"))
+            self.stdout.write(
+                self.style.WARNING("Specify --leaderboard or --reminder=USERNAME to test email")
+            )

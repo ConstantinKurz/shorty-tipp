@@ -34,7 +34,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Created {snapshot_type} snapshot with {entries} entries "
-                f"(ID: {snapshot.pk})"
+                f"Created {snapshot_type} snapshot with {entries} entries (ID: {snapshot.pk})"
             )
         )

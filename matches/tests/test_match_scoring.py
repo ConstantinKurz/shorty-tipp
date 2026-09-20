@@ -163,9 +163,7 @@ class TestMatchScoringTrigger:
         prediction.refresh_from_db()
         assert prediction.points_earned is None
 
-    def test_multiple_predictions_scored(
-        self, db, team_home: Team, team_away: Team
-    ) -> None:
+    def test_multiple_predictions_scored(self, db, team_home: Team, team_away: Team) -> None:
         """Test all predictions for a match are scored."""
         match = Match.objects.create(
             team_home=team_home,
@@ -175,10 +173,7 @@ class TestMatchScoringTrigger:
             status="scheduled",
         )
 
-        users = [
-            User.objects.create_user(username=f"user{i}", password="test")
-            for i in range(3)
-        ]
+        users = [User.objects.create_user(username=f"user{i}", password="test") for i in range(3)]
 
         predictions = [
             MatchPrediction.objects.create(

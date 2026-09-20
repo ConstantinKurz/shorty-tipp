@@ -201,9 +201,7 @@ class TestChampionLockEnforcement:
             round="group",
         )
 
-    def test_champion_change_accepted_before_first_kickoff(
-        self, client: Client
-    ) -> None:
+    def test_champion_change_accepted_before_first_kickoff(self, client: Client) -> None:
         """Test champion can be changed while the first match has not started."""
         germany = Team.objects.create(name="Germany", fifa_code="GER")
         brazil = Team.objects.create(name="Brazil", fifa_code="BRA")
@@ -226,9 +224,7 @@ class TestChampionLockEnforcement:
         user.refresh_from_db()
         assert user.predicted_champion == brazil
 
-    def test_champion_change_rejected_after_first_kickoff(
-        self, client: Client
-    ) -> None:
+    def test_champion_change_rejected_after_first_kickoff(self, client: Client) -> None:
         """Test a posted champion is ignored once the first match kicked off."""
         germany = Team.objects.create(name="Germany", fifa_code="GER")
         brazil = Team.objects.create(name="Brazil", fifa_code="BRA")
@@ -251,9 +247,7 @@ class TestChampionLockEnforcement:
         user.refresh_from_db()
         assert user.predicted_champion == germany
 
-    def test_champion_preserved_on_unrelated_save_after_kickoff(
-        self, client: Client
-    ) -> None:
+    def test_champion_preserved_on_unrelated_save_after_kickoff(self, client: Client) -> None:
         """Test saving only theme after kickoff does not wipe the champion pick."""
         germany = Team.objects.create(name="Germany", fifa_code="GER")
         user = self._create_user(champion=germany)
@@ -296,9 +290,7 @@ class TestChampionLockEnforcement:
         user.refresh_from_db()
         assert user.predicted_champion == brazil
 
-    def test_settings_page_renders_champion_field_before_kickoff(
-        self, client: Client
-    ) -> None:
+    def test_settings_page_renders_champion_field_before_kickoff(self, client: Client) -> None:
         """Test the champion select is rendered before the first kickoff."""
         self._create_user()
         self._create_first_match(KICKOFF_AFTER_NOW)
@@ -310,9 +302,7 @@ class TestChampionLockEnforcement:
         assert response.status_code == 200
         assert 'name="predicted_champion"' in response.content.decode()
 
-    def test_settings_page_hides_champion_field_after_kickoff(
-        self, client: Client
-    ) -> None:
+    def test_settings_page_hides_champion_field_after_kickoff(self, client: Client) -> None:
         """Test no champion form control is rendered after the first kickoff."""
         germany = Team.objects.create(name="Germany", fifa_code="GER")
         self._create_user(champion=germany)

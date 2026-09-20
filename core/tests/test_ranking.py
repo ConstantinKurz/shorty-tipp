@@ -1,7 +1,5 @@
 """Tests for shared ranking utilities."""
 
-import pytest
-
 from core.ranking import apply_olympic_ranking, create_tiebreaker_from_keys
 
 

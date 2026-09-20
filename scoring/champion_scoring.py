@@ -53,7 +53,6 @@ def get_current_champion_team() -> Team | None:
     # Lazy imports to avoid circular dependencies at runtime
     # TYPE_CHECKING import above is only for type hints
     from matches.models import Match as MatchModel
-    from matches.models import Team as TeamModel
 
     # Find the final match
     final_match = MatchModel.objects.filter(round="final").first()

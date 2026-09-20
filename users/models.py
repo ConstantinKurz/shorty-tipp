@@ -45,36 +45,34 @@ class User(AbstractUser):
 
     total_points: models.IntegerField = models.IntegerField(
         default=0,
-        help_text="Cached total points from all scored predictions (including champion bonus)"
+        help_text="Cached total points from all scored predictions (including champion bonus)",
     )
 
     exact_match_count: models.IntegerField = models.IntegerField(
-        default=0,
-        help_text="Number of predictions with exact score match (first tiebreaker)"
+        default=0, help_text="Number of predictions with exact score match (first tiebreaker)"
     )
 
     jokers_used: models.IntegerField = models.IntegerField(
-        default=0,
-        help_text="Number of jokers used on scored predictions (second tiebreaker)"
+        default=0, help_text="Number of jokers used on scored predictions (second tiebreaker)"
     )
 
     champion_bonus_points: models.IntegerField = models.IntegerField(
         default=0,
-        help_text="Champion prediction bonus points (20 for category A, 30 for category B). Updated live during final."
+        help_text="Champion prediction bonus points (20 for category A, 30 for category B). Updated live during final.",
     )
 
     global_rank: models.IntegerField = models.IntegerField(
         null=True,
         blank=True,
         db_index=True,
-        help_text="Current global leaderboard rank (Olympic-style, updated after each match result)"
+        help_text="Current global leaderboard rank (Olympic-style, updated after each match result)",
     )
 
     theme_preference: models.CharField = models.CharField(
         max_length=10,
         choices=THEME_CHOICES,
         default="system",
-        help_text="User's preferred color theme"
+        help_text="User's preferred color theme",
     )
 
     class Meta:

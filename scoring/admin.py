@@ -56,8 +56,7 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
 
         rows = ["<table>"]
         rows.append(
-            "<tr><th>Rank</th><th>Player</th><th>Points</th>"
-            "<th>Exact</th><th>Jokers</th></tr>"
+            "<tr><th>Rank</th><th>Player</th><th>Points</th><th>Exact</th><th>Jokers</th></tr>"
         )
         for entry in obj.data[:50]:  # Limit to 50 for display
             rows.append(
@@ -76,16 +75,12 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
         """Disable manual creation - use actions instead."""
         return False
 
-    def has_change_permission(
-        self, request: HttpRequest, obj: Any = None
-    ) -> bool:
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
         """Snapshots are immutable."""
         return False
 
     @admin.action(description="Create daily snapshot from current leaderboard")
-    def create_daily_snapshot(
-        self, request: HttpRequest, queryset: Any
-    ) -> None:
+    def create_daily_snapshot(self, request: HttpRequest, queryset: Any) -> None:
         """Create a new daily snapshot."""
         snapshot = RankingService.create_snapshot("daily")
         self.message_user(
@@ -94,9 +89,7 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
         )
 
     @admin.action(description="Export selected snapshots to CSV")
-    def export_csv(
-        self, request: HttpRequest, queryset: Any
-    ) -> HttpResponse:
+    def export_csv(self, request: HttpRequest, queryset: Any) -> HttpResponse:
         """Export selected snapshots to CSV."""
         output = StringIO()
         writer = csv.writer(output)
@@ -133,9 +126,7 @@ class LeaderboardSnapshotAdmin(admin.ModelAdmin):
         return response
 
     @admin.action(description="Export detailed leaderboard with predictions to CSV")
-    def export_detailed_csv(
-        self, request: HttpRequest, queryset: Any
-    ) -> HttpResponse:
+    def export_detailed_csv(self, request: HttpRequest, queryset: Any) -> HttpResponse:
         """Export current leaderboard with per-match prediction details."""
         leaderboard = RankingService.get_current_leaderboard()
         filename = f"leaderboard_detailed_{date.today().isoformat()}.csv"

@@ -1,7 +1,7 @@
 """Tests for management commands in the users app."""
 
-import pytest
 from io import StringIO
+
 from django.core.management import call_command
 
 from users.models import User

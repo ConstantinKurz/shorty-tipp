@@ -8,9 +8,11 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from django.utils.dateparse import parse_datetime
+
 from matches.api_client import FootballDataClient
 from matches.models import Match, Team
-from django.utils.dateparse import parse_datetime
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,6 +50,7 @@ API_WINNER_MAP = {
     "AWAY_TEAM": "away",
     "DRAW": "draw",
 }
+
 
 def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
     """
@@ -127,6 +130,9 @@ def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
     matching by external_id. Detects goal changes and returns matches
     that need scoring updates.
 
+    A match that fails to sync (including a failure while scoring it) is logged
+    and skipped so the remaining matches are still processed.
+
     Args:
         competition: Competition code (default: WC for World Cup)
 
@@ -140,16 +146,24 @@ def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
     matches_data = client.get_matches(competition)
 
     results: list[MatchSyncResult] = []
+    failed_count = 0
 
     for match_data in matches_data:
-        result = _sync_match(match_data)
+        try:
+            result = _sync_match(match_data)
+        except Exception:
+            failed_count += 1
+            logger.exception("Failed to sync match %s", match_data.get("id"))
+            continue
+
         if result:
             results.append(result)
 
     logger.info(
-        "Match sync complete: %d matches processed, %d with goal changes",
+        "Match sync complete: %d matches processed, %d with goal changes, %d failed",
         len(results),
         sum(1 for r in results if r.goals_changed),
+        failed_count,
     )
 
     return results

@@ -15,6 +15,4 @@ class Command(BaseCommand):
 
         count = RankingService.update_all_user_ranks()
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Updated global ranks for {count} users")
-        )
+        self.stdout.write(self.style.SUCCESS(f"Updated global ranks for {count} users"))

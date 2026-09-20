@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = []
@@ -25,9 +24,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "name",
-                    models.CharField(
-                        help_text="Team name (e.g., Germany)", max_length=100
-                    ),
+                    models.CharField(help_text="Team name (e.g., Germany)", max_length=100),
                 ),
                 (
                     "fifa_code",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from io import StringIO
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
@@ -141,9 +141,10 @@ class TestUpdateMatchesCommand:
         )
 
         # Mock the sync function and signal receiver
-        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("scoring.signals.score_predictions_on_result") as mock_signal_receiver:
-
+        with (
+            patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync,
+            patch("scoring.signals.score_predictions_on_result") as mock_signal_receiver,
+        ):
             # Simulate goal change
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
 
@@ -172,7 +173,6 @@ class TestUpdateMatchesCommand:
 
         # Mock sync and signal receivers
         with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync:
-
             # Simulate final match finished
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]
 
@@ -201,9 +201,10 @@ class TestUpdateMatchesCommand:
                 command.running = False
                 return []
 
-        with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync, \
-             patch("matches.management.commands.update_matches.time.sleep"):
-
+        with (
+            patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync,
+            patch("matches.management.commands.update_matches.time.sleep"),
+        ):
             mock_sync.side_effect = side_effect_sync
 
             out = StringIO()
@@ -227,7 +228,6 @@ class TestUpdateMatchesCommand:
         )
 
         with patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync:
-
             # No goal changes
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=False)]
 

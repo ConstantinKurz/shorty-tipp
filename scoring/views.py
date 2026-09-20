@@ -21,7 +21,7 @@ class DownloadLeaderboardView(View):
     Staff-only view for on-demand leaderboard CSV download.
 
     Supports both summary and detailed exports via query parameter.
-    
+
     Query params:
         detailed: If "true", include per-match prediction details
     """
@@ -30,9 +30,9 @@ class DownloadLeaderboardView(View):
         """Generate and return leaderboard CSV."""
         leaderboard = RankingService.get_current_leaderboard()
         detailed = request.GET.get("detailed", "").lower() == "true"
-        
+
         today = date.today().isoformat()
         suffix = "_detailed" if detailed else ""
         filename = f"leaderboard{suffix}_{today}.csv"
-        
+
         return csv_response(leaderboard, filename=filename, detailed=detailed)

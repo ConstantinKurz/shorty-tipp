@@ -10,7 +10,8 @@ def main():
     # Load .env file
     try:
         from dotenv import load_dotenv
-        env_path = Path(__file__).resolve().parent / '.env'
+
+        env_path = Path(__file__).resolve().parent / ".env"
         load_dotenv(dotenv_path=env_path)
     except ImportError:
         pass  # python-dotenv not installed

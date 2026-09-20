@@ -10,8 +10,8 @@ from django.core.management.base import BaseCommand
 
 from matches.models import Match
 from predictions.models import MatchPrediction
-from scoring.match_scoring import ScoringService
 from scoring.champion_scoring import update_live_champion_bonuses
+from scoring.match_scoring import ScoringService
 from users.models import User
 
 

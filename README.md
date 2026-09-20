@@ -299,14 +299,18 @@ services:
 **Problem:** Scoring not triggered after match updates
 
 **Possible causes:**
-- No goal changes detected
+- No change to a scoring-relevant field (`goals_home`, `goals_away`, `winner`, `status`)
 - Match status not properly mapped
 - Database constraint issues
+- A scoring run failed and was rolled back
 
 **Solution:**
 - Check logs for "goals_changed" flag in sync results
 - Verify match results in Django admin
 - Run `python manage.py check` for configuration issues
+- Run `python manage.py repair_scoring --check` to detect matches whose predictions were
+  never scored, then `python manage.py repair_scoring` to score them (idempotent, exits
+  non-zero when work remains or a repair failed)
 
 ## Project Structure
 

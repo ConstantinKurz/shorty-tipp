@@ -401,4 +401,3 @@ class TestIsMatchLocked:
 
         # Should be locked (kickoff was 6 years ago)
         assert PredictionLimitService.is_match_locked(match) is True
-

@@ -8,9 +8,6 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from matches.models import Match, Team
-from predictions.models import MatchPrediction
-from scoring.ranking_service import RankingService
 from users.models import User
 
 

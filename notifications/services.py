@@ -140,11 +140,13 @@ class EmailService:
 
         for user in active_users:
             # Get matches this user hasn't predicted
-            user_predictions = MatchPrediction.objects.filter(user=user, match__in=upcoming_matches).values_list(
-                "match_id", flat=True
-            )
+            user_predictions = MatchPrediction.objects.filter(
+                user=user, match__in=upcoming_matches
+            ).values_list("match_id", flat=True)
 
-            missing_matches = [match for match in upcoming_matches if match.pk not in user_predictions]
+            missing_matches = [
+                match for match in upcoming_matches if match.pk not in user_predictions
+            ]
 
             if missing_matches:
                 result[user] = missing_matches
@@ -177,7 +179,9 @@ class EmailService:
                 "match_count": len(matches),
             }
 
-            html_content = render_to_string("notifications/emails/prediction_reminder.html", context)
+            html_content = render_to_string(
+                "notifications/emails/prediction_reminder.html", context
+            )
             text_content = render_to_string("notifications/emails/prediction_reminder.txt", context)
 
             send_mail(

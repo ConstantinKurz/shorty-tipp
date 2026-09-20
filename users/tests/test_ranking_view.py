@@ -100,7 +100,11 @@ class TestRankingViewAuth:
         response = client.get(url, follow=True)  # Follow redirect chain
 
         # Should eventually redirect to login
-        assert response.status_code == 302 or "/login/" in response.request["PATH_INFO"] or len(response.redirect_chain) > 0
+        assert (
+            response.status_code == 302
+            or "/login/" in response.request["PATH_INFO"]
+            or len(response.redirect_chain) > 0
+        )
 
     def test_ranking_accessible_when_logged_in(self, regular_user, client: Client):
         """GET /ranking/ redirects to home for authenticated users."""
@@ -146,9 +150,7 @@ class TestRankingViewData:
         # Should be in descending order
         assert points == sorted(points, reverse=True)
 
-    def test_leaderboard_contains_expected_fields(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_leaderboard_contains_expected_fields(self, users_with_ranking_data, client: Client):
         """Each leaderboard entry contains required fields."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -181,9 +183,7 @@ class TestRankingViewData:
         assert alice_entry["predicted_champion"] == team_germany
         assert alice_entry["predicted_champion"].fifa_code == "DE"
 
-    def test_no_champion_shows_none(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_no_champion_shows_none(self, users_with_ranking_data, client: Client):
         """Users without predicted_champion have None in leaderboard."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -199,9 +199,7 @@ class TestRankingViewData:
 class TestOlympicRanking:
     """Test olympic-style ranking with shared ranks."""
 
-    def test_shared_ranks_for_tied_users(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_shared_ranks_for_tied_users(self, users_with_ranking_data, client: Client):
         """Users with identical tiebreaker values share the same rank."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -216,9 +214,7 @@ class TestOlympicRanking:
         # They should have the same rank
         assert bob_entry["rank"] == dave_entry["rank"]
 
-    def test_rank_skips_after_tie(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_rank_skips_after_tie(self, users_with_ranking_data, client: Client):
         """After tied users, next rank skips appropriately (1, 2, 2, 4)."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -310,11 +306,9 @@ class TestRankingViewRendering:
 
         content = response.content.decode()
         assert "100" in content  # alice's points
-        assert "80" in content   # bob/carol/dave's points
+        assert "80" in content  # bob/carol/dave's points
 
-    def test_flag_emoji_in_response(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_flag_emoji_in_response(self, users_with_ranking_data, client: Client):
         """Flag emojis appear in rendered HTML for users with champions."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -326,9 +320,7 @@ class TestRankingViewRendering:
         # Brazil flag for bob
         assert "🇧🇷" in content
 
-    def test_no_champion_placeholder(
-        self, users_with_ranking_data, client: Client
-    ):
+    def test_no_champion_placeholder(self, users_with_ranking_data, client: Client):
         """Users without champion show placeholder text."""
         client.force_login(users_with_ranking_data[0])
         url = reverse("home")
@@ -386,7 +378,7 @@ class TestRankingViewRoundFiltering:
     def test_ranking_view_all_round_codes_valid(self, db, client: Client):
         """Test that all valid round codes work."""
         from matches.constants import ROUND_ORDER
-        
+
         user = User.objects.create_user(username="test", password="pass")
         client.force_login(user)
 

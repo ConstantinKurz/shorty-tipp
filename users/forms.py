@@ -53,9 +53,7 @@ class UserSettingsForm(forms.ModelForm):
         model = User
         fields = ["username", "email", "predicted_champion", "theme_preference"]
 
-    def __init__(
-        self, *args: Any, champion_locked: bool = False, **kwargs: Any
-    ) -> None:
+    def __init__(self, *args: Any, champion_locked: bool = False, **kwargs: Any) -> None:
         """Initialize the form and drop the champion field when the pick is locked.
 
         Args:
@@ -75,11 +73,7 @@ class UserSettingsForm(forms.ModelForm):
             raise forms.ValidationError("Username darf max. 20 Zeichen haben.")
 
         # Check uniqueness (excluding current user)
-        if (
-            User.objects.filter(username=username)
-            .exclude(pk=self.instance.pk)
-            .exists()
-        ):
+        if User.objects.filter(username=username).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("Dieser Username ist bereits vergeben.")
 
         return username

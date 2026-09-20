@@ -28,9 +28,7 @@ def track_champion_change(sender, instance: User, **kwargs) -> None:
 
 
 @receiver(post_save, sender=User)
-def recalculate_ranking_on_champion_change(
-    sender, instance: User, created: bool, **kwargs
-) -> None:
+def recalculate_ranking_on_champion_change(sender, instance: User, created: bool, **kwargs) -> None:
     """
     Recalculate rankings when user's predicted champion changes.
 

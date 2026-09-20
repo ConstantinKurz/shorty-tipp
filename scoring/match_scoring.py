@@ -42,7 +42,7 @@ class ScoringService:
         "3rd": 3,  # Third place
         "final": 3,  # Final
     }
-    
+
     VALID_ROUNDS = frozenset(ROUND_MULTIPLIERS.keys())
 
     @staticmethod
@@ -189,7 +189,7 @@ class ScoringService:
 
         Returns:
             Multiplier value (1, 2, or 3)
-            
+
         Raises:
             ValueError: If match_round is not a valid round code
         """

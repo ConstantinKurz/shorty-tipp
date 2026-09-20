@@ -6,11 +6,11 @@ from django.db import migrations
 def backfill_champion_bonus_points(apps, schema_editor):
     """
     Backfill champion_bonus_points for users who already received the bonus.
-    
+
     OBSOLETE: This migration is obsolete as Team.is_champion field has been removed.
     The migration is kept for historical database compatibility but does nothing
     if the field doesn't exist.
-    
+
     Logic:
     - Find users who predicted the champion team (is_champion=True)
     - Calculate what their bonus should be based on team's odds_category
@@ -18,11 +18,11 @@ def backfill_champion_bonus_points(apps, schema_editor):
     - Safe to run multiple times (only updates users with champion_bonus_points=0)
     """
     from django.core.exceptions import FieldError
-    
+
     User = apps.get_model("users", "User")
     Team = apps.get_model("matches", "Team")
     Match = apps.get_model("matches", "Match")
-    
+
     # Find the champion team
     # Note: is_champion field may not exist if this migration runs after field removal
     try:
@@ -33,13 +33,13 @@ def backfill_champion_bonus_points(apps, schema_editor):
     except FieldError:
         # Field doesn't exist (removed in later migration) - skip backfill
         return
-    
+
     # Check if final is finished
     final_match = Match.objects.filter(round="final", status="finished").first()
     if not final_match:
         # Final not finished yet - skip backfill
         return
-    
+
     # Calculate champion points based on odds category
     if champion.odds_category == "A":
         champion_points = 20
@@ -47,23 +47,23 @@ def backfill_champion_bonus_points(apps, schema_editor):
         champion_points = 30
     else:
         champion_points = 0
-    
+
     if champion_points == 0:
         return
-    
+
     # Update users who predicted correctly and haven't been backfilled yet
     users_to_backfill = User.objects.filter(
         predicted_champion=champion,
         champion_bonus_points=0,  # Only backfill users who haven't been updated yet
     )
-    
+
     users_to_backfill.update(champion_bonus_points=champion_points)
 
 
 def reverse_backfill(apps, schema_editor):
     """
     Reverse the backfill by setting champion_bonus_points back to 0.
-    
+
     Note: This does NOT reverse the points added to total_points.
     This is just for tracking purposes.
     """
@@ -72,7 +72,6 @@ def reverse_backfill(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("users", "0007_user_champion_bonus_points"),
         ("matches", "0004_match_external_id"),  # Ensure Team model is available

@@ -5,11 +5,9 @@ from django.utils import timezone
 
 from matches.models import Match, Team
 from scoring.champion_scoring import (
-    calculate_champion_points,
     get_current_champion_team,
     update_live_champion_bonuses,
 )
-from scoring.match_scoring import ScoringService
 from users.models import User
 
 
@@ -104,9 +102,7 @@ class TestChampionCategories:
         user.refresh_from_db()
         assert user.total_points == 20
 
-    def test_category_b_champion_30_points(
-        self, db, runner_up_team: Team
-    ) -> None:
+    def test_category_b_champion_30_points(self, db, runner_up_team: Team) -> None:
         """Test category B champion awards 30 points."""
         # Set odds category for champion
         runner_up_team.odds_category = "B"
@@ -246,12 +242,8 @@ class TestDynamicChampionDetection:
 
     def test_returns_none_for_scheduled_final(self, db) -> None:
         """Test returns None when final hasn't started."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -267,12 +259,8 @@ class TestDynamicChampionDetection:
 
     def test_returns_home_team_when_home_leads_live(self, db) -> None:
         """Test returns home team when they're leading during live final."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -288,12 +276,8 @@ class TestDynamicChampionDetection:
 
     def test_returns_away_team_when_away_leads_live(self, db) -> None:
         """Test returns away team when they're leading during live final."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -309,12 +293,8 @@ class TestDynamicChampionDetection:
 
     def test_returns_is_champion_team_on_draw_live(self, db) -> None:
         """Test returns winner team on draw during live final (penalty shootout)."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -331,12 +311,8 @@ class TestDynamicChampionDetection:
 
     def test_returns_winning_team_after_finished_final(self, db) -> None:
         """Test returns winning team when final is finished."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -352,12 +328,8 @@ class TestDynamicChampionDetection:
 
     def test_champion_from_winner_home(self, db) -> None:
         """Test returns home team when winner='home' (penalty shootout)."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -374,12 +346,8 @@ class TestDynamicChampionDetection:
 
     def test_champion_from_winner_away(self, db) -> None:
         """Test returns away team when winner='away' (penalty shootout)."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -396,12 +364,8 @@ class TestDynamicChampionDetection:
 
     def test_champion_penalty_shootout_winner_correct(self, db) -> None:
         """Test penalty shootout winner takes precedence over goals for draw."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         # Simulates final: 1-1 after extra time, Brazil wins on penalties
         Match.objects.create(
             team_home=team_home,
@@ -419,12 +383,8 @@ class TestDynamicChampionDetection:
 
     def test_no_champion_if_final_not_finished(self, db) -> None:
         """Test returns None if final is still scheduled with no winner."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -445,12 +405,8 @@ class TestChampionScoringIdempotency:
 
     def test_scoring_twice_same_as_scoring_once(self, db) -> None:
         """Test calling update_live_champion_bonuses() twice doesn't double-award points."""
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team_home,
             team_away=team_away,
@@ -485,12 +441,8 @@ class TestChampionScoringIdempotency:
 
     def test_category_a_gets_20_points_tracked(self, db) -> None:
         """Test category A champion awards 20 points and tracks it."""
-        team = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        other_team = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        other_team = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=team,
             team_away=other_team,
@@ -514,12 +466,8 @@ class TestChampionScoringIdempotency:
 
     def test_category_b_gets_30_points_tracked(self, db) -> None:
         """Test category B champion awards 30 points and tracks it."""
-        team = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
-        other_team = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
+        team = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        other_team = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
         Match.objects.create(
             team_home=team,
             team_away=other_team,
@@ -543,12 +491,8 @@ class TestChampionScoringIdempotency:
 
     def test_wrong_prediction_gets_zero_bonus(self, db) -> None:
         """Test users with wrong prediction don't get champion bonus."""
-        champion = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        runner_up = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        champion = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        runner_up = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
         Match.objects.create(
             team_home=champion,
             team_away=runner_up,
@@ -572,3 +516,35 @@ class TestChampionScoringIdempotency:
         assert user.champion_bonus_points == 0
 
 
+class TestChampionBonusOnWinnerUpdate:
+    """Test that a winner-only correction on the final awards the champion bonus."""
+
+    def test_penalty_shootout_winner_update_awards_bonus(self, db) -> None:
+        """A 1:1 final later marked winner='away' must award the away team's predictors."""
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+
+        final = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="final",
+            status="live",
+            goals_home=1,
+            goals_away=1,
+        )
+
+        user = User.objects.create_user(
+            username="penalty_predictor",
+            password="test",
+            predicted_champion=team_away,
+        )
+
+        # Goals stay 1:1, only the shootout winner and the status are corrected.
+        final.winner = "away"
+        final.status = "finished"
+        final.save()
+
+        user.refresh_from_db()
+        assert user.champion_bonus_points == 30  # Category B
+        assert user.total_points == 30

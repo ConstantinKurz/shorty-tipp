@@ -1,7 +1,7 @@
 """Tests for scoring aggregate edge cases.
 
-Tests verify that User model aggregates (total_points, exact_match_count, 
-jokers_used, champion_bonus_points) are correctly maintained across various 
+Tests verify that User model aggregates (total_points, exact_match_count,
+jokers_used, champion_bonus_points) are correctly maintained across various
 scoring scenarios including first scoring, rescoring, and result changes.
 """
 
@@ -76,9 +76,7 @@ class TestFirstScoring:
 class TestUnchangedRescoring:
     """Test rescoring when result hasn't changed."""
 
-    def test_unchanged_rescoring_no_delta(
-        self, db, finished_match: Match, user: User
-    ) -> None:
+    def test_unchanged_rescoring_no_delta(self, db, finished_match: Match, user: User) -> None:
         """Rescoring unchanged result should have zero delta."""
         prediction = MatchPrediction.objects.create(
             user=user,
@@ -249,9 +247,7 @@ class TestJokerEdgeCases:
         assert user.jokers_used == 1
         assert user.total_points == 12  # 6 * 2 (joker)
 
-    def test_joker_rescored_unchanged(
-        self, db, finished_match: Match, user: User
-    ) -> None:
+    def test_joker_rescored_unchanged(self, db, finished_match: Match, user: User) -> None:
         """Rescoring a joker should not double-count jokers_used."""
         prediction = MatchPrediction.objects.create(
             user=user,
@@ -278,9 +274,7 @@ class TestJokerEdgeCases:
 class TestChampionBonusInvariant:
     """Test that champion bonus is preserved in total_points."""
 
-    def test_champion_bonus_invariant(
-        self, db, finished_match: Match, user: User
-    ) -> None:
+    def test_champion_bonus_invariant(self, db, finished_match: Match, user: User) -> None:
         """Verify total_points = match_points + champion_bonus_points."""
         # Set up user with champion bonus
         user.champion_bonus_points = 20

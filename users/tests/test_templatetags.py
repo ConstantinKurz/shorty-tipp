@@ -2,8 +2,6 @@
 Tests for template tags in the users app.
 """
 
-import pytest
-
 from users.templatetags.user_tags import round_label
 
 

@@ -10,13 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.db import transaction
-from django.db.models import F
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, F, Q, Sum
 
-from matches.constants import ROUND_ORDER
-from users.models import User as UserModel
-from scoring.models import LeaderboardSnapshot
 from core.ranking import apply_olympic_ranking
+from matches.constants import ROUND_ORDER
+from scoring.models import LeaderboardSnapshot
+from users.models import User as UserModel
 
 if TYPE_CHECKING:
     from matches.models import Match, Team
@@ -78,15 +77,11 @@ class ScoringService:
             Tuple of (base_points, is_exact_match)
         """
         # Check exact score (6 points)
-        if ScoringService._check_exact_score(
-            pred_home, pred_away, actual_home, actual_away
-        ):
+        if ScoringService._check_exact_score(pred_home, pred_away, actual_home, actual_away):
             return 6, True
 
         # Check tendency + goal difference (5 points)
-        if ScoringService._check_tendency_and_diff(
-            pred_home, pred_away, actual_home, actual_away
-        ):
+        if ScoringService._check_tendency_and_diff(pred_home, pred_away, actual_home, actual_away):
             return 5, False
 
         # Check tendency + one goal correct (4 points)
@@ -96,15 +91,11 @@ class ScoringService:
             return 4, False
 
         # Check tendency only (3 points)
-        if ScoringService._check_tendency_only(
-            pred_home, pred_away, actual_home, actual_away
-        ):
+        if ScoringService._check_tendency_only(pred_home, pred_away, actual_home, actual_away):
             return 3, False
 
         # Check one goal only (1 point)
-        if ScoringService._check_one_goal_only(
-            pred_home, pred_away, actual_home, actual_away
-        ):
+        if ScoringService._check_one_goal_only(pred_home, pred_away, actual_home, actual_away):
             return 1, False
 
         # No match (0 points)
@@ -309,9 +300,7 @@ class ScoringService:
         # Get previous values for delta calculation
         old_points = prediction.points_earned or 0
         old_is_exact = prediction.is_exact_match or False
-        old_joker_counted = (
-            prediction.points_earned is not None and prediction.joker_active
-        )
+        old_joker_counted = prediction.points_earned is not None and prediction.joker_active
 
         # Update prediction
         prediction.points_earned = result["points"]
@@ -322,9 +311,7 @@ class ScoringService:
         user = prediction.user
         points_delta = result["points"] - old_points
         exact_delta = (1 if result["is_exact"] else 0) - (1 if old_is_exact else 0)
-        joker_delta = (1 if prediction.joker_active else 0) - (
-            1 if old_joker_counted else 0
-        )
+        joker_delta = (1 if prediction.joker_active else 0) - (1 if old_joker_counted else 0)
 
         # Use F() expressions for atomic updates
         MatchPrediction.objects.filter(user=user).exists()  # Ensure user relationship
@@ -383,7 +370,6 @@ class ScoringService:
             Team instance or None if no champion can be determined
         """
         from matches.models import Match as MatchModel  # noqa: F811
-        from matches.models import Team as TeamModel  # noqa: F811
 
         # Find the final match
         final_match = MatchModel.objects.filter(round="final").first()
@@ -434,16 +420,14 @@ class ScoringService:
 
         # Get current champion (None if final not started or no clear leader)
         current_champion = ScoringService.get_current_champion_team()
-        
+
         # Calculate bonus points
         champion_points = 0
         if current_champion is not None:
             champion_points = ScoringService.calculate_champion_points(current_champion)
 
         # Reset all bonuses first
-        users_with_bonus = UserModel.objects.filter(
-            champion_bonus_points__gt=0
-        )
+        users_with_bonus = UserModel.objects.filter(champion_bonus_points__gt=0)
         for user in users_with_bonus:
             user.total_points -= user.champion_bonus_points
             user.champion_bonus_points = 0
@@ -454,9 +438,7 @@ class ScoringService:
             return 0
 
         # Award bonuses to correct predictors
-        users_to_award = UserModel.objects.filter(
-            predicted_champion=current_champion
-        )
+        users_to_award = UserModel.objects.filter(predicted_champion=current_champion)
 
         count = 0
         for user in users_to_award:
@@ -466,7 +448,6 @@ class ScoringService:
             count += 1
 
         return count
-
 
 
 class RankingService:
@@ -498,7 +479,6 @@ class RankingService:
             >>> RankingService.get_leaderboard_up_to_round('group')
             [{"rank": 1, "user_id": 5, "username": "alice", "total_points": 30, ...}]
         """
-        from django.db.models import Count, Q, Sum
 
         from users.models import User as UserModel
 

@@ -1,5 +1,7 @@
 """Integration tests for the scoring system."""
 
+from unittest.mock import patch
+
 import pytest
 from django.utils import timezone
 
@@ -206,9 +208,7 @@ class TestJokerImpact:
 class TestChampionPredictionFlow:
     """Test champion prediction scoring flow."""
 
-    def test_champion_prediction_adds_to_total(
-        self, db, tournament_setup: dict
-    ) -> None:
+    def test_champion_prediction_adds_to_total(self, db, tournament_setup: dict) -> None:
         """Test champion points are added to total correctly."""
         teams = tournament_setup["teams"]
         alice = tournament_setup["users"]["alice"]
@@ -243,9 +243,7 @@ class TestChampionPredictionFlow:
 class TestRecalculationConsistency:
     """Test that recalculation produces consistent results."""
 
-    def test_recalculation_matches_original_scoring(
-        self, db, tournament_setup: dict
-    ) -> None:
+    def test_recalculation_matches_original_scoring(self, db, tournament_setup: dict) -> None:
         """Test that recalculating scores produces same result."""
         teams = tournament_setup["teams"]
         alice = tournament_setup["users"]["alice"]
@@ -277,12 +275,8 @@ class TestRecalculationConsistency:
         assert original_points == 6  # Verify scoring happened
 
         # Reset and recalculate
-        User.objects.filter(pk=alice.pk).update(
-            total_points=0, exact_match_count=0, jokers_used=0
-        )
-        MatchPrediction.objects.filter(user=alice).update(
-            points_earned=None, is_exact_match=False
-        )
+        User.objects.filter(pk=alice.pk).update(total_points=0, exact_match_count=0, jokers_used=0)
+        MatchPrediction.objects.filter(user=alice).update(points_earned=None, is_exact_match=False)
 
         ScoringService.score_all_predictions_for_match(match)
 
@@ -293,9 +287,7 @@ class TestRecalculationConsistency:
 class TestSnapshotCapturesState:
     """Test that snapshots correctly capture leaderboard state."""
 
-    def test_snapshot_captures_current_state(
-        self, db, tournament_setup: dict
-    ) -> None:
+    def test_snapshot_captures_current_state(self, db, tournament_setup: dict) -> None:
         """Test snapshot captures rankings at time of creation."""
         users = tournament_setup["users"]
 
@@ -466,15 +458,15 @@ class TestRoundBasedRankingFullFlow:
         assert live_leaderboard[1]["total_points"] == bob.total_points
 
         # Test 5: Verify ranking progression (points increase through rounds)
-        group_alice_points = next(
-            e for e in group_leaderboard if e["username"] == "alice"
-        )["total_points"]
-        r16_alice_points = next(
-            e for e in r16_leaderboard if e["username"] == "alice"
-        )["total_points"]
-        qf_alice_points = next(
-            e for e in qf_leaderboard if e["username"] == "alice"
-        )["total_points"]
+        group_alice_points = next(e for e in group_leaderboard if e["username"] == "alice")[
+            "total_points"
+        ]
+        r16_alice_points = next(e for e in r16_leaderboard if e["username"] == "alice")[
+            "total_points"
+        ]
+        qf_alice_points = next(e for e in qf_leaderboard if e["username"] == "alice")[
+            "total_points"
+        ]
 
         # Points should increase as rounds progress
         assert group_alice_points < r16_alice_points < qf_alice_points
@@ -544,9 +536,8 @@ class TestScoringReliabilityIntegration:
 
     def test_locktime_consistency_across_views(self, db) -> None:
         """Test locktime is consistent between page load and HTMX updates."""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
-        from django.test import Client
         from django.utils import timezone
 
         from matches.models import Match, Team
@@ -560,12 +551,8 @@ class TestScoringReliabilityIntegration:
         )
 
         # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
 
         # Create match with kickoff in 5 minutes
         kickoff = timezone.now() + timedelta(minutes=5)
@@ -588,3 +575,71 @@ class TestScoringReliabilityIntegration:
         # Test exactly 3 minutes - should be locked (boundary)
         reference_time_boundary = kickoff - timedelta(minutes=3)
         assert PredictionLimitService.is_match_locked(match, reference_time_boundary) is True
+
+
+class TestScoringFailureHandling:
+    """Test that scoring failures are surfaced and leave no partial state."""
+
+    @pytest.fixture
+    def scored_setup(self, db) -> dict:
+        """Create a match with one unscored prediction."""
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        user = User.objects.create_user(username="alice", password="test")
+
+        match = Match.objects.create(
+            team_home=team_home,
+            team_away=team_away,
+            kickoff=timezone.now(),
+            round="group",
+            status="scheduled",
+        )
+        prediction = MatchPrediction.objects.create(
+            user=user,
+            match=match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
+
+        return {"match": match, "prediction": prediction, "user": user}
+
+    def test_receiver_reraises_scoring_error(self, db, scored_setup: dict) -> None:
+        """A failure in ScoringService must propagate to the caller of Match.save()."""
+        match = scored_setup["match"]
+
+        with patch.object(
+            ScoringService,
+            "score_all_predictions_for_match",
+            side_effect=RuntimeError("scoring boom"),
+        ):
+            match.goals_home = 2
+            match.goals_away = 1
+            match.status = "finished"
+
+            with pytest.raises(RuntimeError, match="scoring boom"):
+                match.save()
+
+    def test_failed_scoring_leaves_no_partial_state(self, db, scored_setup: dict) -> None:
+        """A failure after scoring must roll back predictions and user totals."""
+        match = scored_setup["match"]
+        prediction = scored_setup["prediction"]
+        user = scored_setup["user"]
+
+        with patch.object(
+            RankingService,
+            "update_all_user_ranks",
+            side_effect=RuntimeError("ranking boom"),
+        ):
+            match.goals_home = 2
+            match.goals_away = 1
+            match.status = "finished"
+
+            with pytest.raises(RuntimeError, match="ranking boom"):
+                match.save()
+
+        prediction.refresh_from_db()
+        user.refresh_from_db()
+        assert prediction.points_earned is None
+        assert prediction.is_exact_match is False
+        assert user.total_points == 0
+        assert user.exact_match_count == 0

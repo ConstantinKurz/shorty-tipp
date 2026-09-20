@@ -32,9 +32,7 @@ class Command(BaseCommand):
             created, updated = sync_teams_from_api(competition)
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"✓ Team sync complete: {created} created, {updated} updated"
-                )
+                self.style.SUCCESS(f"✓ Team sync complete: {created} created, {updated} updated")
             )
 
         except FootballDataAPIError as e:

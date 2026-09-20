@@ -186,5 +186,3 @@ class TestUserModel:
         user.refresh_from_db()
 
         assert user.champion_bonus_points == 20
-
-

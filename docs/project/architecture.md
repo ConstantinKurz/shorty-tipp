@@ -461,18 +461,26 @@ change during import — no manual scoring call is needed in the command itself.
    removes `predicted_champion` from its fields once the first match has kicked off. A direct POST
    to `/settings/` after the tournament start can neither replace nor clear the pick. —
    [users/views.py](../../users/views.py), [users/forms.py](../../users/forms.py)
-4. **36-prediction group limit is effectively 35.** `PredictionSaveView.post()` creates
-   the prediction via `get_or_create()` *before* checking the limit, so the count already
-   includes the new row when `can_add_group_stage_prediction()` runs; the legitimate 36th
-   prediction is rejected and deleted. — [predictions/views.py](../../predictions/views.py)
-5. **Winner/status-only change doesn't re-trigger scoring.** `Match.save()` only compares
-   `goals_home`/`goals_away`; if a later correction changes only `winner` or `status`
-   (e.g., penalty-shootout result confirmed after goals were already 1:1), the champion
-   bonus/points may not be recalculated. — [matches/models.py](../../matches/models.py)
-6. **Scoring errors are swallowed.** The signal receiver wraps scoring, champion bonus,
-   and ranking updates in one broad `except Exception: logger.exception(...)`; the match
-   stays saved, but a failure produces no retry and no re-trigger on the next identical
-   import. — [scoring/signals.py](../../scoring/signals.py)
+4. **~~36-prediction group limit is effectively 35.~~ RESOLVED** (change
+   `fix-prediction-correctness-bugs`). `PredictionSaveView.post()` looks up an existing
+   prediction first and checks `can_add_group_stage_prediction()` *before* creating a new
+   group-stage row, inside `transaction.atomic()`. The 36th prediction is accepted, the 37th is
+   rejected with the error partial and without creating a row. —
+   [predictions/views.py](../../predictions/views.py)
+5. **~~Winner/status-only change doesn't re-trigger scoring.~~ RESOLVED** (change
+   `fix-prediction-correctness-bugs`). `Match.save()` compares all
+   `Match.SCORING_RELEVANT_FIELDS` (`goals_home`, `goals_away`, `winner`, `status`) and sends
+   `match_result_entered` when any of them changed while both goals are set. Saves that only touch
+   unrelated fields still send nothing. — [matches/models.py](../../matches/models.py)
+6. **~~Scoring errors are swallowed.~~ RESOLVED** (change `fix-prediction-correctness-bugs`).
+   The signal receiver runs scoring, champion bonus and rank update in one
+   `transaction.atomic()` block, logs failures with the match id and re-raises them, so a
+   failure never leaves partially scored state. `sync_matches_from_api()` isolates each match,
+   so one bad match is logged and skipped while the loop continues. Leftover damage is detected
+   and fixed with `python manage.py repair_scoring --check` / `python manage.py repair_scoring`
+   (idempotent, non-zero exit when work remains). — [scoring/signals.py](../../scoring/signals.py),
+   [matches/services.py](../../matches/services.py),
+   [scoring/management/commands/repair_scoring.py](../../scoring/management/commands/repair_scoring.py)
 
 ### Priority 2 — HTMX/consistency
 

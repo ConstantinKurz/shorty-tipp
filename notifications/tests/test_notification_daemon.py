@@ -15,7 +15,9 @@ class TestNotificationDaemon:
         """Test that --once flag runs a single iteration and exits."""
         out = StringIO()
 
-        with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+        with patch(
+            "notifications.management.commands.notification_daemon.EmailService"
+        ) as mock_service:
             mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
             mock_service.send_all_prediction_reminders.return_value = (0, 0)
             call_command("notification_daemon", "--once", stdout=out)
@@ -33,7 +35,9 @@ class TestNotificationDaemon:
 
         with patch("notifications.management.commands.notification_daemon.timezone") as mock_tz:
             mock_tz.now.return_value = mock_now
-            with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+            with patch(
+                "notifications.management.commands.notification_daemon.EmailService"
+            ) as mock_service:
                 mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
                 mock_service.send_all_prediction_reminders.return_value = (0, 0)
 
@@ -57,7 +61,9 @@ class TestNotificationDaemon:
 
         with patch("notifications.management.commands.notification_daemon.timezone") as mock_tz:
             mock_tz.now.return_value = mock_now
-            with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+            with patch(
+                "notifications.management.commands.notification_daemon.EmailService"
+            ) as mock_service:
                 mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
                 mock_service.send_all_prediction_reminders.return_value = (3, 0)
 
@@ -84,7 +90,9 @@ class TestNotificationDaemon:
 
         with patch("notifications.management.commands.notification_daemon.timezone") as mock_tz:
             mock_tz.now.return_value = mock_now
-            with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+            with patch(
+                "notifications.management.commands.notification_daemon.EmailService"
+            ) as mock_service:
                 mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
                 mock_service.send_all_prediction_reminders.return_value = (0, 0)
 
@@ -109,7 +117,9 @@ class TestNotificationDaemon:
 
         with patch("notifications.management.commands.notification_daemon.timezone") as mock_tz:
             mock_tz.now.return_value = mock_now
-            with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+            with patch(
+                "notifications.management.commands.notification_daemon.EmailService"
+            ) as mock_service:
                 mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
                 mock_service.send_all_prediction_reminders.return_value = (0, 0)
                 call_command(
@@ -132,7 +142,9 @@ class TestNotificationDaemon:
 
         with patch("notifications.management.commands.notification_daemon.timezone") as mock_tz:
             mock_tz.now.return_value = mock_now
-            with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+            with patch(
+                "notifications.management.commands.notification_daemon.EmailService"
+            ) as mock_service:
                 call_command(
                     "notification_daemon",
                     "--once",
@@ -147,7 +159,9 @@ class TestNotificationDaemon:
         """Test that custom interval argument is accepted."""
         out = StringIO()
 
-        with patch("notifications.management.commands.notification_daemon.EmailService") as mock_service:
+        with patch(
+            "notifications.management.commands.notification_daemon.EmailService"
+        ) as mock_service:
             mock_service.send_leaderboard_to_admin.return_value = (True, "Sent")
             mock_service.send_all_prediction_reminders.return_value = (0, 0)
             call_command(

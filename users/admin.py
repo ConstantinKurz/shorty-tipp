@@ -41,7 +41,12 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
         (
             "Statistics (read-only, calculated by scoring service)",
             {
-                "fields": ("total_points", "exact_match_count", "jokers_used", "champion_bonus_points"),
+                "fields": (
+                    "total_points",
+                    "exact_match_count",
+                    "jokers_used",
+                    "champion_bonus_points",
+                ),
             },
         ),
     )

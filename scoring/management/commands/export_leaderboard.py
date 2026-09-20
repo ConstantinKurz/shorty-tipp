@@ -38,8 +38,7 @@ class Command(BaseCommand):
                 output_format = "pdf"
             else:
                 raise CommandError(
-                    "Cannot determine format from extension. "
-                    "Use --format csv or --format pdf"
+                    "Cannot determine format from extension. Use --format csv or --format pdf"
                 )
 
         self.stdout.write(f"Generating {output_format.upper()} leaderboard...")
@@ -55,9 +54,7 @@ class Command(BaseCommand):
             self._export_pdf(leaderboard, output_path)
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Exported {len(leaderboard)} entries to {output_path}"
-            )
+            self.style.SUCCESS(f"Exported {len(leaderboard)} entries to {output_path}")
         )
 
     def _export_csv(self, leaderboard: list[dict], output_path: Path) -> None:

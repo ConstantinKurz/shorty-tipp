@@ -290,18 +290,24 @@ class TestBuildMatchPredictionsListHelper:
 
         # Create predictions with different points
         MatchPrediction.objects.create(
-            user=user_a, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_a,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
             points_earned=5,
         )
         MatchPrediction.objects.create(
-            user=user_b, match=test_match,
-            predicted_goals_home=2, predicted_goals_away=1,
+            user=user_b,
+            match=test_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
             points_earned=10,
         )
         MatchPrediction.objects.create(
-            user=user_c, match=test_match,
-            predicted_goals_home=0, predicted_goals_away=0,
+            user=user_c,
+            match=test_match,
+            predicted_goals_home=0,
+            predicted_goals_away=0,
             points_earned=3,
         )
 
@@ -332,14 +338,18 @@ class TestBuildMatchPredictionsListHelper:
         # Create predictions with different total points
         # Give user_a low total points via this prediction
         MatchPrediction.objects.create(
-            user=user_a, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_a,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
             points_earned=5,
         )
         # Give user_b high total points via this prediction
         MatchPrediction.objects.create(
-            user=user_b, match=test_match,
-            predicted_goals_home=2, predicted_goals_away=1,
+            user=user_b,
+            match=test_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
             points_earned=20,
         )
 
@@ -369,17 +379,16 @@ class TestBuildMatchPredictionsListHelper:
         # Create user with prediction
         user_with_pred = User.objects.create_user(username="has_prediction_user", password="test")
         MatchPrediction.objects.create(
-            user=user_with_pred, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_with_pred,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
         )
 
         result = build_match_predictions_list(test_match, "match", regular_user)
 
         # Find our test users
-        user_dict = {
-            entry["user"].username: entry
-            for entry in result
-        }
+        user_dict = {entry["user"].username: entry for entry in result}
 
         # Both should be included
         assert "no_prediction_user" in user_dict
@@ -406,8 +415,10 @@ class TestBuildMatchPredictionsListHelper:
         for i, points in enumerate([50, 40, 30, 20, 10]):
             user = User.objects.create_user(username=f"rank_user_{i}", password="test")
             MatchPrediction.objects.create(
-                user=user, match=test_match,
-                predicted_goals_home=1, predicted_goals_away=1,
+                user=user,
+                match=test_match,
+                predicted_goals_home=1,
+                predicted_goals_away=1,
                 points_earned=points,
             )
 
@@ -441,13 +452,17 @@ class TestBuildMatchPredictionsListHelper:
 
         # Same points for both
         MatchPrediction.objects.create(
-            user=user_z, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_z,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
             points_earned=100,
         )
         MatchPrediction.objects.create(
-            user=user_a, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_a,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
             points_earned=100,
         )
 
@@ -578,8 +593,8 @@ class TestMatchPredictionsPageHTMXPolling:
         response = client.get(url)
 
         content = response.content.decode()
-        assert 'hx-get=' in content
-        assert 'hx-trigger=' in content
+        assert "hx-get=" in content
+        assert "hx-trigger=" in content
         assert 'hx-swap="innerHTML"' in content
         assert 'id="predictions-content"' in content
 
@@ -688,7 +703,6 @@ class TestPollingBehavior:
         """Polling should detect ranking changes when totals change."""
         from django.contrib.auth import get_user_model
 
-
         User = get_user_model()
 
         # Create users with different total points
@@ -697,13 +711,17 @@ class TestPollingBehavior:
 
         # Initial state: user_a has more total points
         MatchPrediction.objects.create(
-            user=user_a, match=test_match,
-            predicted_goals_home=1, predicted_goals_away=1,
+            user=user_a,
+            match=test_match,
+            predicted_goals_home=1,
+            predicted_goals_away=1,
             points_earned=20,
         )
         MatchPrediction.objects.create(
-            user=user_b, match=test_match,
-            predicted_goals_home=2, predicted_goals_away=1,
+            user=user_b,
+            match=test_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
             points_earned=10,
         )
 
@@ -727,7 +745,7 @@ class TestPollingBehavior:
 
         content = response.content.decode()
         # "Spielpunkte" should have active styling
-        assert 'bg-white dark:bg-zinc-600' in content
+        assert "bg-white dark:bg-zinc-600" in content
         # Check sort_mode in context
         assert response.context["sort_mode"] == "match"
 
@@ -788,9 +806,7 @@ class TestVersionTracking:
         # past_match has goals_home=2, goals_away=1
         assert response.context["current_version"] == "2:1"
 
-    def test_match_predictions_view_version_with_none_score(
-        self, client, regular_user, test_match
-    ):
+    def test_match_predictions_view_version_with_none_score(self, client, regular_user, test_match):
         """Version should be 'None:None' for matches without score."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[test_match.id])
@@ -798,9 +814,7 @@ class TestVersionTracking:
 
         assert response.context["current_version"] == "None:None"
 
-    def test_update_view_returns_version_in_header(
-        self, client, regular_user, past_match
-    ):
+    def test_update_view_returns_version_in_header(self, client, regular_user, past_match):
         """Update view should return version in HX-Trigger header."""
         import json
 
@@ -812,9 +826,7 @@ class TestVersionTracking:
         trigger = json.loads(response.headers["HX-Trigger"])
         assert trigger["version"] == "2:1"
 
-    def test_update_view_version_format_with_none_score(
-        self, client, regular_user, test_match
-    ):
+    def test_update_view_version_format_with_none_score(self, client, regular_user, test_match):
         """Version header should contain None:None for matches without score."""
         import json
 
@@ -861,11 +873,8 @@ class TestVersionTracking:
         trigger = json.loads(response.headers["HX-Trigger"])
         assert trigger["version"] == "2:1"
 
-    def test_update_view_always_renders_pre_kickoff(
-        self, client, regular_user, test_match
-    ):
+    def test_update_view_always_renders_pre_kickoff(self, client, regular_user, test_match):
         """Pre-kickoff should always render full response even if version matches."""
-        import json
 
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions-updates", args=[test_match.id])
@@ -877,9 +886,7 @@ class TestVersionTracking:
         assert response.content != b""
         assert b"<div" in response.content
 
-    def test_update_view_handles_missing_version_param(
-        self, client, regular_user, past_match
-    ):
+    def test_update_view_handles_missing_version_param(self, client, regular_user, past_match):
         """Missing version param should trigger full render."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions-updates", args=[past_match.id])
@@ -915,9 +922,7 @@ class TestVersionTracking:
         content = response.content.decode()
         assert "hx-swap-oob" not in content
 
-    def test_match_predictions_page_has_dynamic_polling(
-        self, client, regular_user, test_match
-    ):
+    def test_match_predictions_page_has_dynamic_polling(self, client, regular_user, test_match):
         """Page template should have dynamic polling interval (1s or 60s)."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[test_match.id])
@@ -927,9 +932,7 @@ class TestVersionTracking:
         # Polling interval is dynamic: 1s during active matches, 60s otherwise
         assert 'hx-trigger="every 1s"' in content or 'hx-trigger="every 60s"' in content
 
-    def test_match_predictions_page_includes_version_in_url(
-        self, client, regular_user, past_match
-    ):
+    def test_match_predictions_page_includes_version_in_url(self, client, regular_user, past_match):
         """Page template should include version in hx-get URL."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[past_match.id])
@@ -952,9 +955,7 @@ class TestVersionTracking:
         assert "HX-Trigger" in content
         assert "trigger.version" in content
 
-    def test_match_predictions_page_renders_with_team_names(
-        self, client, regular_user, past_match
-    ):
+    def test_match_predictions_page_renders_with_team_names(self, client, regular_user, past_match):
         """Page should render with team names."""
         client.force_login(regular_user)
         url = reverse("predictions:match-predictions", args=[past_match.id])

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpRequest, HttpResponse
@@ -19,12 +20,12 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from core.ranking import apply_olympic_ranking, create_tiebreaker_from_keys
 from matches.constants import ROUND_ORDER as TOURNAMENT_PHASES
 from matches.models import Match
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
-from core.ranking import apply_olympic_ranking, create_tiebreaker_from_keys
 
 if TYPE_CHECKING:
     from users.models import User
@@ -49,10 +50,14 @@ def get_polling_interval() -> int:
     window_end = now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES)
 
     # Match is "active" if kickoff is in the past but within the active window
-    active_match_exists = Match.objects.filter(
-        kickoff__lte=now,  # Started
-        kickoff__gt=window_end,  # Within active window
-    ).exclude(status="finished").exists()
+    active_match_exists = (
+        Match.objects.filter(
+            kickoff__lte=now,  # Started
+            kickoff__gt=window_end,  # Within active window
+        )
+        .exclude(status="finished")
+        .exists()
+    )
 
     return POLLING_INTERVAL_ACTIVE if active_match_exists else POLLING_INTERVAL_IDLE
 
@@ -89,8 +94,7 @@ def get_phase_stats(user: "User") -> dict[str, dict[str, Any]]:
     )
     # Build lookup: phase -> (count, joker_count)
     prediction_counts: dict[str, tuple[int, int]] = {
-        row["match__round"]: (row["count"], row["joker_count"])
-        for row in prediction_data
+        row["match__round"]: (row["count"], row["joker_count"]) for row in prediction_data
     }
 
     for phase in TOURNAMENT_PHASES:
@@ -299,26 +303,30 @@ class PredictionSaveView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Get or create prediction
-        prediction, created = MatchPrediction.objects.get_or_create(
-            user=user,
-            match=match,
-            defaults={
-                "predicted_goals_home": 0,
-                "predicted_goals_away": 0,
-            },
-        )
+        # Check the group stage limit before creating a row, so the count never
+        # includes the prediction currently being saved.
+        with transaction.atomic():
+            prediction = MatchPrediction.objects.filter(user=user, match=match).first()
+            created = prediction is None
 
-        # Check group stage limit for new predictions
-        if created and match.round == "group":
-            if not PredictionLimitService.can_add_group_stage_prediction(user):
-                # Delete the just-created prediction
-                prediction.delete()
+            if (
+                created
+                and match.round == "group"
+                and not PredictionLimitService.can_add_group_stage_prediction(user)
+            ):
                 return render(
                     request,
                     "predictions/prediction_error.html",
                     {"error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."},
                     status=400,
+                )
+
+            if prediction is None:
+                prediction = MatchPrediction.objects.create(
+                    user=user,
+                    match=match,
+                    predicted_goals_home=0,
+                    predicted_goals_away=0,
                 )
 
         # Validate form
@@ -343,7 +351,9 @@ class PredictionSaveView(LoginRequiredMixin, View):
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, prediction)
             context["just_saved"] = True
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            return render(
+                request, "predictions/partials/current_user_prediction_form.html", context
+            )
 
         context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)
@@ -396,7 +406,9 @@ class PredictionDeleteView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, None)
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            return render(
+                request, "predictions/partials/current_user_prediction_form.html", context
+            )
 
         context = _get_match_row_context(user, match, None)
         return render(request, "predictions/prediction_row.html", context)
@@ -478,7 +490,9 @@ class PredictionJokerView(LoginRequiredMixin, View):
         context_type = request.GET.get("context", "")
         if context_type == "match-predictions":
             context = _get_match_predictions_form_context(user, match, prediction, just_saved=True)
-            return render(request, "predictions/partials/current_user_prediction_form.html", context)
+            return render(
+                request, "predictions/partials/current_user_prediction_form.html", context
+            )
 
         context = _get_match_row_context(user, match, prediction, just_saved=True)
         return render(request, "predictions/prediction_row.html", context)
@@ -510,10 +524,14 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
 
         # Find live/active matches (within active window, not finished yet)
         # These may have goals updating in real-time
-        matches_to_update = Match.objects.filter(
-            kickoff__lte=now,
-            kickoff__gt=now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES),
-        ).exclude(status="finished").select_related("team_home", "team_away")
+        matches_to_update = (
+            Match.objects.filter(
+                kickoff__lte=now,
+                kickoff__gt=now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES),
+            )
+            .exclude(status="finished")
+            .select_related("team_home", "team_away")
+        )
 
         if not matches_to_update.exists():
             # No live matches, return empty response with polling interval
@@ -612,17 +630,19 @@ def build_match_predictions_list(
     User = get_user_model()
 
     # Get all active users with aggregated statistics
-    users = User.objects.filter(is_active=True).annotate(
-        stats_total_points=Coalesce(Sum("match_predictions__points_earned"), 0),
-        stats_exact_count=Count(
-            "match_predictions",
-            filter=Q(match_predictions__is_exact_match=True)
-        ),
-        stats_jokers_count=Count(
-            "match_predictions",
-            filter=Q(match_predictions__joker_active=True)
-        ),
-    ).select_related("predicted_champion")
+    users = (
+        User.objects.filter(is_active=True)
+        .annotate(
+            stats_total_points=Coalesce(Sum("match_predictions__points_earned"), 0),
+            stats_exact_count=Count(
+                "match_predictions", filter=Q(match_predictions__is_exact_match=True)
+            ),
+            stats_jokers_count=Count(
+                "match_predictions", filter=Q(match_predictions__joker_active=True)
+            ),
+        )
+        .select_related("predicted_champion")
+    )
 
     # Prefetch predictions for this specific match
     predictions_by_user = {
@@ -636,21 +656,23 @@ def build_match_predictions_list(
         pred = predictions_by_user.get(user.id)  # type: ignore[attr-defined]
         match_points = pred.points_earned if pred and pred.points_earned is not None else 0
 
-        user_predictions.append({
-            "user": user,
-            "prediction": pred,
-            "predicted_goals_home": pred.predicted_goals_home if pred else None,
-            "predicted_goals_away": pred.predicted_goals_away if pred else None,
-            "joker_active": pred.joker_active if pred else False,
-            "points_earned": pred.points_earned if pred else None,
-            "has_predicted": pred is not None,
-            # Aggregated statistics
-            "match_points": match_points,
-            "champion": user.predicted_champion,  # type: ignore[attr-defined]
-            "exact_count": user.stats_exact_count,  # type: ignore[attr-defined]
-            "jokers_count": user.stats_jokers_count,  # type: ignore[attr-defined]
-            "total_points": user.stats_total_points,  # type: ignore[attr-defined]
-        })
+        user_predictions.append(
+            {
+                "user": user,
+                "prediction": pred,
+                "predicted_goals_home": pred.predicted_goals_home if pred else None,
+                "predicted_goals_away": pred.predicted_goals_away if pred else None,
+                "joker_active": pred.joker_active if pred else False,
+                "points_earned": pred.points_earned if pred else None,
+                "has_predicted": pred is not None,
+                # Aggregated statistics
+                "match_points": match_points,
+                "champion": user.predicted_champion,  # type: ignore[attr-defined]
+                "exact_count": user.stats_exact_count,  # type: ignore[attr-defined]
+                "jokers_count": user.stats_jokers_count,  # type: ignore[attr-defined]
+                "total_points": user.stats_total_points,  # type: ignore[attr-defined]
+            }
+        )
 
     # Sort based on mode
     if sort_mode == "total":
@@ -773,22 +795,24 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
         )
         joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
 
-        context.update({
-            "match": match,
-            "user_predictions": user_predictions,
-            "sort_mode": sort_mode,
-            "origin": origin,
-            "current_user": self.request.user,
-            "polling_interval": polling_interval,
-            "is_locked": is_locked,
-            "current_version": current_version,
-            "current_user_prediction": current_user_prediction,
-            "current_user_form": current_user_form,
-            "can_add_joker": can_add_joker,
-            "joker_count": joker_count,
-            "joker_limit": joker_limit,
-            "is_group_stage": round_code == "group",
-        })
+        context.update(
+            {
+                "match": match,
+                "user_predictions": user_predictions,
+                "sort_mode": sort_mode,
+                "origin": origin,
+                "current_user": self.request.user,
+                "polling_interval": polling_interval,
+                "is_locked": is_locked,
+                "current_version": current_version,
+                "current_user_prediction": current_user_prediction,
+                "current_user_form": current_user_form,
+                "can_add_joker": can_add_joker,
+                "joker_count": joker_count,
+                "joker_limit": joker_limit,
+                "is_group_stage": round_code == "group",
+            }
+        )
 
         return context
 

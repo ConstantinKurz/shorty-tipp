@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
+from matches import services
 from matches.models import Match, Team
 from matches.services import sync_matches_from_api, sync_teams_from_api
 
@@ -392,3 +393,39 @@ class TestSyncMatchesFromAPI:
             assert len(results) == 1
             match = results[0].match
             assert match.winner is None
+
+    def test_sync_continues_after_single_match_failure(self, teams: tuple[Team, Team]) -> None:
+        """Verify one failing match does not abort the sync of the remaining matches."""
+
+        def match_payload(external_id: int) -> dict:
+            return {
+                "id": external_id,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "FINISHED",
+                "stage": "GROUP_STAGE",
+                "score": {"winner": "HOME_TEAM", "fullTime": {"home": 2, "away": 1}},
+            }
+
+        mock_matches_data = [match_payload(1001), match_payload(1002), match_payload(1003)]
+
+        real_sync_match = services._sync_match
+
+        def flaky_sync(match_data: dict):
+            if match_data["id"] == 1002:
+                raise RuntimeError("scoring boom")
+            return real_sync_match(match_data)
+
+        with (
+            patch("matches.services.FootballDataClient") as MockClient,
+            patch("matches.services._sync_match", side_effect=flaky_sync),
+        ):
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            results = sync_matches_from_api()
+
+        assert len(results) == 2
+        assert {r.match.external_id for r in results} == {1001, 1003}
+        assert not Match.objects.filter(external_id=1002).exists()

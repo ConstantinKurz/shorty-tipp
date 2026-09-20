@@ -52,7 +52,7 @@ class Command(BaseCommand):
             try:
                 # Record iteration start time
                 iteration_time = timezone.now()
-                
+
                 # Sync matches from API
                 # Note: sync_matches_from_api() calls match.save() which triggers
                 # the match_result_entered signal, automatically scoring predictions
@@ -76,16 +76,14 @@ class Command(BaseCommand):
                     f"{len(matches_with_changes)} with goal changes. "
                     f"Next check in {interval}s."
                 )
-                
+
                 # Log details of changed matches
                 if matches_with_changes:
                     self.stdout.write(self.style.WARNING("  Matches with goal changes:"))
                     for match in matches_with_changes:
                         self.stdout.write(f"    • {match}")
                     self.stdout.write(
-                        self.style.SUCCESS(
-                            "  ✓ Predictions scored automatically via signals"
-                        )
+                        self.style.SUCCESS("  ✓ Predictions scored automatically via signals")
                     )
                 # Exit if --once flag
                 if once:
@@ -101,9 +99,7 @@ class Command(BaseCommand):
 
             except Exception as e:
                 logger.exception("Update iteration failed: %s", e)
-                self.stdout.write(
-                    self.style.ERROR(f"Error: {e}. Retrying in 60 seconds...")
-                )
+                self.stdout.write(self.style.ERROR(f"Error: {e}. Retrying in 60 seconds..."))
                 if once:
                     raise  # Re-raise in test mode
                 time.sleep(60)
@@ -145,9 +141,7 @@ class Command(BaseCommand):
 
         # Find next upcoming match
         next_match = (
-            Match.objects.filter(kickoff__gt=now, status="scheduled")
-            .order_by("kickoff")
-            .first()
+            Match.objects.filter(kickoff__gt=now, status="scheduled").order_by("kickoff").first()
         )
 
         if not next_match:

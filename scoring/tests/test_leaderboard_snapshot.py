@@ -39,9 +39,7 @@ class TestSnapshotCreation:
         assert snapshot.snapshot_type == "daily"
         assert len(snapshot.data) == 2
 
-    def test_snapshot_data_structure(
-        self, db, users_for_snapshot: list[User]
-    ) -> None:
+    def test_snapshot_data_structure(self, db, users_for_snapshot: list[User]) -> None:
         """Test snapshot data contains expected fields."""
         snapshot = RankingService.create_snapshot("daily")
 
@@ -53,9 +51,7 @@ class TestSnapshotCreation:
         assert "exact_match_count" in entry
         assert "jokers_used" in entry
 
-    def test_snapshot_captures_rankings_correctly(
-        self, db, users_for_snapshot: list[User]
-    ) -> None:
+    def test_snapshot_captures_rankings_correctly(self, db, users_for_snapshot: list[User]) -> None:
         """Test snapshot captures correct ranking order."""
         snapshot = RankingService.create_snapshot("final")
 

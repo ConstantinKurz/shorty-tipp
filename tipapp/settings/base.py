@@ -150,8 +150,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Football-Data.org API Configuration
 FOOTBALL_DATA_API_KEY = os.environ.get("FOOTBALL_DATA_API_KEY", "")
 FOOTBALL_DATA_BASE_URL = os.environ.get(
-    "FOOTBALL_DATA_BASE_URL",
-    "https://api.football-data.org/v4"
+    "FOOTBALL_DATA_BASE_URL", "https://api.football-data.org/v4"
 )
 
 # Email Notification Configuration

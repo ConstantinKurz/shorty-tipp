@@ -25,10 +25,10 @@ from users.models import User
 def _get_validated_round(request: HttpRequest) -> str | None:
     """
     Get and validate round filter from query params.
-    
+
     Args:
         request: The HTTP request containing potential 'round' query param
-        
+
     Returns:
         Valid round code or None if not specified or invalid
     """
@@ -41,16 +41,16 @@ def _get_validated_round(request: HttpRequest) -> str | None:
 def _get_ranking_context(user, selected_round):
     """
     Shared ranking logic for HomeView and RankingUpdatesView.
-    
+
     Args:
         user: The current user
         selected_round: Round code to filter by (None for all rounds)
-        
+
     Returns:
         Dict containing compact_leaderboard, full_leaderboard, and user_rank_entry
     """
     full_leaderboard = RankingService.get_leaderboard_up_to_round(round_code=selected_round)
-    
+
     # Enrich with champion data
     if full_leaderboard:
         user_ids = [entry["user_id"] for entry in full_leaderboard]
@@ -64,7 +64,7 @@ def _get_ranking_context(user, selected_round):
                 entry["predicted_champion"] = u.predicted_champion
             else:
                 entry["predicted_champion"] = None
-    
+
     # Find user position
     user_rank_entry = None
     user_index = None
@@ -73,7 +73,7 @@ def _get_ranking_context(user, selected_round):
             user_rank_entry = entry
             user_index = idx
             break
-    
+
     # Compact leaderboard
     compact_leaderboard = []
     if user_index is not None:
@@ -84,7 +84,7 @@ def _get_ranking_context(user, selected_round):
         compact_leaderboard = full_leaderboard[start:end]
     elif full_leaderboard:
         compact_leaderboard = full_leaderboard[:5]
-    
+
     return {
         "compact_leaderboard": compact_leaderboard,
         "full_leaderboard": full_leaderboard,
@@ -95,12 +95,12 @@ def _get_ranking_context(user, selected_round):
 class HomeView(LoginRequiredMixin, TemplateView):
     """
     Home page view showing user rank, compact ranking, and next matches.
-    
+
     This view consolidates the most important information for users:
     - Their current rank and points
     - A compact view of nearby competitors in the ranking
     - The next 3 upcoming matches for quick tipping
-    
+
     The full ranking can be expanded inline with round filtering via HTMX.
     """
 
@@ -115,7 +115,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         """
         Build context for home page.
-        
+
         Returns:
             Context dict containing:
             - selected_round: Current round filter (None for Live, or round code)
@@ -135,9 +135,9 @@ class HomeView(LoginRequiredMixin, TemplateView):
         # Get next 3 upcoming matches
         now = timezone.now()
         upcoming_matches = list(
-            Match.objects.filter(kickoff__gt=now).order_by("kickoff").select_related(
-                "team_home", "team_away"
-            )[:3]
+            Match.objects.filter(kickoff__gt=now)
+            .order_by("kickoff")
+            .select_related("team_home", "team_away")[:3]
         )
 
         # Get user's predictions for those matches
@@ -188,7 +188,9 @@ class HomeView(LoginRequiredMixin, TemplateView):
                 "available_rounds": get_available_rounds(),
                 "matches_data": matches_data,
                 "ranking_interval": get_polling_interval(),
-                "leaderboard": ranking_context["full_leaderboard"],  # For ranking_content.html compatibility
+                "leaderboard": ranking_context[
+                    "full_leaderboard"
+                ],  # For ranking_content.html compatibility
                 **ranking_context,
             }
         )

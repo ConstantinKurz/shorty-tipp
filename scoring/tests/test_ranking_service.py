@@ -53,9 +53,7 @@ def users_with_stats(db) -> list[User]:
 class TestRankingByPoints:
     """Test basic ranking by total points."""
 
-    def test_ranking_orders_by_points_descending(
-        self, db, users_with_stats: list[User]
-    ) -> None:
+    def test_ranking_orders_by_points_descending(self, db, users_with_stats: list[User]) -> None:
         """Test users are ranked by total points (highest first)."""
         leaderboard = RankingService.get_current_leaderboard()
 
@@ -121,9 +119,7 @@ class TestTiebreakers:
 class TestSharedRanks:
     """Test shared rank handling."""
 
-    def test_identical_stats_share_rank(
-        self, db, users_with_stats: list[User]
-    ) -> None:
+    def test_identical_stats_share_rank(self, db, users_with_stats: list[User]) -> None:
         """Test users with identical stats share the same rank."""
         leaderboard = RankingService.get_current_leaderboard()
 
@@ -133,9 +129,7 @@ class TestSharedRanks:
 
         assert bob["rank"] == carol["rank"] == 2
 
-    def test_rank_numbering_with_ties(
-        self, db, users_with_stats: list[User]
-    ) -> None:
+    def test_rank_numbering_with_ties(self, db, users_with_stats: list[User]) -> None:
         """Test rank numbering skips after ties (1, 2, 2, 4 not 1, 2, 2, 3)."""
         leaderboard = RankingService.get_current_leaderboard()
 
@@ -330,9 +324,7 @@ class TestRankingServiceRoundFiltering:
         assert leaderboard[1]["username"] == "user_b"
         assert leaderboard[1]["total_points"] == 3
 
-    def test_get_leaderboard_up_to_round_r16(
-        self, db, matches_by_round, scored_predictions
-    ):
+    def test_get_leaderboard_up_to_round_r16(self, db, matches_by_round, scored_predictions):
         """Test filtering includes group + r32 + r16."""
         leaderboard = RankingService.get_leaderboard_up_to_round("r16")
 
@@ -344,9 +336,7 @@ class TestRankingServiceRoundFiltering:
         assert leaderboard[1]["username"] == "user_a"
         assert leaderboard[1]["total_points"] == 12
 
-    def test_get_leaderboard_up_to_round_qf(
-        self, db, matches_by_round, scored_predictions
-    ):
+    def test_get_leaderboard_up_to_round_qf(self, db, matches_by_round, scored_predictions):
         """Test filtering through quarter-finals."""
         leaderboard = RankingService.get_leaderboard_up_to_round("qf")
 
@@ -358,9 +348,7 @@ class TestRankingServiceRoundFiltering:
         assert leaderboard[1]["username"] == "user_b"
         assert leaderboard[1]["total_points"] == 15
 
-    def test_get_leaderboard_up_to_round_final(
-        self, db, matches_by_round, scored_predictions
-    ):
+    def test_get_leaderboard_up_to_round_final(self, db, matches_by_round, scored_predictions):
         """Test final round includes all matches."""
         live = RankingService.get_current_leaderboard()
         final = RankingService.get_leaderboard_up_to_round("final")
@@ -378,9 +366,7 @@ class TestRankingServiceRoundFiltering:
 
         assert live == none_result
 
-    def test_get_leaderboard_up_to_round_invalid_code(
-        self, db, scored_predictions
-    ):
+    def test_get_leaderboard_up_to_round_invalid_code(self, db, scored_predictions):
         """Test invalid round code returns live view."""
         live = RankingService.get_current_leaderboard()
         invalid = RankingService.get_leaderboard_up_to_round("invalid")
@@ -413,9 +399,7 @@ class TestRankingServiceRoundFiltering:
         assert leaderboard[0]["exact_match_count"] == 0
         assert leaderboard[0]["jokers_used"] == 0
 
-    def test_get_leaderboard_up_to_round_ranking_correctness(
-        self, db, matches_by_round
-    ):
+    def test_get_leaderboard_up_to_round_ranking_correctness(self, db, matches_by_round):
         """Test olympic ranking with filtered data."""
         from predictions.models import MatchPrediction
 
@@ -470,9 +454,7 @@ class TestRankingServiceRoundFiltering:
 class TestBackwardCompatibility:
     """Test that refactored get_current_leaderboard maintains existing behavior."""
 
-    def test_get_current_leaderboard_backward_compatible(
-        self, db, users_with_stats
-    ):
+    def test_get_current_leaderboard_backward_compatible(self, db, users_with_stats):
         """Test that refactored method maintains existing behavior."""
         leaderboard = RankingService.get_current_leaderboard()
 
@@ -502,12 +484,8 @@ class TestLiveChampionBonusInLeaderboard:
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
 
         # Create live final with home team leading
         Match.objects.create(
@@ -566,12 +544,8 @@ class TestLiveChampionBonusInLeaderboard:
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
 
         # Create live final
         final = Match.objects.create(
@@ -628,12 +602,8 @@ class TestLiveChampionBonusInLeaderboard:
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
 
         # Create live final
         final = Match.objects.create(
@@ -678,12 +648,8 @@ class TestLiveChampionBonusInLeaderboard:
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        )
-        team_away = Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        )
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
 
         # Create scheduled final
         Match.objects.create(
@@ -987,5 +953,3 @@ class TestRankUpdateSignal:
         user2.refresh_from_db()
         assert user1.global_rank == 1  # Alice should still be first (more points)
         assert user2.global_rank == 2  # Bob should still be second
-
-

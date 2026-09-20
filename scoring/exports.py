@@ -41,7 +41,9 @@ def generate_leaderboard_csv(leaderboard: list[dict]) -> str:
     return output.getvalue()
 
 
-def generate_leaderboard_pdf(leaderboard: list[dict], title: str = "Shortytipp Leaderboard") -> bytes:
+def generate_leaderboard_pdf(
+    leaderboard: list[dict], title: str = "Shortytipp Leaderboard"
+) -> bytes:
     """
     Generate PDF content from leaderboard data.
 
@@ -182,16 +184,18 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
     writer.writerow(["=" * 60])
     writer.writerow([])
     writer.writerow(["Rank", "Player", "Total Points", "Exact Matches", "Jokers Used"])
-    
+
     for entry in leaderboard:
-        writer.writerow([
-            entry["rank"],
-            entry["username"],
-            entry["total_points"],
-            entry["exact_match_count"],
-            entry["jokers_used"],
-        ])
-    
+        writer.writerow(
+            [
+                entry["rank"],
+                entry["username"],
+                entry["total_points"],
+                entry["exact_match_count"],
+                entry["jokers_used"],
+            ]
+        )
+
     writer.writerow([])
     writer.writerow([])
 
@@ -201,19 +205,19 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
     writer.writerow(["=" * 60])
 
     # Get all finished matches ordered by kickoff
-    matches = Match.objects.filter(status="finished").select_related(
-        "team_home", "team_away"
-    ).order_by("kickoff")
+    matches = (
+        Match.objects.filter(status="finished")
+        .select_related("team_home", "team_away")
+        .order_by("kickoff")
+    )
 
     # Get all user_ids from leaderboard
     user_ids = [entry["user_id"] for entry in leaderboard]
 
     # Pre-fetch all predictions for these users
-    predictions_by_user: dict[int, dict[int, "MatchPrediction"]] = {}
-    predictions = MatchPrediction.objects.filter(
-        user_id__in=user_ids
-    ).select_related("match")
-    
+    predictions_by_user: dict[int, dict[int, MatchPrediction]] = {}
+    predictions = MatchPrediction.objects.filter(user_id__in=user_ids).select_related("match")
+
     for pred in predictions:
         if pred.user_id not in predictions_by_user:
             predictions_by_user[pred.user_id] = {}
@@ -226,19 +230,23 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
 
         writer.writerow([])
         writer.writerow(["-" * 50])
-        writer.writerow([f"Player: {entry['username']} (Rank #{entry['rank']}, {entry['total_points']} points)"])
+        writer.writerow(
+            [f"Player: {entry['username']} (Rank #{entry['rank']}, {entry['total_points']} points)"]
+        )
         writer.writerow(["-" * 50])
-        writer.writerow([
-            "Date", "Round", "Match", "Result", "Prediction", "Points", "Exact?", "Joker?"
-        ])
+        writer.writerow(
+            ["Date", "Round", "Match", "Result", "Prediction", "Points", "Exact?", "Joker?"]
+        )
 
         for match in matches:
             pred = user_predictions.get(match.pk)
-            
+
             match_date = match.kickoff.strftime("%Y-%m-%d") if match.kickoff else ""
             match_str = f"{match.team_home.name if match.team_home else '?'} vs {match.team_away.name if match.team_away else '?'}"
-            result_str = f"{match.goals_home}-{match.goals_away}" if match.goals_home is not None else ""
-            
+            result_str = (
+                f"{match.goals_home}-{match.goals_away}" if match.goals_home is not None else ""
+            )
+
             if pred:
                 pred_str = f"{pred.predicted_goals_home}-{pred.predicted_goals_away}"
                 points = pred.points_earned if pred.points_earned is not None else "-"
@@ -250,16 +258,18 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
                 exact = ""
                 joker = ""
 
-            writer.writerow([
-                match_date,
-                match.round,
-                match_str,
-                result_str,
-                pred_str,
-                points,
-                exact,
-                joker,
-            ])
+            writer.writerow(
+                [
+                    match_date,
+                    match.round,
+                    match_str,
+                    result_str,
+                    pred_str,
+                    points,
+                    exact,
+                    joker,
+                ]
+            )
 
     return output.getvalue()
 

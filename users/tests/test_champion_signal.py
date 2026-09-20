@@ -13,12 +13,8 @@ from users.models import User
 def teams(db) -> dict[str, Team]:
     """Create test teams."""
     return {
-        "germany": Team.objects.create(
-            name="Germany", fifa_code="GER", odds_category="A"
-        ),
-        "brazil": Team.objects.create(
-            name="Brazil", fifa_code="BRA", odds_category="B"
-        ),
+        "germany": Team.objects.create(name="Germany", fifa_code="GER", odds_category="A"),
+        "brazil": Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B"),
     }
 
 
@@ -113,7 +109,7 @@ class TestChampionRecalculationIntegration:
         self, db, teams: dict[str, Team], user_without_champion: User
     ) -> None:
         """Test that recalculation resets to match prediction points only.
-        
+
         Champion bonus is handled separately by update_live_champion_bonuses,
         so recalculate_user_score should not include it.
         """

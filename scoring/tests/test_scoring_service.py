@@ -104,9 +104,7 @@ class TestScoringCategories:
         assert result["base_points"] == 5
         assert result["is_exact"] is False
 
-    def test_tendency_and_one_goal_4_points(
-        self, db, group_match: Match, user: User
-    ) -> None:
+    def test_tendency_and_one_goal_4_points(self, db, group_match: Match, user: User) -> None:
         """Test correct tendency + one team's goals awards 4 base points.
 
         Match result: 2-1 (home win)
@@ -275,9 +273,7 @@ class TestRoundMultipliers:
 class TestJokerMultiplier:
     """Test joker doubling per Shortytipp rules section 6."""
 
-    def test_joker_doubles_points(
-        self, db, r16_match: Match, user: User
-    ) -> None:
+    def test_joker_doubles_points(self, db, r16_match: Match, user: User) -> None:
         """Test joker doubles the final points.
 
         r16 match (x2), exact score (6 base), joker (x2)
@@ -295,9 +291,7 @@ class TestJokerMultiplier:
         assert result["base_points"] == 6
         assert result["points"] == 24  # 6 * 2 * 2
 
-    def test_combined_base_round_joker(
-        self, db, final_match: Match, user: User
-    ) -> None:
+    def test_combined_base_round_joker(self, db, final_match: Match, user: User) -> None:
         """Test formula: base * round * joker.
 
         Final match (x3), exact score (6 base), joker (x2)
@@ -336,9 +330,7 @@ class TestChampionPrediction:
 
     def test_champion_no_category_0_points(self, db) -> None:
         """Test champion with no category awards 0 points."""
-        team = Team.objects.create(
-            name="Unknown", fifa_code="UNK", odds_category=None
-        )
+        team = Team.objects.create(name="Unknown", fifa_code="UNK", odds_category=None)
         points = calculate_champion_points(team)
         assert points == 0
 
@@ -346,9 +338,7 @@ class TestChampionPrediction:
 class TestScorePrediction:
     """Test score_prediction method updates database."""
 
-    def test_score_prediction_updates_prediction(
-        self, db, group_match: Match, user: User
-    ) -> None:
+    def test_score_prediction_updates_prediction(self, db, group_match: Match, user: User) -> None:
         """Test score_prediction updates prediction fields."""
         prediction = MatchPrediction.objects.create(
             user=user,
@@ -363,9 +353,7 @@ class TestScorePrediction:
         assert prediction.points_earned == 6
         assert prediction.is_exact_match is True
 
-    def test_score_prediction_updates_user_stats(
-        self, db, group_match: Match, user: User
-    ) -> None:
+    def test_score_prediction_updates_user_stats(self, db, group_match: Match, user: User) -> None:
         """Test score_prediction updates user statistics."""
         prediction = MatchPrediction.objects.create(
             user=user,
@@ -421,7 +409,7 @@ class TestRoundValidation:
         """Error message for invalid round should list all valid rounds."""
         with pytest.raises(ValueError) as exc_info:
             ScoringService._get_round_multiplier("invalid")
-        
+
         error_message = str(exc_info.value)
         assert "Unknown round 'invalid'" in error_message
         assert "Valid rounds:" in error_message

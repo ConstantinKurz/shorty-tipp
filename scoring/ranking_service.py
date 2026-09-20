@@ -129,18 +129,14 @@ class RankingService:
             ]
         """
         # Check if ranks are populated
-        has_ranks = UserModel.objects.filter(
-            is_active=True,
-            global_rank__isnull=False
-        ).exists()
-        
+        has_ranks = UserModel.objects.filter(is_active=True, global_rank__isnull=False).exists()
+
         if has_ranks:
             # Use stored ranks
-            users = UserModel.objects.filter(
-                is_active=True,
-                global_rank__isnull=False
-            ).order_by("global_rank")
-            
+            users = UserModel.objects.filter(is_active=True, global_rank__isnull=False).order_by(
+                "global_rank"
+            )
+
             return [
                 {
                     "rank": user.global_rank,
@@ -152,7 +148,7 @@ class RankingService:
                 }
                 for user in users
             ]
-        
+
         # Fallback: Calculate dynamically
         return RankingService.get_leaderboard_up_to_round(round_code=None)
 
@@ -262,12 +258,12 @@ class RankingService:
     def update_all_user_ranks() -> int:
         """
         Calculate Olympic-style ranking and persist to User.global_rank.
-        
+
         Uses the same tiebreaker logic as get_current_leaderboard():
         1. Total points (higher is better)
         2. Exact match count (higher is better)
         3. Jokers used (fewer is better)
-        
+
         Returns:
             Number of users updated
         """
@@ -277,15 +273,15 @@ class RankingService:
             .select_for_update()
             .order_by("-total_points", "-exact_match_count", "jokers_used")
         )
-        
+
         if not users:
             return 0
-        
+
         # Apply Olympic ranking
         current_rank = 1
         users_at_rank = 0
         prev_user = None
-        
+
         for user in users:
             if prev_user is not None:
                 same_rank = (
@@ -300,11 +296,11 @@ class RankingService:
                     users_at_rank += 1
             else:
                 users_at_rank = 1
-            
+
             user.global_rank = current_rank
             prev_user = user
-        
+
         # Bulk update all ranks
         UserModel.objects.bulk_update(users, ["global_rank"])
-        
+
         return len(users)

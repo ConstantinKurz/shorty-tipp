@@ -15,7 +15,7 @@ class MatchPredictionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "predicted_score",
         "joker_active",
         "created_at",
-        "points_earned"
+        "points_earned",
     ]
     list_filter = ["joker_active", "user"]
     search_fields = [

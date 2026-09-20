@@ -5,7 +5,8 @@ Provides Olympic-style ranking functionality used by both the predictions
 and scoring services to ensure consistency.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def apply_olympic_ranking(

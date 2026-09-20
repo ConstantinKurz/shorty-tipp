@@ -19,14 +19,11 @@ class LeaderboardSnapshot(models.Model):
     ]
 
     created_at: models.DateTimeField = models.DateTimeField(
-        auto_now_add=True,
-        help_text="When this snapshot was created"
+        auto_now_add=True, help_text="When this snapshot was created"
     )
 
     snapshot_type: models.CharField = models.CharField(
-        max_length=10,
-        choices=SNAPSHOT_TYPE_CHOICES,
-        help_text="Type of snapshot (daily or final)"
+        max_length=10, choices=SNAPSHOT_TYPE_CHOICES, help_text="Type of snapshot (daily or final)"
     )
 
     data: models.JSONField = models.JSONField(
