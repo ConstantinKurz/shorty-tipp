@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Leaderboard Report</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #333;">Shortytipp Leaderboard Report</h1>
+    <p style="color: #666;">Stand: {{ snapshot_date }}</p>
+
+    <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">Aktuelle Rangliste</h2>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Rang</th>
+                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Name</th>
+                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #dee2e6;">Punkte</th>
+                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #dee2e6;">Exakt</th>
+                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #dee2e6;">Joker</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in rankings %}
+            <tr style="{% if forloop.counter <= 3 %}font-weight: bold;{% endif %}">
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">{{ entry.rank }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">{{ entry.username }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; text-align: right;">{{ entry.total_points }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; text-align: right;">{{ entry.exact_match_count }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; text-align: right;">{{ entry.jokers_used }}</td>
+            </tr>
+            <tr>
+                <td colspan="5" style="padding: 5px 10px; background-color: #fff3cd; border-bottom: 1px solid #dee2e6; font-size: 13px;">
+                    <strong>Champion:</strong> {% if entry.user.predicted_champion %}{{ entry.user.predicted_champion.name }}{% else %}Nicht gesetzt{% endif %}
+                </td>
+            </tr>
+            {% if entry.predictions %}
+            <tr>
+                <td colspan="5" style="padding: 15px; background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                    <strong>Tipps von {{ entry.username }}:</strong>
+                    <table style="width: 100%; margin-top: 10px; font-size: 13px;">
+                        <thead>
+                            <tr style="background-color: #e9ecef;">
+                                <th style="padding: 5px; text-align: left;">Spiel</th>
+                                <th style="padding: 5px; text-align: center;">Tipp</th>
+                                <th style="padding: 5px; text-align: center;">Joker</th>
+                                <th style="padding: 5px; text-align: center;">Punkte</th>
+                                <th style="padding: 5px; text-align: right;">Zeitpunkt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pred in entry.predictions %}
+                            <tr>
+                                <td style="padding: 5px;">{{ pred.match.team_home.name }} - {{ pred.match.team_away.name }}</td>
+                                <td style="padding: 5px; text-align: center;">{{ pred.predicted_goals_home }}:{{ pred.predicted_goals_away }}</td>
+                                <td style="padding: 5px; text-align: center;">{% if pred.joker_active %}✓{% else %}-{% endif %}</td>
+                                <td style="padding: 5px; text-align: center;">{% if pred.points_earned is not None %}{{ pred.points_earned }}{% else %}-{% endif %}</td>
+                                <td style="padding: 5px; text-align: right; white-space: nowrap;">{{ pred.created_at|date:"d.m.Y H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+            {% endif %}
+            {% empty %}
+            <tr>
+                <td colspan="5" style="padding: 10px; text-align: center; color: #666;">Keine Einträge vorhanden.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <hr style="margin-top: 30px; border: none; border-top: 1px solid #dee2e6;">
+    <p style="color: #999; font-size: 12px;">
+        Diese E-Mail wurde automatisch generiert.<br>
+        Shortytipp - WM 2026 Tippspiel
+    </p>
+</body>
+</html>

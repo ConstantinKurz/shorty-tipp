@@ -1,0 +1,19 @@
+Hallo {{ user.first_name|default:user.username }},
+
+Du hast noch {{ match_count }} Tipp{% if match_count > 1 %}s{% endif %} offen für Spiele, die bald beginnen!
+
+Fehlende Tipps:
+---------------
+{% for match in matches %}
+• {{ match.team_home.name }} vs {{ match.team_away.name }}
+  Anstoß: {{ match.kickoff|date:"d.m.Y H:i" }} Uhr
+{% endfor %}
+
+Jetzt tippen: https://shortytipp.de/predictions/
+
+Viel Erfolg!
+Dein Shortytipp Team
+
+---
+Diese E-Mail wurde automatisch generiert.
+Shortytipp - WM 2026 Tippspiel

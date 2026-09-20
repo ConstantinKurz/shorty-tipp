@@ -1,0 +1,25 @@
+Shortytipp Leaderboard Report
+=============================
+
+Stand: {{ snapshot_date }}
+
+Aktuelle Rangliste:
+-------------------
+{% for entry in rankings %}
+{{ entry.rank }}. {{ entry.username }} - {{ entry.total_points }} Punkte
+   ({{ entry.exact_match_count }} exakte Tipps, {{ entry.jokers_used }} Joker)
+   Champion-Tipp: {% if entry.user.predicted_champion %}{{ entry.user.predicted_champion.name }}{% else %}Nicht gesetzt{% endif %}
+{% if entry.predictions %}
+
+   Tipps:
+{% for pred in entry.predictions %}   - {{ pred.match.team_home.name }} vs {{ pred.match.team_away.name }}: {{ pred.predicted_goals_home }}-{{ pred.predicted_goals_away }}{% if pred.joker_active %} [JOKER]{% endif %}{% if pred.points_earned is not None %} | {{ pred.points_earned }} Pkt{% endif %} | {{ pred.created_at|date:"d.m.Y H:i" }}
+{% endfor %}
+{% endif %}
+
+{% empty %}
+Keine Einträge vorhanden.
+{% endfor %}
+
+---
+Diese E-Mail wurde automatisch generiert.
+Shortytipp - WM 2026 Tippspiel

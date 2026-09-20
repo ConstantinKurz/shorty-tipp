@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "matches.apps.MatchesConfig",
     "predictions.apps.PredictionsConfig",
     "scoring.apps.ScoringConfig",
+    "notifications.apps.NotificationsConfig",
 ]
 
 MIDDLEWARE = [
@@ -152,3 +153,15 @@ FOOTBALL_DATA_BASE_URL = os.environ.get(
     "FOOTBALL_DATA_BASE_URL",
     "https://api.football-data.org/v4"
 )
+
+# Email Notification Configuration
+LEADERBOARD_ADMIN_EMAIL = os.environ.get("LEADERBOARD_ADMIN_EMAIL", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@shortytipp.de")
+
+# SMTP Configuration
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "False") == "True"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")

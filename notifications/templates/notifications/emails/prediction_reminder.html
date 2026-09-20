@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Tipp-Erinnerung</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #333;">Hallo {{ user.first_name|default:user.username }}!</h1>
+
+    <p style="font-size: 16px; color: #333;">
+        Du hast noch <strong>{{ match_count }} Tipp{% if match_count > 1 %}s{% endif %}</strong> offen für Spiele, die bald beginnen!
+    </p>
+
+    <h2 style="color: #333; border-bottom: 2px solid #ffc107; padding-bottom: 10px;">Fehlende Tipps</h2>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Spiel</th>
+                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #dee2e6;">Anstoß</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for match in matches %}
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">
+                    <strong>{{ match.team_home.name }}</strong> vs <strong>{{ match.team_away.name }}</strong>
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; text-align: right; white-space: nowrap;">
+                    {{ match.kickoff|date:"d.m.Y H:i" }} Uhr
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="https://shortytipp.de/predictions/"
+           style="display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            Jetzt tippen
+        </a>
+    </div>
+
+    <p style="margin-top: 30px; color: #333;">
+        Viel Erfolg!<br>
+        Dein Shortytipp Team
+    </p>
+
+    <hr style="margin-top: 30px; border: none; border-top: 1px solid #dee2e6;">
+    <p style="color: #999; font-size: 12px;">
+        Diese E-Mail wurde automatisch generiert.<br>
+        Shortytipp - WM 2026 Tippspiel
+    </p>
+</body>
+</html>
