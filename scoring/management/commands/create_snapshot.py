@@ -5,7 +5,9 @@ Creates a point-in-time snapshot of the current leaderboard
 for historical tracking and trend analysis.
 """
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
+from django.db import DatabaseError
 
 from scoring.ranking_service import RankingService
 
@@ -27,7 +29,7 @@ class Command(BaseCommand):
 
         try:
             snapshot = RankingService.create_snapshot(snapshot_type)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, ValidationError, DatabaseError) as e:
             raise CommandError(f"Failed to create snapshot: {e}") from e
 
         entries = len(snapshot.data) if snapshot.data else 0

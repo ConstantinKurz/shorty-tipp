@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
-from predictions.views import get_phase_stats
+from predictions.services import get_phase_stats
 
 
 @pytest.fixture
@@ -855,7 +855,7 @@ class TestGetPollingInterval:
 
     def test_returns_idle_interval_when_no_matches(self, db):
         """Should return 60s when no matches exist."""
-        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_IDLE, get_polling_interval
 
         interval = get_polling_interval()
 
@@ -863,7 +863,7 @@ class TestGetPollingInterval:
 
     def test_returns_idle_interval_when_no_active_matches(self, teams, db):
         """Should return 60s when only future matches exist."""
-        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_IDLE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         Match.objects.create(
@@ -879,7 +879,7 @@ class TestGetPollingInterval:
 
     def test_returns_active_interval_during_match(self, teams, db):
         """Should return 10s when match started recently."""
-        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_ACTIVE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         # Match kicked off 30 minutes ago
@@ -897,7 +897,7 @@ class TestGetPollingInterval:
 
     def test_returns_active_interval_during_extra_time(self, teams, db):
         """Should return 10s when match is in extra time (120 min)."""
-        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_ACTIVE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         # Match kicked off 120 minutes ago (extra time)
@@ -915,7 +915,7 @@ class TestGetPollingInterval:
 
     def test_returns_active_interval_during_penalties(self, teams, db):
         """Should return 10s when match could be in penalty shootout (150 min)."""
-        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_ACTIVE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         # Match kicked off 150 minutes ago (penalties)
@@ -933,7 +933,7 @@ class TestGetPollingInterval:
 
     def test_returns_idle_interval_after_match_window(self, teams, db):
         """Should return 60s when match started over 160 minutes ago."""
-        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_IDLE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         # Match kicked off 180 minutes ago (well past any match duration)
@@ -951,7 +951,7 @@ class TestGetPollingInterval:
 
     def test_returns_idle_interval_for_finished_match_in_window(self, teams, db):
         """Should return 60s when match in window is already finished."""
-        from predictions.views import POLLING_INTERVAL_IDLE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_IDLE, get_polling_interval
 
         team_a, team_b, _, _ = teams
         # Match kicked off 30 min ago but already marked finished
@@ -971,7 +971,7 @@ class TestGetPollingInterval:
 
     def test_multiple_matches_one_active(self, teams, db):
         """Should return 10s when at least one match is active."""
-        from predictions.views import POLLING_INTERVAL_ACTIVE, get_polling_interval
+        from predictions.services import POLLING_INTERVAL_ACTIVE, get_polling_interval
 
         team_a, team_b, team_c, team_d = teams
 
@@ -1028,7 +1028,7 @@ class TestPredictionUpdatesPollingInterval:
         """Should return 10s polling interval when match is active."""
         import json
 
-        from predictions.views import POLLING_INTERVAL_ACTIVE
+        from predictions.services import POLLING_INTERVAL_ACTIVE
 
         team_a, team_b, _, _ = teams
         # Active match
@@ -1051,7 +1051,7 @@ class TestPredictionUpdatesPollingInterval:
         """Should return 60s polling interval when no active matches."""
         import json
 
-        from predictions.views import POLLING_INTERVAL_IDLE
+        from predictions.services import POLLING_INTERVAL_IDLE
 
         client.force_login(regular_user)
         url = reverse("predictions:prediction-updates")
@@ -1288,7 +1288,6 @@ class TestMatchPredictionsView:
         assert "2." in content
         assert "4." in content
         # Should NOT have rank 3 between the tie and next person
-        lines = content.split("\n")
         # Count rank appearances more carefully
         rank_pattern = r">\s*(\d+)\.\s*<"
         import re

@@ -11,10 +11,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
+from django.db import DatabaseError
 from django.db.models import Exists, OuterRef, QuerySet
 
 from matches.models import Match
+from predictions.models import MatchPrediction
 from scoring.champion_scoring import update_live_champion_bonuses
 from scoring.match_scoring import ScoringService
 from scoring.ranking_service import RankingService
@@ -28,9 +31,6 @@ def find_unscored_matches() -> QuerySet[Match]:
         Matches with both goals set and predictions without points_earned,
         ordered by kickoff. Matches without predictions are never returned.
     """
-    # Lazy import to avoid a circular dependency between scoring and predictions.
-    from predictions.models import MatchPrediction
-
     # Exists() instead of a join filter: an ``isnull=True`` join would promote to a
     # LEFT JOIN and also match matches that have no predictions at all.
     unscored_predictions = MatchPrediction.objects.filter(
@@ -79,7 +79,7 @@ class Command(BaseCommand):
         for match in matches:
             try:
                 scored = ScoringService.score_all_predictions_for_match(match)
-            except Exception as exc:  # noqa: BLE001 - reported per match, loop continues
+            except (ValueError, TypeError, KeyError, ValidationError, DatabaseError) as exc:
                 failures.append(match.pk)
                 self.stderr.write(self.style.ERROR(f"  [{match.pk}] repair failed: {exc}"))
                 continue

@@ -143,7 +143,7 @@ class TestUpdateMatchesCommand:
         # Mock the sync function and signal receiver
         with (
             patch("matches.management.commands.update_matches.sync_matches_from_api") as mock_sync,
-            patch("scoring.signals.score_predictions_on_result") as mock_signal_receiver,
+            patch("scoring.signals.score_predictions_on_result"),
         ):
             # Simulate goal change
             mock_sync.return_value = [MatchSyncResult(match=match, goals_changed=True)]

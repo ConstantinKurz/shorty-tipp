@@ -26,7 +26,7 @@ class Team(models.Model):
     odds_category: models.CharField = models.CharField(
         max_length=1,
         choices=ODDS_CATEGORY_CHOICES,
-        null=True,
+        default="",
         blank=True,
         help_text="Champion prediction category: A (odds rank 1-8, 20pts) or B (rank 9+, 30pts). Set by admin based on betting odds.",
     )
@@ -38,7 +38,7 @@ class Team(models.Model):
         verbose_name_plural = "Teams"
 
     def __str__(self) -> str:
-        return self.name
+        return str(self.name)
 
 
 class Match(models.Model):
@@ -103,7 +103,7 @@ class Match(models.Model):
     winner: models.CharField = models.CharField(
         max_length=10,
         choices=WINNER_CHOICES,
-        null=True,
+        default="",
         blank=True,
         help_text="Match winner from API (home/away/draw). For knockout matches with penalties, "
         "this shows the actual winner while goals_home/goals_away contain the score before penalties.",
@@ -127,7 +127,7 @@ class Match(models.Model):
             return (
                 f"{self.team_home.name} {self.goals_home}-{self.goals_away} {self.team_away.name}"
             )
-        return f"{self.team_home.name} vs {self.team_away.name} ({self.get_round_display()})"  # type: ignore[attr-defined]
+        return f"{self.team_home.name} vs {self.team_away.name} ({self.get_round_display()})"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """

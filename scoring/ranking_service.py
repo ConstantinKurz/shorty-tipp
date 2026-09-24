@@ -6,11 +6,14 @@ This module handles generation of leaderboards with Olympic-style ranking.
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.db import transaction
 from django.db.models import Count, Q, Sum
 
 from core.ranking import apply_olympic_ranking
 from matches.constants import ROUND_ORDER
+from predictions.models import MatchPrediction
 from scoring.models import LeaderboardSnapshot
 from users.models import User as UserModel
 
@@ -28,7 +31,7 @@ class RankingService:
     """
 
     @staticmethod
-    def get_leaderboard_up_to_round(round_code: str | None = None) -> list[dict]:
+    def get_leaderboard_up_to_round(round_code: str | None = None) -> list[dict[str, Any]]:
         """
         Generate leaderboard including matches up to a specific round.
 
@@ -97,19 +100,19 @@ class RankingService:
         )
 
         # Convert QuerySet to list and update attributes for _calculate_rank_numbers
-        user_list = []
+        user_list: list[UserModel] = []
         for user in users:
             # Create a simple object with the attributes expected by _calculate_rank_numbers
             # We temporarily override the model fields with filtered values from annotate()
-            user.total_points = user.filtered_total_points  # type: ignore[attr-defined]
-            user.exact_match_count = user.filtered_exact_count  # type: ignore[attr-defined]
-            user.jokers_used = user.filtered_jokers_used  # type: ignore[attr-defined]
+            user.total_points = user.filtered_total_points
+            user.exact_match_count = user.filtered_exact_count
+            user.jokers_used = user.filtered_jokers_used
             user_list.append(user)
 
         return RankingService._calculate_rank_numbers(user_list)
 
     @staticmethod
-    def get_current_leaderboard() -> list[dict]:
+    def get_current_leaderboard() -> list[dict[str, Any]]:
         """
         Generate the current leaderboard with rankings.
 
@@ -153,7 +156,7 @@ class RankingService:
         return RankingService.get_leaderboard_up_to_round(round_code=None)
 
     @staticmethod
-    def _calculate_rank_numbers(users: list) -> list[dict]:
+    def _calculate_rank_numbers(users: list[UserModel]) -> list[dict[str, Any]]:
         """
         Calculate rank numbers with shared rank support.
 
@@ -182,8 +185,8 @@ class RankingService:
         ]
 
         # Apply Olympic-style ranking
-        def tiebreaker(a: dict, b: dict) -> bool:
-            return (
+        def tiebreaker(a: dict[str, Any], b: dict[str, Any]) -> bool:
+            return bool(
                 a["total_points"] == b["total_points"]
                 and a["exact_match_count"] == b["exact_match_count"]
                 and a["jokers_used"] == b["jokers_used"]
@@ -226,9 +229,6 @@ class RankingService:
         Args:
             user: User instance to recalculate
         """
-        # Lazy import to avoid circular dependency
-        from predictions.models import MatchPrediction
-
         # Calculate points from match predictions
         predictions = MatchPrediction.objects.filter(
             user=user,

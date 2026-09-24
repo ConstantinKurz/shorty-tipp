@@ -5,6 +5,8 @@ Contains cross-cutting views that aggregate data from multiple apps,
 such as the home page.
 """
 
+from typing import Any, cast
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -16,8 +18,7 @@ from matches.constants import get_available_rounds
 from matches.models import Match
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
-from predictions.services import PredictionLimitService
-from predictions.views import get_polling_interval
+from predictions.services import PredictionLimitService, get_polling_interval
 from scoring.ranking_service import RankingService
 from users.models import User
 
@@ -38,7 +39,7 @@ def _get_validated_round(request: HttpRequest) -> str | None:
     return selected_round
 
 
-def _get_ranking_context(user, selected_round):
+def _get_ranking_context(user: User, selected_round: str | None) -> dict[str, Any]:
     """
     Shared ranking logic for HomeView and RankingUpdatesView.
 
@@ -106,13 +107,13 @@ class HomeView(LoginRequiredMixin, TemplateView):
 
     template_name = "home.html"
 
-    def get_template_names(self):
+    def get_template_names(self) -> list[str]:
         """Return partial for HTMX requests, full page otherwise."""
         if self.request.headers.get("HX-Request"):
             return ["partials/ranking_content.html"]
         return [self.template_name]
 
-    def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """
         Build context for home page.
 
@@ -126,7 +127,8 @@ class HomeView(LoginRequiredMixin, TemplateView):
             - matches_data: Up to 3 upcoming matches with prediction forms
         """
         context = super().get_context_data(**kwargs)
-        user = self.request.user
+        # LoginRequiredMixin guarantees an authenticated user here.
+        user = cast("User", self.request.user)
 
         # Get round filter and ranking data
         selected_round = _get_validated_round(self.request)
@@ -208,7 +210,8 @@ class RankingUpdatesView(LoginRequiredMixin, View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         """Handle GET request for ranking updates."""
-        user = request.user
+        # LoginRequiredMixin guarantees an authenticated user here.
+        user = cast("User", request.user)
 
         # Get round filter and ranking data
         selected_round = _get_validated_round(request)

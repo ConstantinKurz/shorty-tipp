@@ -68,7 +68,7 @@ class UserSettingsForm(forms.ModelForm):
 
     def clean_username(self) -> str:
         """Validate username: max 20 chars, unique."""
-        username = self.cleaned_data["username"]
+        username: str = self.cleaned_data["username"]
         if len(username) > 20:
             raise forms.ValidationError("Username darf max. 20 Zeichen haben.")
 
@@ -80,7 +80,7 @@ class UserSettingsForm(forms.ModelForm):
 
     def clean_email(self) -> str:
         """Validate email: unique (excluding current user)."""
-        email = self.cleaned_data["email"]
+        email: str = self.cleaned_data["email"]
 
         # Check uniqueness (excluding current user)
         if User.objects.filter(email=email).exclude(pk=self.instance.pk).exists():

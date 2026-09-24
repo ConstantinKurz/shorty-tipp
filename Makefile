@@ -16,7 +16,7 @@ help:
 	@echo "  make createsuperuser - Create a superuser"
 
 install:
-	uv pip install -e ".[dev]"
+	uv pip install -e ".[dev,pdf]"
 
 test:
 	DJANGO_SETTINGS_MODULE=tipapp.settings.test python -m pytest -v

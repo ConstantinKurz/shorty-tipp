@@ -84,7 +84,7 @@ class TestApplyOlympicRanking:
 
     def test_ranking_empty_list(self):
         """Test ranking with empty list."""
-        items = []
+        items: list[dict] = []
 
         def tiebreaker(a, b):
             return True

@@ -6,10 +6,12 @@ when match results are entered or updated.
 """
 
 import logging
+from typing import Any
 
 from django.db import transaction
 from django.dispatch import receiver
 
+from matches.models import Match
 from matches.signals import match_result_entered
 from scoring.champion_scoring import update_live_champion_bonuses
 from scoring.match_scoring import ScoringService
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(match_result_entered)
-def score_predictions_on_result(sender, match, **kwargs):
+def score_predictions_on_result(sender: object, match: Match, **kwargs: Any) -> None:
     """
     Score all predictions when a match result is entered.
     After scoring, update all global ranks.
@@ -58,6 +60,7 @@ def score_predictions_on_result(sender, match, **kwargs):
                 "Updated global ranks for %d users",
                 rank_count,
             )
+    # Broad catch: the failure is logged with the match id and re-raised.
     except Exception:
         logger.exception(
             "Scoring failed for match %s (id=%s)",

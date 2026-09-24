@@ -7,7 +7,7 @@ from .models import User
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
+class UserAdmin(BaseUserAdmin):
     """Admin interface for User model."""
 
     list_display = [
@@ -31,7 +31,8 @@ class UserAdmin(BaseUserAdmin):  # type: ignore[type-arg]
     readonly_fields = ["total_points", "exact_match_count", "jokers_used", "champion_bonus_points"]
 
     # Extend BaseUserAdmin fieldsets to include predictions and statistics
-    fieldsets = BaseUserAdmin.fieldsets + (  # type: ignore[operator]
+    fieldsets = (
+        *(BaseUserAdmin.fieldsets or ()),
         (
             "Predictions",
             {

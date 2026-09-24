@@ -60,8 +60,10 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ### 4. Install Dependencies
 
 ```bash
-uv pip install "django>=5.2,<5.3" "psycopg2-binary>=2.9" pytest pytest-django pytest-cov ruff mypy django-stubs
+uv pip install -e ".[dev,pdf]"
 ```
+
+The `pdf` extra installs `reportlab`, which is required for the leaderboard PDF export.
 
 Or use the Makefile (once project structure is complete):
 ```bash

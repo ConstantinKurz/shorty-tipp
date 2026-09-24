@@ -274,7 +274,7 @@ class TestRepairScoringCommand:
         with patch.object(
             ScoringService,
             "score_all_predictions_for_match",
-            side_effect=[RuntimeError("scoring boom"), 1],
+            side_effect=[ValueError("scoring boom"), 1],
         ) as mocked:
             with pytest.raises(CommandError):
                 call_command("repair_scoring", stdout=StringIO(), stderr=StringIO())

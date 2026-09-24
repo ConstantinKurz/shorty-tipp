@@ -34,6 +34,9 @@ class User(AbstractUser):
         ("system", "System"),
     ]
 
+    # Set by the pre_save signal so post_save can detect a champion change.
+    _original_predicted_champion_id: int | None = None
+
     predicted_champion: models.ForeignKey = models.ForeignKey(
         "matches.Team",
         on_delete=models.SET_NULL,

@@ -393,7 +393,7 @@ class TestDynamicChampionDetection:
             status="scheduled",
             goals_home=None,
             goals_away=None,
-            winner=None,
+            winner="",
         )
 
         champion = get_current_champion_team()

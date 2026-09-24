@@ -6,13 +6,10 @@ This module handles scoring for champion predictions during and after the final 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from django.db import transaction
 
-if TYPE_CHECKING:
-    from matches.models import Team
-
+from matches.models import Match, Team
+from users.models import User
 
 # Champion prediction points by odds category
 CHAMPION_POINTS: dict[str, int] = {
@@ -50,12 +47,8 @@ def get_current_champion_team() -> Team | None:
     Returns:
         Team instance or None if no champion can be determined
     """
-    # Lazy imports to avoid circular dependencies at runtime
-    # TYPE_CHECKING import above is only for type hints
-    from matches.models import Match as MatchModel
-
     # Find the final match
-    final_match = MatchModel.objects.filter(round="final").first()
+    final_match = Match.objects.filter(round="final").first()
     if not final_match:
         return None
 
@@ -67,19 +60,21 @@ def get_current_champion_team() -> Team | None:
     if final_match.goals_home is not None and final_match.goals_away is not None:
         home_goals = final_match.goals_home
         away_goals = final_match.goals_away
+        home_team: Team | None = final_match.team_home
+        away_team: Team | None = final_match.team_away
 
         if home_goals > away_goals:
             # Home team is leading/won
-            return final_match.team_home
+            return home_team
         elif away_goals > home_goals:
             # Away team is leading/won
-            return final_match.team_away
+            return away_team
         else:
             # Draw - use winner field (penalty shootout winner)
             if final_match.winner == "home":
-                return final_match.team_home
+                return home_team
             elif final_match.winner == "away":
-                return final_match.team_away
+                return away_team
             # No winner determined yet or draw remains
             return None
 
@@ -99,9 +94,6 @@ def update_live_champion_bonuses() -> int:
     Returns:
         Number of users who received bonuses
     """
-    # Lazy import to avoid circular dependency
-    from users.models import User as UserModel
-
     # Get current champion (None if final not started or no clear leader)
     current_champion = get_current_champion_team()
 
@@ -111,7 +103,7 @@ def update_live_champion_bonuses() -> int:
         champion_points = calculate_champion_points(current_champion)
 
     # Reset all bonuses first
-    users_with_bonus = UserModel.objects.filter(champion_bonus_points__gt=0)
+    users_with_bonus = User.objects.filter(champion_bonus_points__gt=0)
     for user in users_with_bonus:
         user.total_points -= user.champion_bonus_points
         user.champion_bonus_points = 0
@@ -122,7 +114,7 @@ def update_live_champion_bonuses() -> int:
         return 0
 
     # Award bonuses to correct predictors
-    users_to_award = UserModel.objects.filter(predicted_champion=current_champion)
+    users_to_award = User.objects.filter(predicted_champion=current_champion)
 
     count = 0
     for user in users_to_award:

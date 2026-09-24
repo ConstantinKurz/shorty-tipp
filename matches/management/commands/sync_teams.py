@@ -29,13 +29,14 @@ class Command(BaseCommand):
         self.stdout.write(f"Syncing teams for competition: {competition}")
 
         try:
-            created, updated = sync_teams_from_api(competition)
+            created, updated, unchanged = sync_teams_from_api(competition)
 
             self.stdout.write(
-                self.style.SUCCESS(f"✓ Team sync complete: {created} created, {updated} updated")
+                self.style.SUCCESS(
+                    f"✓ Team sync complete: {created} created, {updated} updated, "
+                    f"{unchanged} unchanged"
+                )
             )
 
         except FootballDataAPIError as e:
             raise CommandError(f"API error: {e}") from e
-        except Exception as e:
-            raise CommandError(f"Unexpected error: {e}") from e

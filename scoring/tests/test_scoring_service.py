@@ -330,7 +330,8 @@ class TestChampionPrediction:
 
     def test_champion_no_category_0_points(self, db) -> None:
         """Test champion with no category awards 0 points."""
-        team = Team.objects.create(name="Unknown", fifa_code="UNK", odds_category=None)
+        team = Team.objects.create(name="Unknown", fifa_code="UNK")
+        assert team.odds_category == ""
         points = calculate_champion_points(team)
         assert points == 0
 

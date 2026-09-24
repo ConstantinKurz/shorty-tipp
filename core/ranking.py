@@ -1,8 +1,8 @@
 """
 Shared ranking utilities for the tipapp application.
 
-Provides Olympic-style ranking functionality used by both the predictions
-and scoring services to ensure consistency.
+Provides Olympic-style ranking functionality used by `scoring/match_scoring.py`
+and `scoring/ranking_service.py` to ensure consistency.
 """
 
 from collections.abc import Callable

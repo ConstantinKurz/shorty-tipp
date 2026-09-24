@@ -5,7 +5,11 @@ Weekly snapshots are being deprecated; this migration removes any existing
 weekly snapshot records while preserving daily and final snapshots.
 """
 
+import logging
+
 from django.db import migrations
+
+logger = logging.getLogger(__name__)
 
 
 def remove_weekly_snapshots(apps, schema_editor) -> None:
@@ -13,7 +17,7 @@ def remove_weekly_snapshots(apps, schema_editor) -> None:
     LeaderboardSnapshot = apps.get_model("scoring", "LeaderboardSnapshot")
     count, _ = LeaderboardSnapshot.objects.filter(snapshot_type="weekly").delete()
     if count:
-        print(f"  Removed {count} weekly snapshot(s)")
+        logger.info("Removed %d weekly snapshot(s)", count)
 
 
 def noop_reverse(apps, schema_editor) -> None:

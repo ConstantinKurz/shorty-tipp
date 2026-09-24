@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from django.core.exceptions import ValidationError
+from django.db import DatabaseError
 from django.utils.dateparse import parse_datetime
 
 from matches.api_client import FootballDataClient
@@ -151,7 +153,7 @@ def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
     for match_data in matches_data:
         try:
             result = _sync_match(match_data)
-        except Exception:
+        except (ValueError, TypeError, KeyError, ValidationError, DatabaseError):
             failed_count += 1
             logger.exception("Failed to sync match %s", match_data.get("id"))
             continue
@@ -233,7 +235,7 @@ def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
 
     # Extract winner - indicates match winner after penalties (if applicable)
     winner_api = score.get("winner")
-    winner = API_WINNER_MAP.get(winner_api) if winner_api else None
+    winner = API_WINNER_MAP.get(winner_api, "") if winner_api else ""
 
     # Check for existing match and detect goal changes
     # Only report goals_changed if both new values exist and differ

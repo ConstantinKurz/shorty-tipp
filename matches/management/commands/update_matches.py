@@ -97,6 +97,7 @@ class Command(BaseCommand):
                 self.stdout.write("\nReceived interrupt signal")
                 break
 
+            # Broad catch: this supervisor loop must survive unexpected errors.
             except Exception as e:
                 logger.exception("Update iteration failed: %s", e)
                 self.stdout.write(self.style.ERROR(f"Error: {e}. Retrying in 60 seconds..."))

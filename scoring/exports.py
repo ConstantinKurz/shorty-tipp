@@ -7,15 +7,26 @@ usable from management commands, views, or admin actions.
 
 import csv
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING
+from typing import Any
 
 from django.http import HttpResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-if TYPE_CHECKING:
-    pass
+from matches.models import Match
+from predictions.models import MatchPrediction
 
 
-def generate_leaderboard_csv(leaderboard: list[dict]) -> str:
+def generate_leaderboard_csv(leaderboard: list[dict[str, Any]]) -> str:
     """
     Generate CSV content from leaderboard data.
 
@@ -42,7 +53,7 @@ def generate_leaderboard_csv(leaderboard: list[dict]) -> str:
 
 
 def generate_leaderboard_pdf(
-    leaderboard: list[dict], title: str = "Shortytipp Leaderboard"
+    leaderboard: list[dict[str, Any]], title: str = "Shortytipp Leaderboard"
 ) -> bytes:
     """
     Generate PDF content from leaderboard data.
@@ -53,27 +64,7 @@ def generate_leaderboard_pdf(
 
     Returns:
         PDF content as bytes
-
-    Raises:
-        ImportError: If reportlab is not installed
     """
-    try:
-        from reportlab.lib import colors  # type: ignore
-        from reportlab.lib.pagesizes import A4  # type: ignore
-        from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
-        from reportlab.lib.units import cm  # type: ignore
-        from reportlab.platypus import (  # type: ignore
-            Paragraph,
-            SimpleDocTemplate,
-            Spacer,
-            Table,
-            TableStyle,
-        )
-    except ImportError as e:
-        raise ImportError(
-            "PDF export requires reportlab. Install with: pip install reportlab"
-        ) from e
-
     output = BytesIO()
 
     doc = SimpleDocTemplate(
@@ -134,7 +125,7 @@ def generate_leaderboard_pdf(
 
 
 def csv_response(
-    leaderboard: list[dict],
+    leaderboard: list[dict[str, Any]],
     filename: str = "leaderboard.csv",
     detailed: bool = False,
 ) -> HttpResponse:
@@ -158,7 +149,7 @@ def csv_response(
     return response
 
 
-def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
+def generate_detailed_leaderboard_csv(leaderboard: list[dict[str, Any]]) -> str:
     """
     Generate detailed CSV with leaderboard followed by predictions grouped by user.
 
@@ -172,9 +163,6 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
     Returns:
         CSV content as string, formatted for readability
     """
-    from matches.models import Match
-    from predictions.models import MatchPrediction
-
     output = StringIO()
     writer = csv.writer(output)
 
@@ -218,10 +206,10 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
     predictions_by_user: dict[int, dict[int, MatchPrediction]] = {}
     predictions = MatchPrediction.objects.filter(user_id__in=user_ids).select_related("match")
 
-    for pred in predictions:
-        if pred.user_id not in predictions_by_user:
-            predictions_by_user[pred.user_id] = {}
-        predictions_by_user[pred.user_id][pred.match_id] = pred
+    for prediction in predictions:
+        if prediction.user_id not in predictions_by_user:
+            predictions_by_user[prediction.user_id] = {}
+        predictions_by_user[prediction.user_id][prediction.match_id] = prediction
 
     # Generate predictions for each user
     for entry in leaderboard:
@@ -274,7 +262,9 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict]) -> str:
     return output.getvalue()
 
 
-def pdf_response(leaderboard: list[dict], filename: str = "leaderboard.pdf") -> HttpResponse:
+def pdf_response(
+    leaderboard: list[dict[str, Any]], filename: str = "leaderboard.pdf"
+) -> HttpResponse:
     """
     Create an HttpResponse with PDF content for download.
 

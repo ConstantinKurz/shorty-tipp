@@ -31,7 +31,6 @@ Done
 - chat gpt empfehlungen nochmal anschauen
     - ich brauche kein is champion flag api gibt matchwinner wieder.
 
-==============================
 
 -  rule page korrigiert:
   - Locktime auf "3 Minuten vor Kickoff" geändert (war falsch: "before match starts")
@@ -45,7 +44,7 @@ done
 Bei ~100 Usern und ~64 Matches: Kein echter Performance-Gewinn, mehr Code, mehr Bugs.
 
 - alles mal aufräumen (from import noch in funktionen. viele klassen in einer datei.)
-
+==============================
 - e2e tests (python manage.py create_wm2026_testdata --clear)
  - kann ich die wm per test mal durchmodelieren?
 - UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
@@ -54,6 +53,9 @@ Bei ~100 Usern und ~64 Matches: Kein echter Performance-Gewinn, mehr Code, mehr 
 - css klassen
 - frontend aufeinander abstimmen?
 - "error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."
+
+
+# New Features
 - Forum
 - security check
 - prod ready (email notifier für cron job aufbereiten. match update als worker da 24/7)

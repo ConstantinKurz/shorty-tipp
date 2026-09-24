@@ -3,7 +3,7 @@ Test settings for tipapp project.
 Uses SQLite for faster test execution without Docker dependency.
 """
 
-from .base import *  # noqa: F403, F401
+from .base import *  # noqa: F403
 
 # Use SQLite for tests - faster and doesn't require PostgreSQL
 DATABASES = {

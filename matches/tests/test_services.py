@@ -370,8 +370,8 @@ class TestSyncMatchesFromAPI:
             match = results[0].match
             assert match.winner == "draw"
 
-    def test_sync_match_winner_null_for_scheduled(self, teams: tuple[Team, Team]) -> None:
-        """Verify winner is None when match is scheduled (no winner field in API)."""
+    def test_sync_match_winner_empty_for_scheduled(self, teams: tuple[Team, Team]) -> None:
+        """Verify winner is "" when match is scheduled (no winner field in API)."""
         mock_matches_data = [
             {
                 "id": 1001,
@@ -392,7 +392,7 @@ class TestSyncMatchesFromAPI:
 
             assert len(results) == 1
             match = results[0].match
-            assert match.winner is None
+            assert match.winner == ""
 
     def test_sync_continues_after_single_match_failure(self, teams: tuple[Team, Team]) -> None:
         """Verify one failing match does not abort the sync of the remaining matches."""
@@ -414,7 +414,7 @@ class TestSyncMatchesFromAPI:
 
         def flaky_sync(match_data: dict):
             if match_data["id"] == 1002:
-                raise RuntimeError("scoring boom")
+                raise ValueError("scoring boom")
             return real_sync_match(match_data)
 
         with (
@@ -429,3 +429,27 @@ class TestSyncMatchesFromAPI:
         assert len(results) == 2
         assert {r.match.external_id for r in results} == {1001, 1003}
         assert not Match.objects.filter(external_id=1002).exists()
+
+    def test_sync_propagates_unexpected_error(self, teams: tuple[Team, Team]) -> None:
+        """An exception type the sync cannot recover from aborts the run instead of being hidden."""
+        mock_matches_data = [
+            {
+                "id": 2001,
+                "homeTeam": {"name": "Germany", "tla": "GER"},
+                "awayTeam": {"name": "Brazil", "tla": "BRA"},
+                "utcDate": "2026-06-20T18:00:00Z",
+                "status": "FINISHED",
+                "stage": "GROUP_STAGE",
+                "score": {"winner": "HOME_TEAM", "fullTime": {"home": 2, "away": 1}},
+            }
+        ]
+
+        with (
+            patch("matches.services.FootballDataClient") as MockClient,
+            patch("matches.services._sync_match", side_effect=RuntimeError("boom")),
+        ):
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = mock_matches_data
+
+            with pytest.raises(RuntimeError, match="boom"):
+                sync_matches_from_api()

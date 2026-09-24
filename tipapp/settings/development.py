@@ -4,7 +4,7 @@ Development settings for tipapp project.
 
 import os
 
-from .base import *  # noqa: F403, F401
+from .base import *  # noqa: F403
 
 DEBUG = True
 

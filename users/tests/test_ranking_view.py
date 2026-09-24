@@ -264,7 +264,7 @@ class TestRankingViewEmptyState:
     def test_empty_leaderboard(self, db, client: Client):
         """Empty database shows empty leaderboard."""
         # Create a single user just to log in
-        user = User.objects.create_user(
+        User.objects.create_user(
             username="lonely",
             email="lonely@test.com",
             password="testpass123",

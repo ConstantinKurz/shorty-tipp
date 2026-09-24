@@ -9,13 +9,16 @@ Or copy/paste into Django shell.
 
 import sys
 from datetime import timedelta
+from io import StringIO
 
+from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
 
 # Models
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
+from scoring.exports import generate_leaderboard_csv, generate_leaderboard_pdf
 from scoring.models import LeaderboardSnapshot
 from scoring.ranking_service import RankingService
 from users.models import User
@@ -193,8 +196,6 @@ def task_19_9_export_csv():
     """19.9 - Export CSV and verify formatting."""
     print("\n--- 19.9: Export CSV ---")
 
-    from scoring.exports import generate_leaderboard_csv
-
     ranking = RankingService.get_current_leaderboard()
     csv_content = generate_leaderboard_csv(ranking)
     lines = csv_content.strip().split("\n")
@@ -216,8 +217,6 @@ def task_19_10_export_pdf():
     print("\n--- 19.10: Export PDF ---")
 
     try:
-        from scoring.exports import generate_leaderboard_pdf
-
         ranking = RankingService.get_current_leaderboard()
         pdf_bytes = generate_leaderboard_pdf(ranking)
 
@@ -230,9 +229,6 @@ def task_19_10_export_pdf():
         else:
             print("FAIL: Invalid PDF format")
             return False
-    except ImportError as e:
-        print(f"SKIP: PDF export dependency missing ({e})")
-        return None
     except Exception as e:
         print(f"FAIL: PDF export error: {e}")
         return False
@@ -241,10 +237,6 @@ def task_19_10_export_pdf():
 def task_19_11_recalculate_scores():
     """19.11 - Run recalculate_scores and verify consistency."""
     print("\n--- 19.11: Recalculate scores ---")
-
-    from io import StringIO
-
-    from django.core.management import call_command
 
     out = StringIO()
     call_command("recalculate_scores", stdout=out)

@@ -10,11 +10,13 @@ import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import DatabaseError, transaction
 
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
+from scoring.match_scoring import ScoringService
 from users.models import User
 
 # Real Shortytipp Groups (12 groups × 4 teams)
@@ -168,7 +170,7 @@ class Command(BaseCommand):
                 self._validate_data()
                 self._print_summary()
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, ValidationError, DatabaseError) as e:
             self.stderr.write(self.style.ERROR(f"Error creating test data: {e}"))
             raise CommandError(str(e)) from e
 
@@ -534,8 +536,6 @@ class Command(BaseCommand):
     def _calculate_scores(self):
         """Calculate scores for finished matches."""
         self.stdout.write("  Calculating scores...")
-
-        from scoring.match_scoring import ScoringService
 
         finished_matches = Match.objects.filter(status="finished")
         scored_count = 0

@@ -1,5 +1,7 @@
 """Prediction forms for the tipapp application."""
 
+from typing import Any
+
 from django import forms
 from django.core.validators import MaxValueValidator, MinValueValidator
 
@@ -52,7 +54,7 @@ class PredictionForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize form with validators for goal range."""
         super().__init__(*args, **kwargs)
 

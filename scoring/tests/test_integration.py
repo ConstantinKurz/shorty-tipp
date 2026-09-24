@@ -545,7 +545,7 @@ class TestScoringReliabilityIntegration:
         from users.models import User
 
         # Create user
-        user = User.objects.create_user(
+        User.objects.create_user(
             username="testuser",
             password="testpass",
         )

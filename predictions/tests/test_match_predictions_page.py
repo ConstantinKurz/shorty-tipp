@@ -279,7 +279,7 @@ class TestBuildMatchPredictionsListHelper:
         """Helper sorts by match points descending when sort_mode='match'."""
         from django.contrib.auth import get_user_model
 
-        from predictions.views import build_match_predictions_list
+        from predictions.services import build_match_predictions_list
 
         User = get_user_model()
 
@@ -327,7 +327,7 @@ class TestBuildMatchPredictionsListHelper:
         """Helper sorts by total points descending when sort_mode='total'."""
         from django.contrib.auth import get_user_model
 
-        from predictions.views import build_match_predictions_list
+        from predictions.services import build_match_predictions_list
 
         User = get_user_model()
 
@@ -369,7 +369,7 @@ class TestBuildMatchPredictionsListHelper:
         """Helper includes all active users even those without predictions."""
         from django.contrib.auth import get_user_model
 
-        from predictions.views import build_match_predictions_list
+        from predictions.services import build_match_predictions_list
 
         User = get_user_model()
 
@@ -407,7 +407,7 @@ class TestBuildMatchPredictionsListHelper:
         """Helper assigns consecutive ranks based on sort order."""
         from django.contrib.auth import get_user_model
 
-        from predictions.views import build_match_predictions_list
+        from predictions.services import build_match_predictions_list
 
         User = get_user_model()
 
@@ -442,7 +442,7 @@ class TestBuildMatchPredictionsListHelper:
         """Helper breaks ties by username alphabetically."""
         from django.contrib.auth import get_user_model
 
-        from predictions.views import build_match_predictions_list
+        from predictions.services import build_match_predictions_list
 
         User = get_user_model()
 
@@ -759,7 +759,7 @@ class TestPollingBehavior:
 
     def test_polling_interval_during_active_match(self, db, teams):
         """Polling interval should be 1s during active match."""
-        from predictions.views import get_polling_interval
+        from predictions.services import get_polling_interval
 
         # Create match that started 30 minutes ago (detected by get_polling_interval)
         Match.objects.create(
@@ -775,7 +775,7 @@ class TestPollingBehavior:
 
     def test_polling_interval_during_idle_period(self, db, teams):
         """Polling interval should be 60s when no active matches."""
-        from predictions.views import get_polling_interval
+        from predictions.services import get_polling_interval
 
         # Create match that finished hours ago (outside active window)
         Match.objects.create(

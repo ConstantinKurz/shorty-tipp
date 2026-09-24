@@ -212,7 +212,7 @@ class TestFinalMatchChampionScoring:
         user.save()
 
         # Create final match
-        match = Match.objects.create(
+        Match.objects.create(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),

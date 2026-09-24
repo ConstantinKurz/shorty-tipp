@@ -355,7 +355,7 @@ class TestRankingServiceRoundFiltering:
 
         # Should be identical (both include all rounds)
         assert len(live) == len(final)
-        for live_entry, final_entry in zip(live, final):
+        for live_entry, final_entry in zip(live, final, strict=True):
             assert live_entry["username"] == final_entry["username"]
             assert live_entry["total_points"] == final_entry["total_points"]
 

@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from smtplib import SMTPException
 
 from django.conf import settings
 from django.core.mail import send_mail
+from django.template import TemplateDoesNotExist
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-if TYPE_CHECKING:
-    from matches.models import Match
-    from users.models import User
+from matches.models import Match
+from predictions.models import MatchPrediction
+from scoring.models import LeaderboardSnapshot
+from users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +36,6 @@ class EmailService:
         Returns:
             Tuple of (success: bool, message: str)
         """
-        from predictions.models import MatchPrediction
-        from scoring.models import LeaderboardSnapshot
-        from users.models import User
-
         admin_email = getattr(settings, "LEADERBOARD_ADMIN_EMAIL", "")
         if not admin_email:
             logger.warning("LEADERBOARD_ADMIN_EMAIL not configured")
@@ -52,7 +50,7 @@ class EmailService:
             # Fetch all predictions for users in the leaderboard
             user_ids = [entry["user_id"] for entry in snapshot.data]
             users = {
-                u.id: u  # type: ignore[attr-defined]
+                u.id: u
                 for u in User.objects.filter(id__in=user_ids).select_related("predicted_champion")
             }
 
@@ -65,9 +63,9 @@ class EmailService:
             )
 
             for pred in all_predictions:
-                if pred.user_id not in predictions_map:  # type: ignore[attr-defined]
-                    predictions_map[pred.user_id] = []  # type: ignore[attr-defined]
-                predictions_map[pred.user_id].append(pred)  # type: ignore[attr-defined]
+                if pred.user_id not in predictions_map:
+                    predictions_map[pred.user_id] = []
+                predictions_map[pred.user_id].append(pred)
 
             # Enrich rankings with predictions
             rankings_with_predictions = []
@@ -102,9 +100,9 @@ class EmailService:
             logger.info("Leaderboard email sent to %s", admin_email)
             return True, f"Leaderboard email sent to {admin_email}"
 
-        except Exception as e:
-            logger.exception("Failed to send leaderboard email: %s", e)
-            return False, f"Failed to send email: {e}"
+        except (SMTPException, OSError, TemplateDoesNotExist) as exc:
+            logger.exception("Failed to send leaderboard email: %s", exc)
+            return False, f"Failed to send email: {exc}"
 
     @staticmethod
     def get_users_with_missing_predictions() -> dict[User, list[Match]]:
@@ -115,10 +113,6 @@ class EmailService:
             Dictionary mapping User objects to lists of Match objects
             for which they don't have predictions.
         """
-        from matches.models import Match
-        from predictions.models import MatchPrediction
-        from users.models import User
-
         now = timezone.now()
         in_24_hours = now + timedelta(hours=24)
 
@@ -200,9 +194,9 @@ class EmailService:
             )
             return True, f"Reminder sent to {user.email}"
 
-        except Exception as e:
-            logger.exception("Failed to send reminder to %s: %s", user.email, e)
-            return False, f"Failed to send email: {e}"
+        except (SMTPException, OSError, TemplateDoesNotExist) as exc:
+            logger.exception("Failed to send reminder to %s: %s", user.email, exc)
+            return False, f"Failed to send email: {exc}"
 
     @classmethod
     def send_all_prediction_reminders(cls) -> tuple[int, int]:

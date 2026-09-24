@@ -10,4 +10,4 @@ import os
 settings_module = os.environ.get("DJANGO_SETTINGS_MODULE")
 if not settings_module or settings_module == "tipapp.settings":
     # Default to development if not explicitly set
-    from .development import *  # noqa: F403, F401
+    from .development import *  # noqa: F403

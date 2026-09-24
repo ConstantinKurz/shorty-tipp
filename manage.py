@@ -5,16 +5,13 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 def main():
     # Load .env file
-    try:
-        from dotenv import load_dotenv
-
-        env_path = Path(__file__).resolve().parent / ".env"
-        load_dotenv(dotenv_path=env_path)
-    except ImportError:
-        pass  # python-dotenv not installed
+    env_path = Path(__file__).resolve().parent / ".env"
+    load_dotenv(dotenv_path=env_path)
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tipapp.settings")
     try:

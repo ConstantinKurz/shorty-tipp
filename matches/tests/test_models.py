@@ -49,6 +49,15 @@ class TestTeamModel:
         team = Team.objects.create(name="France", fifa_code="FRA")
         assert team.points == 0
 
+    def test_team_odds_category_defaults_to_empty(self):
+        """Test odds_category defaults to "" and never holds NULL."""
+        team = Team.objects.create(name="Wales", fifa_code="WAL")
+        assert team.odds_category == ""
+
+        team.refresh_from_db()
+        assert team.odds_category == ""
+        assert not Team.objects.filter(odds_category__isnull=True).exists()
+
     def test_set_team_points(self):
         """Test setting team points."""
         team = Team.objects.create(name="Spain", fifa_code="ESP")
@@ -248,13 +257,17 @@ class TestMatchModel:
         )
         assert match2.external_id is None
 
-    def test_match_winner_field_nullable(self, team_home, team_away):
-        """Test winner field can be null for scheduled matches."""
+    def test_match_winner_field_defaults_to_empty(self, team_home, team_away):
+        """Test winner field defaults to "" for scheduled matches and never holds NULL."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group", winner=None
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
         )
-        assert match.winner is None
+        assert match.winner == ""
+
+        match.refresh_from_db()
+        assert match.winner is not None
+        assert not Match.objects.filter(winner__isnull=True).exists()
 
     def test_match_winner_choices_valid(self, team_home, team_away):
         """Test all valid winner choice values."""

@@ -1,11 +1,13 @@
 """Tests for PredictionLimitService."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from matches.models import Match, Team
+from predictions import services
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService
 
@@ -401,3 +403,131 @@ class TestIsMatchLocked:
 
         # Should be locked (kickoff was 6 years ago)
         assert PredictionLimitService.is_match_locked(match) is True
+
+
+@pytest.mark.django_db
+class TestGetPollingIntervalService:
+    """Tests for get_polling_interval() after the move into the service layer."""
+
+    def test_active_interval_inside_match_window(self, teams, monkeypatch):
+        """A match that kicked off inside the active window yields the active interval."""
+        team_a, team_b, _, _ = teams
+        reference = timezone.make_aware(datetime(2026, 6, 20, 20, 0))
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=reference - timedelta(minutes=30),
+            round="group",
+            status="live",
+        )
+
+        monkeypatch.setattr(services.timezone, "now", lambda: reference)
+
+        assert services.get_polling_interval() == services.POLLING_INTERVAL_ACTIVE
+
+    def test_idle_interval_outside_match_window(self, teams, monkeypatch):
+        """A match older than the active window yields the idle interval."""
+        team_a, team_b, _, _ = teams
+        reference = timezone.make_aware(datetime(2026, 6, 20, 20, 0))
+        Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=reference - timedelta(minutes=services.MATCH_ACTIVE_WINDOW_MINUTES + 1),
+            round="group",
+            status="live",
+        )
+
+        monkeypatch.setattr(services.timezone, "now", lambda: reference)
+
+        assert services.get_polling_interval() == services.POLLING_INTERVAL_IDLE
+
+
+@pytest.mark.django_db
+class TestGetPhaseStatsService:
+    """Tests for get_phase_stats() after the move into the service layer."""
+
+    def test_counts_predictions_and_jokers_per_phase(self, teams):
+        """Predictions and jokers are counted per tournament phase."""
+        team_a, team_b, team_c, team_d = teams
+        user = get_user_model().objects.create_user(username="tipper", password="test")
+
+        group_match = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() + timedelta(days=1),
+            round="group",
+        )
+        knockout_match = Match.objects.create(
+            team_home=team_c,
+            team_away=team_d,
+            kickoff=timezone.now() + timedelta(days=2),
+            round="r32",
+        )
+        MatchPrediction.objects.create(
+            user=user, match=group_match, predicted_goals_home=1, predicted_goals_away=0
+        )
+        MatchPrediction.objects.create(
+            user=user,
+            match=knockout_match,
+            predicted_goals_home=2,
+            predicted_goals_away=2,
+            joker_active=True,
+        )
+
+        stats = services.get_phase_stats(user)
+
+        assert stats["group"]["predictions"] == 1
+        assert stats["group"]["jokers"] == 0
+        assert stats["group"]["total_matches"] == PredictionLimitService.GROUP_STAGE_LIMIT
+        assert stats["r32"]["predictions"] == 1
+        assert stats["r32"]["jokers"] == 1
+        assert stats["r32"]["joker_limit"] == PredictionLimitService.get_joker_limit_for_round(
+            "r32"
+        )
+
+
+@pytest.mark.django_db
+class TestBuildMatchPredictionsListService:
+    """Tests for build_match_predictions_list() after the move into the service layer."""
+
+    def test_ordering_ranking_and_joker_flags(self, teams):
+        """Entries are ordered by match points with Olympic ranking and joker flags."""
+        team_a, team_b, _, _ = teams
+        User = get_user_model()
+        top = User.objects.create_user(username="top", password="test")
+        tied = User.objects.create_user(username="atied", password="test")
+        User.objects.create_user(username="zzz", password="test")
+
+        match = Match.objects.create(
+            team_home=team_a,
+            team_away=team_b,
+            kickoff=timezone.now() - timedelta(hours=3),
+            round="r32",
+            status="finished",
+            goals_home=2,
+            goals_away=1,
+        )
+        MatchPrediction.objects.create(
+            user=top,
+            match=match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+            points_earned=6,
+            is_exact_match=True,
+            joker_active=True,
+        )
+        MatchPrediction.objects.create(
+            user=tied,
+            match=match,
+            predicted_goals_home=3,
+            predicted_goals_away=0,
+            points_earned=3,
+        )
+
+        result = services.build_match_predictions_list(match, "match", top)
+
+        assert [entry["user"].username for entry in result] == ["top", "atied", "zzz"]
+        assert [entry["rank"] for entry in result] == [1, 2, 3]
+        assert result[0]["joker_active"] is True
+        assert result[1]["joker_active"] is False
+        assert result[2]["has_predicted"] is False

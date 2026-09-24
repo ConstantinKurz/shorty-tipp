@@ -6,7 +6,7 @@ from .models import MatchPrediction
 
 
 @admin.register(MatchPrediction)
-class MatchPredictionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class MatchPredictionAdmin(admin.ModelAdmin):
     """Admin interface for MatchPrediction model."""
 
     list_display = [

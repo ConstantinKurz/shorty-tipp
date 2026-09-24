@@ -19,7 +19,7 @@ class TestSyncTeamsCommand:
     def test_sync_teams_command_runs(self) -> None:
         """Verify sync_teams command executes successfully."""
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
-            mock_sync.return_value = (5, 3)  # 5 created, 3 updated
+            mock_sync.return_value = (5, 3, 1)  # 5 created, 3 updated, 1 unchanged
 
             out = StringIO()
             call_command("sync_teams", stdout=out)
@@ -28,12 +28,13 @@ class TestSyncTeamsCommand:
             assert "Syncing teams" in output
             assert "5 created" in output
             assert "3 updated" in output
+            assert "1 unchanged" in output
             mock_sync.assert_called_once_with("WC")
 
     def test_sync_teams_command_output(self) -> None:
         """Verify sync_teams command outputs created and updated counts."""
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
-            mock_sync.return_value = (10, 0)
+            mock_sync.return_value = (10, 0, 0)
 
             out = StringIO()
             call_command("sync_teams", stdout=out)
@@ -45,7 +46,7 @@ class TestSyncTeamsCommand:
     def test_sync_teams_command_competition_option(self) -> None:
         """Verify sync_teams command accepts --competition option."""
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
-            mock_sync.return_value = (2, 1)
+            mock_sync.return_value = (2, 1, 0)
 
             out = StringIO()
             call_command("sync_teams", "--competition=EURO", stdout=out)
@@ -65,7 +66,7 @@ class TestSyncTeamsCommand:
     def test_sync_teams_command_default_competition(self) -> None:
         """Verify sync_teams command uses WC as default competition."""
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
-            mock_sync.return_value = (0, 0)
+            mock_sync.return_value = (0, 0, 0)
 
             call_command("sync_teams")
 

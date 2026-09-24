@@ -1,6 +1,7 @@
 """Tests for the EmailService class."""
 
 from datetime import timedelta
+from smtplib import SMTPException
 from unittest.mock import patch
 
 import pytest
@@ -170,13 +171,23 @@ class TestSendLeaderboardToAdmin:
         """Test handling of email sending exceptions."""
         with patch(
             "notifications.services.send_mail",
-            side_effect=Exception("SMTP error"),
+            side_effect=SMTPException("SMTP error"),
         ):
             with override_settings(LEADERBOARD_ADMIN_EMAIL="admin@test.com"):
                 success, message = EmailService.send_leaderboard_to_admin()
 
         assert success is False
         assert "Failed to send email" in message
+
+    def test_unexpected_exception_propagates(self, leaderboard_snapshot):
+        """An error the service cannot handle is not swallowed into a (False, message)."""
+        with patch(
+            "notifications.services.send_mail",
+            side_effect=RuntimeError("programming error"),
+        ):
+            with override_settings(LEADERBOARD_ADMIN_EMAIL="admin@test.com"):
+                with pytest.raises(RuntimeError, match="programming error"):
+                    EmailService.send_leaderboard_to_admin()
 
 
 class TestGetUsersWithMissingPredictions:
@@ -301,12 +312,21 @@ class TestSendPredictionReminder:
         """Test handling of email sending exceptions."""
         with patch(
             "notifications.services.send_mail",
-            side_effect=Exception("SMTP error"),
+            side_effect=SMTPException("SMTP error"),
         ):
             success, message = EmailService.send_prediction_reminder(user, [upcoming_match])
 
         assert success is False
         assert "Failed to send email" in message
+
+    def test_unexpected_exception_propagates(self, user, upcoming_match):
+        """An error the service cannot handle is not swallowed into a (False, message)."""
+        with patch(
+            "notifications.services.send_mail",
+            side_effect=RuntimeError("programming error"),
+        ):
+            with pytest.raises(RuntimeError, match="programming error"):
+                EmailService.send_prediction_reminder(user, [upcoming_match])
 
 
 class TestSendAllPredictionReminders:
@@ -339,7 +359,7 @@ class TestSendAllPredictionReminders:
 
         with patch(
             "notifications.services.send_mail",
-            side_effect=[None, Exception("Failed")],
+            side_effect=[None, SMTPException("Failed")],
         ):
             success_count, fail_count = EmailService.send_all_prediction_reminders()
 

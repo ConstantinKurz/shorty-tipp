@@ -37,4 +37,4 @@ class LeaderboardSnapshot(models.Model):
         verbose_name_plural = "leaderboard snapshots"
 
     def __str__(self) -> str:
-        return f"{self.get_snapshot_type_display()} snapshot - {self.created_at.strftime('%Y-%m-%d %H:%M')}"  # type: ignore[attr-defined]
+        return f"{self.get_snapshot_type_display()} snapshot - {self.created_at.strftime('%Y-%m-%d %H:%M')}"

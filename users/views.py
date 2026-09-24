@@ -137,7 +137,7 @@ class UserSettingsView(LoginRequiredMixin, UpdateView):
         first_match = Match.objects.order_by("kickoff").first()
         if not first_match:
             return True
-        return timezone.now() < first_match.kickoff
+        return bool(timezone.now() < first_match.kickoff)
 
     def get_form_kwargs(self) -> dict[str, Any]:
         """Pass the champion lock state into the form."""

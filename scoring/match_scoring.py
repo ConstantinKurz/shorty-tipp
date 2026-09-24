@@ -7,14 +7,12 @@ points according to Shortytipp game rules.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from django.db import transaction
 from django.db.models import F
 
-if TYPE_CHECKING:
-    from matches.models import Match
-    from predictions.models import MatchPrediction
+from matches.models import Match
+from predictions.models import MatchPrediction
+from users.models import User
 
 
 class ScoringService:
@@ -276,10 +274,6 @@ class ScoringService:
         Returns:
             Dict with scoring details
         """
-        # Lazy imports to avoid circular dependencies
-        # TYPE_CHECKING imports above are only for type hints
-        from users.models import User as UserModel
-
         match = prediction.match
         result = ScoringService.calculate_match_points(prediction, match)
 
@@ -300,7 +294,7 @@ class ScoringService:
         joker_delta = (1 if prediction.joker_active else 0) - (1 if old_joker_counted else 0)
 
         # Use F() expressions for atomic updates
-        UserModel.objects.filter(pk=user.pk).update(
+        User.objects.filter(pk=user.pk).update(
             total_points=F("total_points") + points_delta,
             exact_match_count=F("exact_match_count") + exact_delta,
             jokers_used=F("jokers_used") + joker_delta,
@@ -323,9 +317,6 @@ class ScoringService:
         Returns:
             Number of predictions scored
         """
-        # Lazy import to avoid circular dependency
-        from predictions.models import MatchPrediction
-
         if match.goals_home is None or match.goals_away is None:
             return 0
 

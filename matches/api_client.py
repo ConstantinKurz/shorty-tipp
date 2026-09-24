@@ -70,7 +70,8 @@ class FootballDataClient:
         """
         url = f"{self.base_url}/competitions/{competition}/teams"
         response_data = self._make_request(url)
-        return response_data.get("teams", [])
+        teams: list[dict[str, Any]] = response_data.get("teams", [])
+        return teams
 
     def get_matches(self, competition: str = "WC") -> list[dict[str, Any]]:
         """
@@ -87,7 +88,8 @@ class FootballDataClient:
         """
         url = f"{self.base_url}/competitions/{competition}/matches"
         response_data = self._make_request(url)
-        return response_data.get("matches", [])
+        matches: list[dict[str, Any]] = response_data.get("matches", [])
+        return matches
 
     def _make_request(self, url: str, max_retries: int = 3) -> dict[str, Any]:
         """
@@ -116,7 +118,8 @@ class FootballDataClient:
 
                 # Success
                 if response.status_code == 200:
-                    return response.json()
+                    payload: dict[str, Any] = response.json()
+                    return payload
 
                 # Rate limit - respect Retry-After header
                 if response.status_code == 429:

@@ -226,7 +226,7 @@ Live polling:
 ```html
 <div hx-get="{% url 'predictions:prediction-updates' %}" hx-trigger="load, every {{ polling_interval }}s" hx-swap="none"></div>
 ```
-`get_polling_interval()` in [predictions/views.py](../../predictions/views.py) returns 15s
+`get_polling_interval()` in [predictions/services.py](../../predictions/services.py) returns 15s
 if any match is within its active window (kickoff to kickoff+160min), else 60s. The
 server can push a new interval via the `HX-Trigger: {"pollingInterval": ...}` response
 header, and client JS in `prediction_list.html` updates the `hx-trigger` attribute
@@ -404,13 +404,14 @@ change during import — no manual scoring call is needed in the command itself.
 | Change the prediction row UI | `templates/predictions/prediction_row.html` |
 | Save/delete a prediction | `predictions/views.py` |
 | Lock / joker / group-limit rules | `predictions/services.py` |
+| Polling interval, phase stats, match prediction list | `predictions/services.py` |
 | Input validation | `predictions/forms.py` |
 | Scoring formula | `scoring/match_scoring.py` |
 | Champion bonus | `scoring/champion_scoring.py` |
 | Ranking algorithm | `core/ranking.py`, `scoring/ranking_service.py` |
 | Result import | `matches/api_client.py`, `matches/services.py` |
 | API polling intervals | `matches/management/commands/update_matches.py` |
-| Browser polling intervals/targets | `predictions/views.py`, `tipapp/views.py`, corresponding templates |
+| Browser polling intervals/targets | `predictions/services.py`, `predictions/views.py`, `tipapp/views.py`, corresponding templates |
 | Home page | `tipapp/views.py`, `templates/home.html` |
 | User profile/settings | `users/forms.py`, `users/views.py`, `templates/users/settings.html` |
 | Global nav/JS (incl. autosave) | `templates/base.html` |
@@ -510,7 +511,7 @@ change during import — no manual scoring call is needed in the command itself.
     currently a known problem at this scale).
 13. **Match-detail totals only sum `MatchPrediction.points_earned`**, so champion bonus
     (stored on `User.total_points`) is not reflected in the per-match "total points"
-    column. — `build_match_predictions_list()` in [predictions/views.py](../../predictions/views.py)
+    column. — `build_match_predictions_list()` in [predictions/services.py](../../predictions/services.py)
 14. **Settings module can default to development in production.**
     `tipapp/wsgi.py` sets `DJANGO_SETTINGS_MODULE=tipapp.settings`, and
     `tipapp/settings/__init__.py` falls back to `development` settings whenever that
