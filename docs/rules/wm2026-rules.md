@@ -224,20 +224,29 @@ Before the first match, each participant may predict the World Cup winner.
 
 If the prediction is correct, bonus points are awarded.
 
-The amount of points depends on the betting-odds category of the selected team.
+The amount of points is configured per team as `Team.champion_points` and set by the admin.
 
-| Category | Meaning | Points |
+The World Cup 2026 configuration derives these values from the betting-odds categories of the PDF:
+
+| Original category | Meaning | `champion_points` |
 |---|---|---:|
 | A | teams ranked 1-8 by betting odds | 20 |
 | B | teams ranked 9 or lower by betting odds | 30 |
 
+The categories themselves no longer exist in the application. A team carries its bonus value
+directly, so any distribution of points across teams is expressible, and the A/B scheme above is
+one such distribution.
+
 The betting-odds source named in the PDF is `sportwettentest.net`.
 
-The admin should be able to change the odds.
+The admin can change a team's `champion_points` at any time. Changing it after the final has been
+played requires running the "Recalculate scores" admin action.
 
 The final relevant categorization is updated on 2026-06-10 and communicated separately.
 
-If teams have equal odds, they are assigned to the same category.
+Teams with equal odds receive the same `champion_points`.
+
+A team left at `champion_points = 0` awards no bonus.
 
 ---
 
@@ -366,9 +375,12 @@ The following points must be clarified before final implementation:
 2. **Removed matches and jokers**
    - If a removed match had a joker, it must be clarified whether the joker becomes available again.
 
-3. **Winner prediction maximum**
+3. **Winner prediction maximum** — resolved
    - The PDF maximum-score example uses 20 points for the World Cup winner prediction.
-   - Category B winner predictions can award 30 points.
+   - A category-B winner prediction awards 30 points, so the documented maximum of 802 assumes a
+     category-A champion. The maximum is 812 when the champion is worth 30 points.
+   - Since champion points are configured per team (section 8), the maximum score depends on the
+     configuration and is not a fixed number.
 
 4. **Shared-rank payout**
    - The payout rules do not specify how shared ranks affect payout distribution.

@@ -8,6 +8,7 @@ import pytest
 from django.test import override_settings
 from django.utils import timezone
 
+from conftest import make_match
 from notifications.services import EmailService
 
 
@@ -63,10 +64,8 @@ def teams(db):
 @pytest.fixture
 def upcoming_match(db, teams):
     """Create a match starting in 12 hours."""
-    from matches.models import Match
-
     home, away = teams
-    return Match.objects.create(
+    return make_match(
         team_home=home,
         team_away=away,
         kickoff=timezone.now() + timedelta(hours=12),
@@ -78,10 +77,8 @@ def upcoming_match(db, teams):
 @pytest.fixture
 def far_future_match(db, teams):
     """Create a match starting in 48 hours."""
-    from matches.models import Match
-
     home, away = teams
-    return Match.objects.create(
+    return make_match(
         team_home=home,
         team_away=away,
         kickoff=timezone.now() + timedelta(hours=48),
@@ -93,10 +90,8 @@ def far_future_match(db, teams):
 @pytest.fixture
 def past_match(db, teams):
     """Create a match that already started."""
-    from matches.models import Match
-
     home, away = teams
-    return Match.objects.create(
+    return make_match(
         team_home=home,
         team_away=away,
         kickoff=timezone.now() - timedelta(hours=2),
@@ -250,17 +245,15 @@ class TestGetUsersWithMissingPredictions:
 
     def test_multiple_missing_matches(self, user, teams):
         """Test user with multiple missing predictions."""
-        from matches.models import Match
-
         home, away = teams
-        Match.objects.create(
+        make_match(
             team_home=home,
             team_away=away,
             kickoff=timezone.now() + timedelta(hours=6),
             round="group",
             status="scheduled",
         )
-        Match.objects.create(
+        make_match(
             team_home=away,
             team_away=home,
             kickoff=timezone.now() + timedelta(hours=18),

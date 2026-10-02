@@ -11,7 +11,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 from scoring.match_scoring import ScoringService
 from scoring.models import LeaderboardSnapshot
@@ -21,8 +22,8 @@ from users.models import User
 @pytest.fixture
 def setup_data(db) -> dict:
     """Create test data for command tests."""
-    team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-    team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+    team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+    team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
     user = User.objects.create_user(
         username="testuser",
@@ -32,7 +33,7 @@ def setup_data(db) -> dict:
         jokers_used=2,
     )
 
-    match = Match.objects.create(
+    match = make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),
@@ -153,11 +154,11 @@ class TestRepairScoringCommand:
     @pytest.fixture
     def broken_scoring(self, db) -> dict:
         """Create a finished match whose prediction was never scored."""
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
         user = User.objects.create_user(username="unscored_user", password="test")
 
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -203,7 +204,7 @@ class TestRepairScoringCommand:
         """A finished match nobody predicted must not be reported as broken."""
         team_home = Team.objects.create(name="France", fifa_code="FRA")
         team_away = Team.objects.create(name="Spain", fifa_code="ESP")
-        Match.objects.create(
+        make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -255,7 +256,7 @@ class TestRepairScoringCommand:
 
     def test_repair_continues_after_match_failure(self, db, broken_scoring: dict) -> None:
         """A failing match is reported, the remaining matches are still repaired."""
-        second_match = Match.objects.create(
+        second_match = make_match(
             team_home=broken_scoring["team_away"],
             team_away=broken_scoring["team_home"],
             kickoff=timezone.now() + timedelta(days=1),

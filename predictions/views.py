@@ -17,8 +17,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from matches.constants import ROUND_ORDER as TOURNAMENT_PHASES
 from matches.models import Match
+from matches.tournament import get_active_tournament
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import (
@@ -56,7 +56,11 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
         now = timezone.now()
 
         # Get all matches ordered by kickoff
-        matches = Match.objects.all().select_related("team_home", "team_away").order_by("kickoff")
+        matches = (
+            Match.objects.all()
+            .select_related("team_home", "team_away", "round", "round__tournament")
+            .order_by("kickoff")
+        )
 
         # Get user's predictions
         predictions = MatchPrediction.objects.filter(user=user).select_related("match")
@@ -65,16 +69,16 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
         prediction_map = {p.match.pk: p for p in predictions}
 
         # Build enriched matches data
-        matches_data = []
+        matches_data: list[dict[str, Any]] = []
         for match in matches:
             prediction = prediction_map.get(match.pk)
             is_locked = PredictionLimitService.is_match_locked(match, now)
-            round_code = match.round
+            match_round = match.round
 
             # Joker info for this round
-            can_add_joker = PredictionLimitService.can_add_joker(user, round_code)
-            joker_count = PredictionLimitService.get_joker_count_for_round(user, round_code)
-            joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
+            can_add_joker = PredictionLimitService.can_add_joker(user, match_round)
+            joker_count = PredictionLimitService.get_joker_count_for_round(user, match_round)
+            joker_limit = PredictionLimitService.get_joker_limit_for_round(match_round)
 
             # Create form for this match
             form = PredictionForm(instance=prediction)
@@ -88,7 +92,7 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
                     "can_add_joker": can_add_joker,
                     "joker_count": joker_count,
                     "joker_limit": joker_limit,
-                    "is_group_stage": round_code == "group",
+                    "has_prediction_limit": match_round.prediction_limit is not None,
                 }
             )
 
@@ -102,13 +106,11 @@ class PredictionListView(LoginRequiredMixin, TemplateView):
 
         context["matches_data"] = matches_data
         context["matches_by_date"] = matches_by_date
-        context["group_stage_count"] = PredictionLimitService.get_group_stage_prediction_count(user)
-        context["group_stage_limit"] = PredictionLimitService.GROUP_STAGE_LIMIT
 
         # Phase navigation stats
         context["phase_stats"] = get_phase_stats(user)
         context["phase_stats_json"] = json.dumps(context["phase_stats"])
-        context["tournament_phases"] = TOURNAMENT_PHASES
+        context["tournament_phases"] = list(get_active_tournament().rounds.all())
 
         # Polling interval (dynamic based on active matches)
         context["polling_interval"] = get_polling_interval()
@@ -133,7 +135,7 @@ def _get_match_row_context(
     """
     now = timezone.now()
     is_locked = PredictionLimitService.is_match_locked(match, now)
-    round_code = match.round
+    match_round = match.round
 
     form = PredictionForm(instance=prediction)
 
@@ -142,12 +144,14 @@ def _get_match_row_context(
         "prediction": prediction,
         "form": form,
         "is_locked": is_locked,
-        "can_add_joker": PredictionLimitService.can_add_joker(user, round_code),
-        "joker_count": PredictionLimitService.get_joker_count_for_round(user, round_code),
-        "joker_limit": PredictionLimitService.get_joker_limit_for_round(round_code),
-        "is_group_stage": round_code == "group",
-        "group_stage_count": PredictionLimitService.get_group_stage_prediction_count(user),
-        "group_stage_limit": PredictionLimitService.GROUP_STAGE_LIMIT,
+        "can_add_joker": PredictionLimitService.can_add_joker(user, match_round),
+        "joker_count": PredictionLimitService.get_joker_count_for_round(user, match_round),
+        "joker_limit": PredictionLimitService.get_joker_limit_for_round(match_round),
+        "has_prediction_limit": match_round.prediction_limit is not None,
+        "round_prediction_count": PredictionLimitService.get_prediction_count_for_round(
+            user, match_round
+        ),
+        "round_prediction_limit": match_round.prediction_limit,
         "just_saved": just_saved,
     }
 
@@ -169,17 +173,17 @@ def _get_match_predictions_form_context(
     """
     now = timezone.now()
     is_locked = PredictionLimitService.is_match_locked(match, now)
-    round_code = match.round
+    match_round = match.round
 
     return {
         "match": match,
         "current_user_prediction": prediction,
         "current_user_form": PredictionForm(instance=prediction),
         "is_locked": is_locked,
-        "can_add_joker": PredictionLimitService.can_add_joker(user, round_code),
-        "joker_count": PredictionLimitService.get_joker_count_for_round(user, round_code),
-        "joker_limit": PredictionLimitService.get_joker_limit_for_round(round_code),
-        "is_group_stage": round_code == "group",
+        "can_add_joker": PredictionLimitService.can_add_joker(user, match_round),
+        "joker_count": PredictionLimitService.get_joker_count_for_round(user, match_round),
+        "joker_limit": PredictionLimitService.get_joker_limit_for_round(match_round),
+        "has_prediction_limit": match_round.prediction_limit is not None,
         "current_user": user,
         "just_saved": just_saved,
     }
@@ -207,7 +211,8 @@ class PredictionSaveView(LoginRequiredMixin, View):
         """
         user: User = request.user  # type: ignore[assignment]
         match = get_object_or_404(
-            Match.objects.select_related("team_home", "team_away"), pk=match_id
+            Match.objects.select_related("team_home", "team_away", "round", "round__tournament"),
+            pk=match_id,
         )
         now = timezone.now()
 
@@ -220,21 +225,22 @@ class PredictionSaveView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Check the group stage limit before creating a row, so the count never
+        # Check the round's prediction limit before creating a row, so the count never
         # includes the prediction currently being saved.
         with transaction.atomic():
             prediction = MatchPrediction.objects.filter(user=user, match=match).first()
             created = prediction is None
 
-            if (
-                created
-                and match.round == "group"
-                and not PredictionLimitService.can_add_group_stage_prediction(user)
-            ):
+            if created and not PredictionLimitService.can_add_prediction(user, match.round):
                 return render(
                     request,
                     "predictions/prediction_error.html",
-                    {"error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."},
+                    {
+                        "error": (
+                            f"Limit erreicht: Max. {match.round.prediction_limit} Tipps "
+                            f"in {match.round.label} erlaubt."
+                        )
+                    },
                     status=400,
                 )
 
@@ -298,7 +304,8 @@ class PredictionDeleteView(LoginRequiredMixin, View):
         """
         user: User = request.user  # type: ignore[assignment]
         match = get_object_or_404(
-            Match.objects.select_related("team_home", "team_away"), pk=match_id
+            Match.objects.select_related("team_home", "team_away", "round", "round__tournament"),
+            pk=match_id,
         )
         now = timezone.now()
 
@@ -353,7 +360,8 @@ class PredictionJokerView(LoginRequiredMixin, View):
         """
         user: User = request.user  # type: ignore[assignment]
         match = get_object_or_404(
-            Match.objects.select_related("team_home", "team_away"), pk=match_id
+            Match.objects.select_related("team_home", "team_away", "round", "round__tournament"),
+            pk=match_id,
         )
         now = timezone.now()
 
@@ -366,12 +374,12 @@ class PredictionJokerView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Check round - no jokers in group stage
-        if match.round == "group":
+        # Check round - a round with no jokers configured allows none
+        if PredictionLimitService.get_joker_limit_for_round(match.round) == 0:
             return render(
                 request,
                 "predictions/prediction_error.html",
-                {"error": "Keine Joker in der Gruppenphase erlaubt."},
+                {"error": f"Keine Joker in {match.round.label} erlaubt."},
                 status=400,
             )
 
@@ -447,7 +455,7 @@ class PredictionUpdatesView(LoginRequiredMixin, View):
                 kickoff__gt=now - timedelta(minutes=MATCH_ACTIVE_WINDOW_MINUTES),
             )
             .exclude(status="finished")
-            .select_related("team_home", "team_away")
+            .select_related("team_home", "team_away", "round", "round__tournament")
         )
 
         if not matches_to_update.exists():
@@ -539,7 +547,7 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         match_id = self.kwargs["match_id"]
         match = get_object_or_404(
-            Match.objects.select_related("team_home", "team_away"),
+            Match.objects.select_related("team_home", "team_away", "round", "round__tournament"),
             pk=match_id,
         )
 
@@ -580,16 +588,16 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
         current_user_form = PredictionForm(instance=current_user_prediction)
 
         # Joker info for current user
-        round_code = match.round
+        match_round = match.round
         can_add_joker = PredictionLimitService.can_add_joker(
             self.request.user,  # type: ignore[arg-type]
-            round_code,
+            match_round,
         )
         joker_count = PredictionLimitService.get_joker_count_for_round(
             self.request.user,  # type: ignore[arg-type]
-            round_code,
+            match_round,
         )
-        joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
+        joker_limit = PredictionLimitService.get_joker_limit_for_round(match_round)
 
         context.update(
             {
@@ -606,7 +614,7 @@ class MatchPredictionsView(LoginRequiredMixin, TemplateView):
                 "can_add_joker": can_add_joker,
                 "joker_count": joker_count,
                 "joker_limit": joker_limit,
-                "is_group_stage": round_code == "group",
+                "has_prediction_limit": match_round.prediction_limit is not None,
             }
         )
 
@@ -640,7 +648,7 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
             Includes HX-Trigger header with version for client-side tracking.
         """
         match = get_object_or_404(
-            Match.objects.select_related("team_home", "team_away"),
+            Match.objects.select_related("team_home", "team_away", "round", "round__tournament"),
             pk=match_id,
         )
 
@@ -681,16 +689,16 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
         current_user_form = PredictionForm(instance=current_user_prediction)
 
         # Joker info for current user
-        round_code = match.round
+        match_round = match.round
         can_add_joker = PredictionLimitService.can_add_joker(
             request.user,  # type: ignore[arg-type]
-            round_code,
+            match_round,
         )
         joker_count = PredictionLimitService.get_joker_count_for_round(
             request.user,  # type: ignore[arg-type]
-            round_code,
+            match_round,
         )
-        joker_limit = PredictionLimitService.get_joker_limit_for_round(round_code)
+        joker_limit = PredictionLimitService.get_joker_limit_for_round(match_round)
 
         # Build user predictions list using shared helper
         user_predictions = build_match_predictions_list(
@@ -711,7 +719,7 @@ class MatchPredictionsUpdateView(LoginRequiredMixin, View):
             "can_add_joker": can_add_joker,
             "joker_count": joker_count,
             "joker_limit": joker_limit,
-            "is_group_stage": round_code == "group",
+            "has_prediction_limit": match_round.prediction_limit is not None,
         }
 
         response = render(

@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 # Models
-from matches.models import Match, Team
+from matches.models import Match, Round, Team
 from predictions.models import MatchPrediction
 from scoring.exports import generate_leaderboard_csv, generate_leaderboard_pdf
 from scoring.models import LeaderboardSnapshot
@@ -43,10 +43,10 @@ def task_19_4_create_sample_predictions():
 
     # Create test teams
     team_home, _ = Team.objects.get_or_create(
-        fifa_code="TST", defaults={"name": "Test Home", "odds_category": "A"}
+        fifa_code="TST", defaults={"name": "Test Home", "champion_points": 20}
     )
     team_away, _ = Team.objects.get_or_create(
-        fifa_code="TSA", defaults={"name": "Test Away", "odds_category": "B"}
+        fifa_code="TSA", defaults={"name": "Test Away", "champion_points": 30}
     )
     print(f"Teams: {team_home} vs {team_away}")
 
@@ -56,7 +56,7 @@ def task_19_4_create_sample_predictions():
         team_away=team_away,
         defaults={
             "kickoff": timezone.now() - timedelta(hours=2),
-            "round": "group",
+            "round": Round.objects.get(tournament__is_active=True, code="group"),
             "status": "scheduled",
         },
     )

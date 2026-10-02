@@ -14,7 +14,8 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, transaction
 
-from matches.models import Match, Team
+from matches.models import Match, Round, Team
+from matches.tournament import get_active_tournament
 from predictions.models import MatchPrediction
 from scoring.match_scoring import ScoringService
 from users.models import User
@@ -211,6 +212,10 @@ class Command(BaseCommand):
         self.stdout.write("  Creating 104 matches...")
         matches_to_create = []
 
+        self.rounds: dict[str, Round] = {
+            round.code: round for round in get_active_tournament().rounds.all()
+        }
+
         # Build team lookup by FIFA code
         team_by_code: dict[str, Team] = {t.fifa_code: t for t in self.teams}
 
@@ -289,7 +294,7 @@ class Command(BaseCommand):
                         team_home=home,
                         team_away=away,
                         kickoff=kickoff,
-                        round="group",
+                        round=self.rounds["group"],
                         status="scheduled",
                     )
                 )
@@ -322,7 +327,7 @@ class Command(BaseCommand):
                     team_home=home,
                     team_away=away,
                     kickoff=kickoff,
-                    round=round_code,
+                    round=self.rounds[round_code],
                     status="scheduled",
                 )
             )
@@ -331,7 +336,7 @@ class Command(BaseCommand):
 
     def _set_finished_matches(self):
         """Mark ~24 group stage matches as finished with random results."""
-        group_matches = [m for m in self.matches if m.round == "group"]
+        group_matches = [m for m in self.matches if m.round.code == "group"]
         # Sort by kickoff to finish the earliest ones
         group_matches.sort(key=lambda m: m.kickoff)
         finished_count = min(24, len(group_matches))  # About 1/3 of 72 group matches
@@ -377,9 +382,9 @@ class Command(BaseCommand):
         }
 
         # Get matches by round
-        all_matches = list(Match.objects.all().order_by("kickoff"))
-        group_matches = [m for m in all_matches if m.round == "group"]
-        knockout_matches = [m for m in all_matches if m.round != "group"]
+        all_matches = list(Match.objects.all().select_related("round").order_by("kickoff"))
+        group_matches = [m for m in all_matches if m.round.code == "group"]
+        knockout_matches = [m for m in all_matches if m.round.code != "group"]
         finished_matches = {m.pk for m in all_matches if m.status == "finished"}
 
         predictions_to_create = []
@@ -408,7 +413,9 @@ class Command(BaseCommand):
             # Organize by round for joker assignment
             knockout_by_round: dict[str, list[Match]] = {}
             for m in selected_knockout:
-                round_key = m.round if m.round not in ["sf", "3rd", "final"] else "sf_combined"
+                round_key = (
+                    m.round.code if m.round.code not in ["sf", "3rd", "final"] else "sf_combined"
+                )
                 if round_key not in knockout_by_round:
                     knockout_by_round[round_key] = []
                 knockout_by_round[round_key].append(m)
@@ -553,11 +560,11 @@ class Command(BaseCommand):
         # Match counts
         team_count = Team.objects.count()
         match_count = Match.objects.count()
-        group_match_count = Match.objects.filter(round="group").count()
-        r32_count = Match.objects.filter(round="r32").count()
-        r16_count = Match.objects.filter(round="r16").count()
-        qf_count = Match.objects.filter(round="qf").count()
-        sf_stage_count = Match.objects.filter(round__in=["sf", "3rd", "final"]).count()
+        group_match_count = Match.objects.filter(round__code="group").count()
+        r32_count = Match.objects.filter(round__code="r32").count()
+        r16_count = Match.objects.filter(round__code="r16").count()
+        qf_count = Match.objects.filter(round__code="qf").count()
+        sf_stage_count = Match.objects.filter(round__code__in=["sf", "3rd", "final"]).count()
 
         if team_count != 48:
             raise CommandError(f"Expected 48 teams, got {team_count}")
@@ -577,7 +584,7 @@ class Command(BaseCommand):
 
         # Validate predictions per user
         for user in self.users:
-            gs_preds = MatchPrediction.objects.filter(user=user, match__round="group").count()
+            gs_preds = MatchPrediction.objects.filter(user=user, match__round__code="group").count()
             if gs_preds != 36:
                 raise CommandError(
                     f"User {user.username} has {gs_preds} group stage predictions, expected 36"
@@ -585,16 +592,16 @@ class Command(BaseCommand):
 
             # Joker counts
             r32_jokers = MatchPrediction.objects.filter(
-                user=user, match__round="r32", joker_active=True
+                user=user, match__round__code="r32", joker_active=True
             ).count()
             r16_jokers = MatchPrediction.objects.filter(
-                user=user, match__round="r16", joker_active=True
+                user=user, match__round__code="r16", joker_active=True
             ).count()
             qf_jokers = MatchPrediction.objects.filter(
-                user=user, match__round="qf", joker_active=True
+                user=user, match__round__code="qf", joker_active=True
             ).count()
             sf_jokers = MatchPrediction.objects.filter(
-                user=user, match__round__in=["sf", "3rd", "final"], joker_active=True
+                user=user, match__round__code__in=["sf", "3rd", "final"], joker_active=True
             ).count()
 
             if r32_jokers > 3:

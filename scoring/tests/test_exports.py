@@ -9,7 +9,8 @@ import reportlab.rl_config
 from django.core.management import call_command
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 from scoring.exports import generate_leaderboard_csv, generate_leaderboard_pdf
 from scoring.ranking_service import RankingService
@@ -48,10 +49,10 @@ def deterministic_pdf(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def scored_prediction(db) -> None:
     """Create a single scored prediction so the leaderboard is non-empty."""
-    team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-    team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+    team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+    team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
     user = User.objects.create_user(username="testuser", password="test", total_points=6)
-    match = Match.objects.create(
+    match = make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),

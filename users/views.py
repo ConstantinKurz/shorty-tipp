@@ -11,8 +11,7 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 from django.views.generic.edit import UpdateView
 
-from matches.constants import ROUND_ORDER, get_available_rounds
-from matches.models import Match, Team
+from matches.models import Match, Round, Team
 from scoring.ranking_service import RankingService
 from users.forms import UserSettingsForm
 from users.models import User
@@ -66,8 +65,12 @@ class RankingView(LoginRequiredMixin, TemplateView):
         # Get round filter from query params
         round_filter = self.request.GET.get("round", None)
 
+        available_rounds = list(
+            Round.objects.filter(tournament__is_active=True).values("code", "label")
+        )
+
         # Validate round parameter
-        if round_filter and round_filter not in ROUND_ORDER:
+        if round_filter and round_filter not in {r["code"] for r in available_rounds}:
             round_filter = None
 
         # Get filtered leaderboard
@@ -95,7 +98,7 @@ class RankingView(LoginRequiredMixin, TemplateView):
 
         context["leaderboard"] = leaderboard
         context["selected_round"] = round_filter
-        context["available_rounds"] = get_available_rounds()
+        context["available_rounds"] = available_rounds
         return context
 
 

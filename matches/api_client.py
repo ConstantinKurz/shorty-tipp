@@ -55,12 +55,12 @@ class FootballDataClient:
         # Disable proxies - direct connection required for football-data.org
         self.session.proxies = {}
 
-    def get_teams(self, competition: str = "WC") -> list[dict[str, Any]]:
+    def get_teams(self, competition: str) -> list[dict[str, Any]]:
         """
         Fetch all teams for a competition.
 
         Args:
-            competition: Competition code (default: WC for World Cup)
+            competition: Competition code (e.g., WC for World Cup)
 
         Returns:
             List of team data dictionaries from API
@@ -73,12 +73,12 @@ class FootballDataClient:
         teams: list[dict[str, Any]] = response_data.get("teams", [])
         return teams
 
-    def get_matches(self, competition: str = "WC") -> list[dict[str, Any]]:
+    def get_matches(self, competition: str) -> list[dict[str, Any]]:
         """
         Fetch all matches for a competition.
 
         Args:
-            competition: Competition code (default: WC for World Cup)
+            competition: Competition code (e.g., WC for World Cup)
 
         Returns:
             List of match data dictionaries from API

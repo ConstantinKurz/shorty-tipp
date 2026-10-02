@@ -1,7 +1,7 @@
 {# Icon usage: 👥 Alle Tipps, ⭐/☆ Joker (active/inactive), 🗑️ Delete, 🔒 Locked, 🎯 Exact match, 🔴 Live #}
 <div id="match-{{ match.id }}" 
      class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600"
-     data-match-stage="{{ match.round }}"
+     data-match-stage="{{ match.round.code }}"
      data-kickoff-timestamp="{{ match.kickoff|date:'U' }}">
     <form class="prediction-form" hx-post="{% url 'predictions:prediction-save' match.id %}" hx-target="#match-{{ match.id }}" hx-swap="outerHTML">
         {% csrf_token %}
@@ -67,7 +67,7 @@
 
             <!-- Actions -->
             <div class="flex items-center justify-center sm:justify-end gap-2 sm:w-24">
-                {% if not is_group_stage %}
+                {% if joker_limit %}
                     <!-- Joker Toggle -->
                     <button type="button"
                             hx-post="{% url 'predictions:prediction-joker' match.id %}"
@@ -155,7 +155,7 @@
         <!-- Round Badge + View Predictions Button -->
         <div class="mt-2 flex items-center justify-between">
             <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
-                {{ match.get_round_display }}
+                {{ match.round.label }}
             </span>
             <!-- 👥 Alle Tipps link - navigates to dedicated page -->
             <a href="{% url 'predictions:match-predictions' match.id %}?from={% if origin_page %}{{ origin_page }}{% else %}predictions{% endif %}"

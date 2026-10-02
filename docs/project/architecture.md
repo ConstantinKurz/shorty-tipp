@@ -118,11 +118,27 @@ theme_preference: models.CharField     # light/dark/system
 `total_points`, `exact_match_count`, `jokers_used`, `champion_bonus_points`, and
 `global_rank` are denormalizations updated by services/signals, not computed on read.
 
+### `matches.Tournament` / `matches.Round` ([matches/models.py](../../matches/models.py))
+
+`Tournament` holds the installation-wide settings: `name`, `slug`, `api_competition_code`,
+`api_season`, `lock_buffer_minutes` and `is_active`. A partial unique index allows exactly one
+active tournament; `matches/tournament.py::get_active_tournament()` is the only accessor and
+raises when none is configured.
+
+`Round` holds every per-round parameter: `code`, `label`, `order`, `multiplier`, `joker_count`,
+`joker_multiplier`, `joker_pool`, `prediction_limit`, `is_final` and `api_stage`. Rounds belong
+to one tournament and are unique per tournament by `code`, `order` and `api_stage`, with at most
+one `is_final`. "Which rounds exist" is a query, not a constant.
+
+Switching tournaments is an operational procedure that drops the database (see the README
+runbook), so no query is scoped by tournament.
+
 ### `matches.Team` / `matches.Match` ([matches/models.py](../../matches/models.py))
 
-`Team` has `fifa_code` and `odds_category` (A = top 8 by odds → 20-point champion bonus,
-B = rest → 30-point bonus). `Match` stores `external_id` (football-data.org ID),
-`kickoff`, `round`, `goals_home`/`goals_away`, `winner` (needed separately from goals —
+`Team` has `fifa_code` and `champion_points` (the bonus a user receives for picking this team as
+champion; `0` awards nothing). `Match` stores `external_id` (football-data.org ID),
+`kickoff`, `round` (a `ForeignKey` to `Round` with `on_delete=PROTECT`),
+`goals_home`/`goals_away`, `winner` (needed separately from goals —
 knockout matches can be 1:1 after 120 minutes but have a penalty-shootout winner), and
 `status` (`scheduled`/`live`/`finished`).
 
@@ -336,18 +352,28 @@ Precedence order (first match wins):
 | No match | 0 |
 
 ```python
-final_points = base_points * ROUND_MULTIPLIERS[match.round] * (2 if joker_active else 1)
-ROUND_MULTIPLIERS = {"group": 1, "r32": 2, "r16": 2, "qf": 3, "sf": 3, "3rd": 3, "final": 3}
+final_points = base_points * match.round.multiplier * (
+    match.round.joker_multiplier if joker_active else 1
+)
 ```
 
-### Joker rules ([predictions/services.py](../../predictions/services.py))
+The seeded 2026 configuration uses multipliers `group=1`, `r32=2`, `r16=2`, `qf=3`, `sf=3`,
+`3rd=3`, `final=3` and `joker_multiplier=2` throughout. All of them are editable in the admin.
 
-```python
-JOKER_LIMITS = {"group": 0, "r32": 3, "r16": 3, "qf": 2, "sf": 2, "final": 2, "3rd": 2}
-COMBINED_ROUNDS = frozenset({"sf", "final", "3rd"})  # share one pool of 2
-GROUP_STAGE_LIMIT = 36
-LOCK_BUFFER_MINUTES = 3
-```
+### Joker and prediction limits ([predictions/services.py](../../predictions/services.py))
+
+Every limit is read from the `Round` of the match:
+
+| Value | Source |
+|---|---|
+| Jokers per round | `Round.joker_count` |
+| Shared joker pools | `Round.joker_pool` (rounds with the same non-empty key share one limit) |
+| Joker factor | `Round.joker_multiplier` |
+| Predictions per round | `Round.prediction_limit` (`NULL` means unlimited) |
+| Lock buffer | `Tournament.lock_buffer_minutes` |
+
+The seeded 2026 configuration sets joker counts `0/3/3/2/2/2/2`, pool `ko_final` over
+`sf`/`3rd`/`final`, `prediction_limit=36` on the group stage and a lock buffer of 3 minutes.
 
 ### Trigger: `Match.save()` → `match_result_entered` signal
 
@@ -355,7 +381,7 @@ LOCK_BUFFER_MINUTES = 3
 [scoring/signals.py](../../scoring/signals.py) receives it and, in order:
 
 1. `ScoringService.score_all_predictions_for_match(match)`
-2. If `match.round == "final"`: `update_live_champion_bonuses()`
+2. If `match.round.is_final`: `update_live_champion_bonuses()`
 3. `RankingService.update_all_user_ranks()`
 
 All three calls are wrapped in one `try/except Exception: logger.exception(...)` — an

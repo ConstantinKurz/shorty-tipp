@@ -2,10 +2,16 @@
 Tests for the ranking view.
 """
 
-import pytest
-from django.test import Client
-from django.urls import reverse
+from datetime import timedelta
 
+import pytest
+from django.db import connection
+from django.test import Client
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from django.utils import timezone
+
+from conftest import make_match
 from matches.models import Team
 from users.models import User
 from users.utils import get_flag_emoji
@@ -17,7 +23,7 @@ def team_germany(db):
     return Team.objects.create(
         name="Germany",
         fifa_code="DE",
-        odds_category="A",
+        champion_points=20,
     )
 
 
@@ -27,7 +33,7 @@ def team_brazil(db):
     return Team.objects.create(
         name="Brazil",
         fifa_code="BR",
-        odds_category="A",
+        champion_points=20,
     )
 
 
@@ -376,13 +382,49 @@ class TestRankingViewRoundFiltering:
         assert "label" in round_entry
 
     def test_ranking_view_all_round_codes_valid(self, db, client: Client):
-        """Test that all valid round codes work."""
-        from matches.constants import ROUND_ORDER
+        """Test that all configured round codes work."""
+        from matches.models import Round
 
         user = User.objects.create_user(username="test", password="pass")
         client.force_login(user)
 
-        for round_code in ROUND_ORDER:
+        for round_code in Round.objects.filter(tournament__is_active=True).values_list(
+            "code", flat=True
+        ):
             response = client.get(reverse("home") + f"?round={round_code}")
             assert response.status_code == 200
             assert response.context["selected_round"] == round_code
+
+
+class TestRankingViewQueryCount:
+    """Tests that the ranking view does not issue one query per upcoming match."""
+
+    def test_query_count_independent_of_upcoming_match_count(
+        self, db, client: Client, team_germany, team_brazil, django_assert_num_queries
+    ):
+        """Adding upcoming matches must not add queries to the ranking page."""
+        user = User.objects.create_user(username="counter", password="pass")
+        client.force_login(user)
+        url = reverse("home")
+        base_time = timezone.now() + timedelta(days=1)
+
+        make_match(
+            team_home=team_germany,
+            team_away=team_brazil,
+            kickoff=base_time,
+            round="group",
+        )
+
+        with CaptureQueriesContext(connection) as baseline:
+            client.get(url)
+
+        for i in range(1, 6):
+            make_match(
+                team_home=team_germany,
+                team_away=team_brazil,
+                kickoff=base_time + timedelta(hours=i),
+                round="group",
+            )
+
+        with django_assert_num_queries(len(baseline.captured_queries)):
+            client.get(url)

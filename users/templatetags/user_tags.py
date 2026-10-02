@@ -4,6 +4,7 @@ Template tags for the users app.
 
 from django import template
 
+from matches.models import Round
 from users.utils import get_flag_emoji as _get_flag_emoji
 
 register = template.Library()
@@ -30,29 +31,25 @@ def flag_emoji(country_code: str | None) -> str:
 @register.filter
 def round_label(round_code: str | None) -> str:
     """
-    Convert a round code to its German label.
+    Convert a round code to the label configured for the active tournament.
 
     Usage in templates:
         {{ round_code|round_label }}
-        {{ "group"|round_label }}  => "Gruppe"
+        {{ "group"|round_label }}  => "Gruppenphase"
 
     Args:
         round_code: Tournament round code.
 
     Returns:
-        German label for the round or the code unchanged if invalid/None.
+        Configured label for the round, or the code unchanged if unknown/None.
     """
     if not round_code:
         return ""
 
-    labels = {
-        "group": "Gruppe",
-        "r32": "Achtelfinale",
-        "r16": "Achtelfinale",
-        "qf": "Viertelfinale",
-        "sf": "Halbfinale",
-        "3rd": "3. Platz",
-        "final": "Finale",
-    }
+    label = (
+        Round.objects.filter(tournament__is_active=True, code=round_code)
+        .values_list("label", flat=True)
+        .first()
+    )
 
-    return labels.get(round_code, round_code)
+    return label or round_code

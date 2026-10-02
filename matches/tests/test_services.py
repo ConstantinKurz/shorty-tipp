@@ -7,14 +7,40 @@ from unittest.mock import patch
 
 import pytest
 
+from conftest import make_match
 from matches import services
-from matches.models import Match, Team
-from matches.services import sync_matches_from_api, sync_teams_from_api
+from matches.models import Match, Round, Team
+from matches.services import UnknownApiStageError, sync_matches_from_api, sync_teams_from_api
+from matches.tournament import create_tournament, get_active_tournament
 
 
 @pytest.mark.django_db
 class TestSyncTeamsFromAPI:
     """Test suite for sync_teams_from_api service."""
+
+    def test_sync_uses_competition_code_from_active_tournament(self) -> None:
+        """The competition fetched is the one configured on the tournament."""
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_teams.return_value = []
+
+            sync_teams_from_api(get_active_tournament())
+
+            mock_client.get_teams.assert_called_once_with("WC")
+
+    def test_sync_uses_competition_code_from_named_tournament(self) -> None:
+        """A named tournament syncs its own competition, not the active one."""
+        other = create_tournament(
+            name="EM 2028", slug="em-2028", api_competition_code="EC", preset="em24"
+        )
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_teams.return_value = []
+
+            sync_teams_from_api(other)
+
+            mock_client.get_teams.assert_called_once_with("EC")
 
     def test_sync_teams_creates_new_teams(self) -> None:
         """Verify sync_teams_from_api creates new teams from API data."""
@@ -27,7 +53,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated, _ = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api(get_active_tournament())
 
             assert created == 2
             assert updated == 0
@@ -48,7 +74,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated, _ = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api(get_active_tournament())
 
             assert created == 0
             assert updated == 1
@@ -69,7 +95,7 @@ class TestSyncTeamsFromAPI:
             mock_client = MockClient.return_value
             mock_client.get_teams.return_value = mock_teams_data
 
-            created, updated, _ = sync_teams_from_api()
+            created, updated, _ = sync_teams_from_api(get_active_tournament())
 
             assert created == 1
             assert updated == 0
@@ -116,13 +142,13 @@ class TestSyncMatchesFromAPI:
             assert match.team_home.fifa_code == "GER"
             assert match.team_away.fifa_code == "BRA"
             assert match.status == "scheduled"
-            assert match.round == "group"
+            assert match.round.code == "group"
 
     def test_sync_matches_updates_existing_matches(self, teams: tuple[Team, Team]) -> None:
         """Verify sync_matches_from_api updates existing matches by external_id."""
         # Create existing match
         team_home, team_away = teams
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -165,7 +191,7 @@ class TestSyncMatchesFromAPI:
         team_home, team_away = teams
 
         # Create match with 0-0 score
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -262,7 +288,7 @@ class TestSyncMatchesFromAPI:
                 mock_client.get_matches.return_value = mock_matches_data
 
                 results = sync_matches_from_api()
-                assert results[0].match.round == expected_round
+                assert results[0].match.round.code == expected_round
 
     def test_sync_matches_skips_missing_teams(self) -> None:
         """Verify sync skips matches when teams are not in database."""
@@ -412,10 +438,10 @@ class TestSyncMatchesFromAPI:
 
         real_sync_match = services._sync_match
 
-        def flaky_sync(match_data: dict):
+        def flaky_sync(match_data: dict, rounds_by_stage: dict):
             if match_data["id"] == 1002:
                 raise ValueError("scoring boom")
-            return real_sync_match(match_data)
+            return real_sync_match(match_data, rounds_by_stage)
 
         with (
             patch("matches.services.FootballDataClient") as MockClient,
@@ -453,3 +479,63 @@ class TestSyncMatchesFromAPI:
 
             with pytest.raises(RuntimeError, match="boom"):
                 sync_matches_from_api()
+
+
+@pytest.mark.django_db
+class TestApiStageMapping:
+    """Test suite for mapping API stages onto configured rounds."""
+
+    @pytest.fixture
+    def teams(self) -> tuple[Team, Team]:
+        """Create the teams the payloads refer to."""
+        return (
+            Team.objects.create(name="Germany", fifa_code="GER"),
+            Team.objects.create(name="Brazil", fifa_code="BRA"),
+        )
+
+    @staticmethod
+    def _payload(stage: str) -> dict:
+        return {
+            "id": 3001,
+            "homeTeam": {"name": "Germany", "tla": "GER"},
+            "awayTeam": {"name": "Brazil", "tla": "BRA"},
+            "utcDate": "2026-06-20T18:00:00Z",
+            "status": "SCHEDULED",
+            "stage": stage,
+            "score": {"winner": None, "fullTime": {"home": None, "away": None}},
+        }
+
+    def test_stage_mapping_uses_round_api_stage(self, teams: tuple[Team, Team]) -> None:
+        """A match is assigned the round whose api_stage the payload names."""
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = [self._payload("QUARTER_FINALS")]
+
+            results = sync_matches_from_api()
+
+        assert results[0].match.round.code == "qf"
+
+    def test_changed_api_stage_changes_the_mapping(self, teams: tuple[Team, Team]) -> None:
+        """Editing Round.api_stage changes which round a payload maps to."""
+        Round.objects.filter(tournament__is_active=True, code="qf").update(
+            api_stage="VIERTELFINALE"
+        )
+
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = [self._payload("VIERTELFINALE")]
+
+            results = sync_matches_from_api()
+
+        assert results[0].match.round.code == "qf"
+
+    def test_unknown_api_stage_raises_and_creates_no_match(self, teams: tuple[Team, Team]) -> None:
+        """An unmapped stage aborts the sync instead of becoming a group match."""
+        with patch("matches.services.FootballDataClient") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.get_matches.return_value = [self._payload("PLAY_OFFS")]
+
+            with pytest.raises(UnknownApiStageError, match="PLAY_OFFS"):
+                sync_matches_from_api()
+
+        assert not Match.objects.filter(external_id=3001).exists()

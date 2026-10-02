@@ -26,7 +26,7 @@ class TestFootballDataClient:
             mock_response.json.return_value = {"teams": []}
             mock_get.return_value = mock_response
 
-            client.get_teams()
+            client.get_teams("WC")
 
             mock_get.assert_called_once()
             assert client.session.headers["X-Auth-Token"] == "test-api-key"
@@ -45,7 +45,7 @@ class TestFootballDataClient:
 
             mock_get.side_effect = [mock_429, mock_200]
 
-            result = client.get_teams()
+            result = client.get_teams("WC")
 
             assert mock_get.call_count == 2
             assert result == []
@@ -63,7 +63,7 @@ class TestFootballDataClient:
 
             mock_get.side_effect = [mock_500, mock_200]
 
-            result = client.get_matches()
+            result = client.get_matches("WC")
 
             assert mock_get.call_count == 2
             assert result == []
@@ -84,7 +84,7 @@ class TestFootballDataClient:
 
             mock_get.side_effect = [mock_429, mock_200]
 
-            client.get_teams()
+            client.get_teams("WC")
 
             # Verify sleep was called with Retry-After value
             mock_sleep.assert_called_once_with(42)
@@ -98,7 +98,7 @@ class TestFootballDataClient:
             mock_get.return_value = mock_500
 
             with pytest.raises(FootballDataAPIError, match="failed after 3 attempts"):
-                client.get_teams()
+                client.get_teams("WC")
 
             assert mock_get.call_count == 3
 
@@ -111,7 +111,7 @@ class TestFootballDataClient:
                 Mock(status_code=200, json=lambda: {"teams": []}),
             ]
 
-            result = client.get_teams()
+            result = client.get_teams("WC")
 
             assert mock_get.call_count == 2
             assert result == []

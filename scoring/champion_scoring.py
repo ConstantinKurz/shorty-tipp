@@ -11,27 +11,6 @@ from django.db import transaction
 from matches.models import Match, Team
 from users.models import User
 
-# Champion prediction points by odds category
-CHAMPION_POINTS: dict[str, int] = {
-    "A": 20,  # Teams ranked 1-8 by betting odds
-    "B": 30,  # Teams ranked 9+ by betting odds
-}
-
-
-def calculate_champion_points(team: Team) -> int:
-    """
-    Calculate champion prediction points based on team's odds category.
-
-    Args:
-        team: The correctly predicted champion team
-
-    Returns:
-        Points awarded (20 for category A, 30 for category B, 0 if no category)
-    """
-    if team.odds_category:
-        return CHAMPION_POINTS.get(team.odds_category, 0)
-    return 0
-
 
 def get_current_champion_team() -> Team | None:
     """
@@ -48,7 +27,7 @@ def get_current_champion_team() -> Team | None:
         Team instance or None if no champion can be determined
     """
     # Find the final match
-    final_match = Match.objects.filter(round="final").first()
+    final_match = Match.objects.filter(round__is_final=True).first()
     if not final_match:
         return None
 
@@ -100,7 +79,7 @@ def update_live_champion_bonuses() -> int:
     # Calculate bonus points
     champion_points = 0
     if current_champion is not None:
-        champion_points = calculate_champion_points(current_champion)
+        champion_points = current_champion.champion_points
 
     # Reset all bonuses first
     users_with_bonus = User.objects.filter(champion_bonus_points__gt=0)

@@ -3,7 +3,8 @@
 import pytest
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 from users.models import User
 
@@ -33,7 +34,7 @@ class TestMatchScoringTrigger:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Test predictions are scored when match result is saved."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -63,7 +64,7 @@ class TestMatchScoringTrigger:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Test user statistics are updated when match is scored."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -93,7 +94,7 @@ class TestMatchScoringTrigger:
     ) -> None:
         """Test predictions are re-scored when match result changes."""
         # Create match without results first
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -139,7 +140,7 @@ class TestMatchScoringTrigger:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Test no scoring when match doesn't have goals set."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -165,7 +166,7 @@ class TestMatchScoringTrigger:
 
     def test_multiple_predictions_scored(self, db, team_home: Team, team_away: Team) -> None:
         """Test all predictions for a match are scored."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -203,8 +204,8 @@ class TestFinalMatchChampionScoring:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Test champion predictions are scored when final match saved."""
-        # Set odds category for champion points calculation
-        team_home.odds_category = "A"
+        # Set champion points for the bonus calculation
+        team_home.champion_points = 20
         team_home.save()
 
         # User predicted champion correctly
@@ -212,7 +213,7 @@ class TestFinalMatchChampionScoring:
         user.save()
 
         # Create final match
-        Match.objects.create(
+        make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),

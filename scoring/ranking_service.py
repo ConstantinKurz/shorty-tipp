@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Sum
 
 from core.ranking import apply_olympic_ranking
-from matches.constants import ROUND_ORDER
+from matches.models import Round
 from predictions.models import MatchPrediction
 from scoring.models import LeaderboardSnapshot
 from users.models import User as UserModel
@@ -36,8 +36,8 @@ class RankingService:
         Generate leaderboard including matches up to a specific round.
 
         Args:
-            round_code: Tournament round ('group', 'r32', 'r16', 'qf', 'sf', '3rd', 'final')
-                       If None or 'final' or invalid, returns live view using cached User fields
+            round_code: Code of a round of the active tournament. If None, unknown, or
+                the final round, returns the live view using cached User fields
 
         Returns:
             List of dicts with: rank, user_id, username, total_points,
@@ -47,9 +47,15 @@ class RankingService:
             >>> RankingService.get_leaderboard_up_to_round('group')
             [{"rank": 1, "user_id": 5, "username": "alice", "total_points": 30, ...}]
         """
-        # For live view (None), final, or invalid codes, use cached User fields
+        cutoff_round = (
+            Round.objects.filter(tournament__is_active=True, code=round_code).first()
+            if round_code
+            else None
+        )
+
+        # For live view (None), the final, or unknown codes, use cached User fields
         # This includes champion bonus points which are not in match predictions
-        if round_code is None or round_code == "final" or round_code not in ROUND_ORDER:
+        if cutoff_round is None or cutoff_round.is_final:
             users = UserModel.objects.filter(is_active=True).order_by(
                 "-total_points",
                 "-exact_match_count",
@@ -62,14 +68,11 @@ class RankingService:
             # Just return the sorted users
             return RankingService._calculate_rank_numbers(list(users))
 
-        # For round-filtered view, calculate from match predictions
-        # Determine which rounds to include
-        cutoff_index = ROUND_ORDER.index(round_code)
-        included_rounds = ROUND_ORDER[: cutoff_index + 1]
-
-        # Build filter for matches in included rounds
+        # For round-filtered view, calculate from match predictions:
+        # every round of the tournament up to and including the cutoff round
         match_filter = Q(
-            match_predictions__match__round__in=included_rounds,
+            match_predictions__match__round__tournament_id=cutoff_round.tournament_id,
+            match_predictions__match__round__order__lte=cutoff_round.order,
             match_predictions__match__status="finished",
             match_predictions__points_earned__isnull=False,
         )

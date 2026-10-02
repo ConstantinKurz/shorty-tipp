@@ -72,7 +72,7 @@ class TestUserModel:
         team = Team.objects.create(
             name="Germany",
             fifa_code="GER",
-            points=0,
+            champion_points=0,
         )
         user = User.objects.create_user(
             username="predictor",
@@ -108,7 +108,7 @@ class TestUserModel:
         team = Team.objects.create(
             name="Brazil",
             fifa_code="BRA",
-            points=0,
+            champion_points=0,
         )
 
         # Create multiple users predicting this team
@@ -139,7 +139,7 @@ class TestUserModel:
         team = Team.objects.create(
             name="Argentina",
             fifa_code="ARG",
-            points=0,
+            champion_points=0,
         )
         user = User.objects.create_user(
             username="argfan",

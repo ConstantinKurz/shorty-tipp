@@ -10,6 +10,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from matches.api_client import FootballDataAPIError
+from matches.tournament import create_tournament
 
 
 @pytest.mark.django_db
@@ -29,7 +30,7 @@ class TestSyncTeamsCommand:
             assert "5 created" in output
             assert "3 updated" in output
             assert "1 unchanged" in output
-            mock_sync.assert_called_once_with("WC")
+            assert mock_sync.call_args.args[0].slug == "wm-2026"
 
     def test_sync_teams_command_output(self) -> None:
         """Verify sync_teams command outputs created and updated counts."""
@@ -43,17 +44,24 @@ class TestSyncTeamsCommand:
             assert "10 created" in output
             assert "0 updated" in output
 
-    def test_sync_teams_command_competition_option(self) -> None:
-        """Verify sync_teams command accepts --competition option."""
+    def test_sync_teams_command_accepts_tournament_option(self) -> None:
+        """Verify sync_teams command syncs the named tournament."""
+        create_tournament(name="EM 2028", slug="em-2028", api_competition_code="EC", preset="em24")
+
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
             mock_sync.return_value = (2, 1, 0)
 
             out = StringIO()
-            call_command("sync_teams", "--competition=EURO", stdout=out)
+            call_command("sync_teams", "--tournament=em-2028", stdout=out)
 
             output = out.getvalue()
-            assert "EURO" in output
-            mock_sync.assert_called_once_with("EURO")
+            assert "EC" in output
+            assert mock_sync.call_args.args[0].slug == "em-2028"
+
+    def test_sync_teams_command_unknown_tournament(self) -> None:
+        """An unknown slug fails instead of silently syncing something else."""
+        with pytest.raises(CommandError, match="No tournament with slug"):
+            call_command("sync_teams", "--tournament=does-not-exist")
 
     def test_sync_teams_command_handles_api_error(self) -> None:
         """Verify sync_teams command handles API errors gracefully."""
@@ -63,11 +71,11 @@ class TestSyncTeamsCommand:
             with pytest.raises(CommandError, match="API error"):
                 call_command("sync_teams")
 
-    def test_sync_teams_command_default_competition(self) -> None:
-        """Verify sync_teams command uses WC as default competition."""
+    def test_sync_teams_command_defaults_to_active_tournament(self) -> None:
+        """Verify sync_teams command uses the active tournament by default."""
         with patch("matches.management.commands.sync_teams.sync_teams_from_api") as mock_sync:
             mock_sync.return_value = (0, 0, 0)
 
             call_command("sync_teams")
 
-            mock_sync.assert_called_once_with("WC")
+            assert mock_sync.call_args.args[0].slug == "wm-2026"

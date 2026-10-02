@@ -47,7 +47,7 @@ def score_predictions_on_result(sender: object, match: Match, **kwargs: Any) -> 
                 scored_count,
                 match,
             )
-            if match.round == "final":
+            if match.round.is_final:
                 live_bonus_count = update_live_champion_bonuses()
                 logger.info(
                     "Updated live champion bonuses for %d users",

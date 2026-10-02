@@ -8,11 +8,12 @@ import time
 from datetime import timedelta
 from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from matches.models import Match
+from matches.models import Match, Tournament
 from matches.services import sync_matches_from_api
+from matches.tournament import NoActiveTournamentError, get_active_tournament
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +38,24 @@ class Command(BaseCommand):
             action="store_true",
             help="Run once and exit (for testing)",
         )
+        parser.add_argument(
+            "--tournament",
+            type=str,
+            default=None,
+            help="Slug of the tournament to sync (default: the active tournament)",
+        )
 
     def handle(self, *args, **options):
         """Execute the command."""
         once = options["once"]
+        slug = options.get("tournament")
+
+        try:
+            tournament = Tournament.objects.get(slug=slug) if slug else get_active_tournament()
+        except Tournament.DoesNotExist as e:
+            raise CommandError(f"No tournament with slug '{slug}'.") from e
+        except NoActiveTournamentError as e:
+            raise CommandError(str(e)) from e
 
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._shutdown)
@@ -57,7 +72,7 @@ class Command(BaseCommand):
                 # Note: sync_matches_from_api() calls match.save() which triggers
                 # the match_result_entered signal, automatically scoring predictions
                 # and updating champion bonuses via signal receivers
-                results = sync_matches_from_api()
+                results = sync_matches_from_api(tournament)
 
                 # Track matches with goal changes for logging
                 matches_with_changes = []

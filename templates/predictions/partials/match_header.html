@@ -4,7 +4,7 @@
 
 <div id="match-{{ match.id }}" 
      class="match-row bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-emerald-300 dark:hover:border-emerald-600"
-     data-match-stage="{{ match.round }}"
+     data-match-stage="{{ match.round.code }}"
      data-kickoff-timestamp="{{ match.kickoff|date:'U' }}">
     
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -87,7 +87,7 @@
     <!-- Round Badge -->
     <div class="mt-2 flex items-center justify-between">
         <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
-            {{ match.get_round_display }}
+            {{ match.round.label }}
         </span>
     </div>
 </div>

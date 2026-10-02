@@ -3,10 +3,13 @@
 from datetime import timedelta
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 from predictions.services import get_phase_stats
 
@@ -25,7 +28,7 @@ def teams(db):
 def future_match(teams, db):
     """Create a future match."""
     team_a, team_b, _, _ = teams
-    return Match.objects.create(
+    return make_match(
         team_home=team_a,
         team_away=team_b,
         kickoff=timezone.now() + timedelta(days=7),
@@ -37,7 +40,7 @@ def future_match(teams, db):
 def past_match(teams, db):
     """Create a past (locked) match."""
     team_a, team_b, _, _ = teams
-    return Match.objects.create(
+    return make_match(
         team_home=team_a,
         team_away=team_b,
         kickoff=timezone.now() - timedelta(hours=1),
@@ -52,7 +55,7 @@ def past_match(teams, db):
 def knockout_match(teams, db):
     """Create a future knockout match."""
     team_a, team_b, _, _ = teams
-    return Match.objects.create(
+    return make_match(
         team_home=team_a,
         team_away=team_b,
         kickoff=timezone.now() + timedelta(days=30),
@@ -67,7 +70,7 @@ def group_matches_for_limit(teams, db):
     matches = []
     base_time = timezone.now() + timedelta(days=1)
     for i in range(40):
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a if i % 2 == 0 else team_c,
             team_away=team_b if i % 2 == 0 else team_d,
             kickoff=base_time + timedelta(hours=i),
@@ -100,19 +103,19 @@ class TestPredictionListView:
         base_time = timezone.now() + timedelta(days=1)
 
         # Create matches out of order
-        match3 = Match.objects.create(
+        match3 = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time + timedelta(hours=3),
             round="group",
         )
-        match1 = Match.objects.create(
+        match1 = make_match(
             team_home=team_c,
             team_away=team_d,
             kickoff=base_time + timedelta(hours=1),
             round="group",
         )
-        match2 = Match.objects.create(
+        match2 = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=base_time + timedelta(hours=2),
@@ -280,7 +283,10 @@ class TestPredictionSaveView:
         prediction = MatchPrediction.objects.get(user=regular_user, match=new_match)
         assert prediction.predicted_goals_home == 2
         assert prediction.predicted_goals_away == 1
-        assert MatchPrediction.objects.filter(user=regular_user, match__round="group").count() == 36
+        assert (
+            MatchPrediction.objects.filter(user=regular_user, match__round__code="group").count()
+            == 36
+        )
 
     def test_rejected_37th_keeps_count_at_36(self, client, regular_user, group_matches_for_limit):
         """A rejected 37th prediction must not create a row or change the count."""
@@ -307,7 +313,10 @@ class TestPredictionSaveView:
         assert response.status_code == 400
         assert "Limit erreicht" in response.content.decode()
         assert not MatchPrediction.objects.filter(user=regular_user, match=new_match).exists()
-        assert MatchPrediction.objects.filter(user=regular_user, match__round="group").count() == 36
+        assert (
+            MatchPrediction.objects.filter(user=regular_user, match__round__code="group").count()
+            == 36
+        )
 
     def test_update_at_group_limit_still_allowed(
         self, client, regular_user, group_matches_for_limit
@@ -337,7 +346,10 @@ class TestPredictionSaveView:
         prediction = MatchPrediction.objects.get(user=regular_user, match=existing_match)
         assert prediction.predicted_goals_home == 4
         assert prediction.predicted_goals_away == 3
-        assert MatchPrediction.objects.filter(user=regular_user, match__round="group").count() == 36
+        assert (
+            MatchPrediction.objects.filter(user=regular_user, match__round__code="group").count()
+            == 36
+        )
 
     def test_knockout_prediction_unaffected_by_group_limit(
         self, client, regular_user, group_matches_for_limit, knockout_match
@@ -511,7 +523,7 @@ class TestPredictionJokerView:
 
         # Create 3 r32 matches with jokers (limit is 3)
         for i in range(3):
-            match = Match.objects.create(
+            match = make_match(
                 team_home=team_a if i % 2 == 0 else team_c,
                 team_away=team_b if i % 2 == 0 else team_d,
                 kickoff=base_time + timedelta(hours=i),
@@ -526,7 +538,7 @@ class TestPredictionJokerView:
             )
 
         # Create 4th match without joker
-        fourth_match = Match.objects.create(
+        fourth_match = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=base_time + timedelta(hours=4),
@@ -552,7 +564,7 @@ class TestPredictionJokerView:
     def test_rejected_after_locktime(self, client, regular_user, teams, db):
         """Should reject joker toggle after match kickoff."""
         team_a, team_b, _, _ = teams
-        past_knockout = Match.objects.create(
+        past_knockout = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(hours=1),
@@ -591,7 +603,7 @@ class TestPointsDisplay:
     def test_points_displayed_for_finished_match(self, client, regular_user, teams, db):
         """Should display points for finished match predictions."""
         team_a, team_b, _, _ = teams
-        finished_match = Match.objects.create(
+        finished_match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(hours=3),
@@ -622,12 +634,14 @@ class TestGetPhaseStats:
     """Tests for get_phase_stats() helper function."""
 
     def test_returns_all_phases(self, regular_user, db):
-        """Should return stats for all 7 tournament phases."""
-        from matches.constants import ROUND_ORDER
+        """Should return stats for every configured round, in tournament order."""
+        from matches.models import Round
 
         stats = get_phase_stats(regular_user)
 
-        assert list(stats.keys()) == ROUND_ORDER
+        assert list(stats.keys()) == list(
+            Round.objects.filter(tournament__is_active=True).values_list("code", flat=True)
+        )
 
     def test_returns_correct_structure(self, regular_user, db):
         """Each phase should have predictions, jokers, total_matches, joker_limit."""
@@ -645,14 +659,14 @@ class TestGetPhaseStats:
         base_time = timezone.now() + timedelta(days=1)
 
         # Create matches in different phases
-        Match.objects.create(team_home=team_a, team_away=team_b, kickoff=base_time, round="group")
-        Match.objects.create(
+        make_match(team_home=team_a, team_away=team_b, kickoff=base_time, round="group")
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time + timedelta(hours=1),
             round="group",
         )
-        Match.objects.create(
+        make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=2), round="r32"
         )
 
@@ -669,10 +683,10 @@ class TestGetPhaseStats:
         base_time = timezone.now() + timedelta(days=1)
 
         # Create matches
-        group_match = Match.objects.create(
+        group_match = make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time, round="group"
         )
-        r32_match = Match.objects.create(
+        r32_match = make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=1), round="r32"
         )
 
@@ -696,10 +710,8 @@ class TestGetPhaseStats:
         base_time = timezone.now() + timedelta(days=30)
 
         # Create knockout matches
-        r32_match1 = Match.objects.create(
-            team_home=team_a, team_away=team_b, kickoff=base_time, round="r32"
-        )
-        r32_match2 = Match.objects.create(
+        r32_match1 = make_match(team_home=team_a, team_away=team_b, kickoff=base_time, round="r32")
+        r32_match2 = make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(hours=1), round="r32"
         )
 
@@ -747,7 +759,7 @@ class TestPhaseStatsInContext:
     def test_context_contains_phase_stats(self, client, regular_user, teams, db):
         """View context should include phase_stats."""
         team_a, team_b, _, _ = teams
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
@@ -767,7 +779,7 @@ class TestPhaseStatsInContext:
         import json
 
         team_a, team_b, _, _ = teams
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
@@ -818,10 +830,10 @@ class TestPhaseStatsView:
         base_time = timezone.now() + timedelta(days=1)
 
         # Create matches
-        group_match = Match.objects.create(
+        group_match = make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time, round="group"
         )
-        r32_match = Match.objects.create(
+        r32_match = make_match(
             team_home=team_a, team_away=team_b, kickoff=base_time + timedelta(days=30), round="r32"
         )
 
@@ -866,7 +878,7 @@ class TestGetPollingInterval:
         from predictions.services import POLLING_INTERVAL_IDLE, get_polling_interval
 
         team_a, team_b, _, _ = teams
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
@@ -883,7 +895,7 @@ class TestGetPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Match kicked off 30 minutes ago
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=30),
@@ -901,7 +913,7 @@ class TestGetPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Match kicked off 120 minutes ago (extra time)
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=120),
@@ -919,7 +931,7 @@ class TestGetPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Match kicked off 150 minutes ago (penalties)
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=150),
@@ -937,7 +949,7 @@ class TestGetPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Match kicked off 180 minutes ago (well past any match duration)
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=180),
@@ -955,7 +967,7 @@ class TestGetPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Match kicked off 30 min ago but already marked finished
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=30),
@@ -976,14 +988,14 @@ class TestGetPollingInterval:
         team_a, team_b, team_c, team_d = teams
 
         # Future match
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
             round="group",
         )
         # Finished match
-        Match.objects.create(
+        make_match(
             team_home=team_c,
             team_away=team_d,
             kickoff=timezone.now() - timedelta(hours=3),
@@ -993,7 +1005,7 @@ class TestGetPollingInterval:
             goals_away=1,
         )
         # Active match
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=timezone.now() - timedelta(minutes=45),
@@ -1032,7 +1044,7 @@ class TestPredictionUpdatesPollingInterval:
 
         team_a, team_b, _, _ = teams
         # Active match
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() - timedelta(minutes=30),
@@ -1311,7 +1323,7 @@ class TestMatchPredictionsViewStatistics:
         base_time = timezone.now() + timedelta(days=1)
 
         # Create match for viewing
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1340,7 +1352,7 @@ class TestMatchPredictionsViewStatistics:
         base_time = timezone.now() - timedelta(days=1)
 
         # Create past matches for user1
-        m1 = Match.objects.create(
+        m1 = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1349,7 +1361,7 @@ class TestMatchPredictionsViewStatistics:
             goals_home=2,
             goals_away=1,
         )
-        m2 = Match.objects.create(
+        m2 = make_match(
             team_home=team_c,
             team_away=team_d,
             kickoff=base_time + timedelta(hours=2),
@@ -1378,7 +1390,7 @@ class TestMatchPredictionsViewStatistics:
         )
 
         # Create viewing match
-        view_match = Match.objects.create(
+        view_match = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1401,7 +1413,7 @@ class TestMatchPredictionsViewStatistics:
         base_time = timezone.now() - timedelta(days=1)
 
         # Create matches
-        m1 = Match.objects.create(
+        m1 = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1410,7 +1422,7 @@ class TestMatchPredictionsViewStatistics:
             goals_home=2,
             goals_away=1,
         )
-        m2 = Match.objects.create(
+        m2 = make_match(
             team_home=team_c,
             team_away=team_d,
             kickoff=base_time + timedelta(hours=2),
@@ -1438,7 +1450,7 @@ class TestMatchPredictionsViewStatistics:
             is_exact_match=True,
         )
 
-        view_match = Match.objects.create(
+        view_match = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1460,10 +1472,8 @@ class TestMatchPredictionsViewStatistics:
         base_time = timezone.now() + timedelta(days=30)
 
         # Create knockout matches
-        m1 = Match.objects.create(
-            team_home=team_a, team_away=team_b, kickoff=base_time, round="r32"
-        )
-        m2 = Match.objects.create(
+        m1 = make_match(team_home=team_a, team_away=team_b, kickoff=base_time, round="r32")
+        m2 = make_match(
             team_home=team_c, team_away=team_d, kickoff=base_time + timedelta(hours=2), round="r32"
         )
 
@@ -1483,7 +1493,7 @@ class TestMatchPredictionsViewStatistics:
             joker_active=True,
         )
 
-        view_match = Match.objects.create(
+        view_match = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1507,7 +1517,7 @@ class TestMatchPredictionsViewStatistics:
         regular_user.predicted_champion = team_a
         regular_user.save()
 
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1528,7 +1538,7 @@ class TestMatchPredictionsViewStatistics:
         """User with no predictions should show 0 for all stats."""
         team_a, team_b, _, _ = teams
 
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1588,7 +1598,7 @@ class TestMatchPredictionsViewSorting:
         base_time = timezone.now() - timedelta(days=1)
 
         # Create multiple matches
-        past_match = Match.objects.create(
+        past_match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1597,7 +1607,7 @@ class TestMatchPredictionsViewSorting:
             goals_home=2,
             goals_away=1,
         )
-        other_match = Match.objects.create(
+        other_match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time + timedelta(hours=2),
@@ -1650,7 +1660,7 @@ class TestMatchPredictionsViewSorting:
         base_time = timezone.now() - timedelta(days=1)
 
         # Create multiple matches
-        past_match = Match.objects.create(
+        past_match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1659,7 +1669,7 @@ class TestMatchPredictionsViewSorting:
             goals_home=2,
             goals_away=1,
         )
-        other_match = Match.objects.create(
+        other_match = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time + timedelta(hours=2),
@@ -1711,7 +1721,7 @@ class TestMatchPredictionsViewSorting:
         base_time = timezone.now() - timedelta(days=1)
 
         # Create matches
-        m1 = Match.objects.create(
+        m1 = make_match(
             team_home=team_a,
             team_away=team_b,
             kickoff=base_time,
@@ -1720,7 +1730,7 @@ class TestMatchPredictionsViewSorting:
             goals_home=2,
             goals_away=1,
         )
-        m2 = Match.objects.create(
+        m2 = make_match(
             team_home=team_c,
             team_away=team_d,
             kickoff=base_time + timedelta(hours=2),
@@ -1729,7 +1739,7 @@ class TestMatchPredictionsViewSorting:
             goals_home=0,
             goals_away=0,
         )
-        view_match = Match.objects.create(
+        view_match = make_match(
             team_home=team_a,
             team_away=team_c,
             kickoff=timezone.now() + timedelta(days=1),
@@ -1779,3 +1789,45 @@ class TestMatchPredictionsViewSorting:
         assert user2_entry["rank"] == 1
         # user3 should be rank 3 (skips 2)
         assert user3_entry["rank"] == 3
+
+
+class TestPredictionListQueryCount:
+    """Tests that the prediction list does not gain queries from the round relation."""
+
+    # Pre-existing per-match cost: can_add_joker() and get_joker_count_for_round()
+    # each run one count query per match. The round relation must add nothing on top.
+    QUERIES_PER_MATCH = 2
+
+    def test_round_relation_adds_no_queries_per_match(
+        self, client, regular_user, teams, django_assert_num_queries, db
+    ):
+        """Reading match.round must be served by select_related, not by one query per match."""
+        team_a, team_b, _, _ = teams
+        base_time = timezone.now() + timedelta(days=1)
+        url = reverse("predictions:prediction-list")
+        client.force_login(regular_user)
+
+        for i in range(3):
+            make_match(
+                team_home=team_a,
+                team_away=team_b,
+                kickoff=base_time + timedelta(hours=i),
+                round="group",
+            )
+
+        with CaptureQueriesContext(connection) as baseline:
+            client.get(url)
+
+        added_matches = 12
+        for i in range(3, 3 + added_matches):
+            make_match(
+                team_home=team_a,
+                team_away=team_b,
+                kickoff=base_time + timedelta(hours=i),
+                round="group",
+            )
+
+        expected = len(baseline.captured_queries) + added_matches * self.QUERIES_PER_MATCH
+
+        with django_assert_num_queries(expected):
+            client.get(url)

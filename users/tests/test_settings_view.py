@@ -8,7 +8,8 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from users.models import User
 
 REFERENCE_NOW = datetime(2026, 6, 11, 18, 0, tzinfo=UTC)
@@ -63,7 +64,7 @@ class TestUserSettingsView:
         team1 = Team.objects.create(name="Germany", fifa_code="GER")
         team2 = Team.objects.create(name="Brazil", fifa_code="BRA")
         # Match in the future
-        Match.objects.create(
+        make_match(
             team_home=team1,
             team_away=team2,
             kickoff=timezone.now() + timedelta(days=1),
@@ -85,7 +86,7 @@ class TestUserSettingsView:
         team1 = Team.objects.create(name="Germany", fifa_code="GER")
         team2 = Team.objects.create(name="Brazil", fifa_code="BRA")
         # Match in the past
-        Match.objects.create(
+        make_match(
             team_home=team1,
             team_away=team2,
             kickoff=timezone.now() - timedelta(days=1),
@@ -194,7 +195,7 @@ class TestChampionLockEnforcement:
 
     def _create_first_match(self, kickoff: datetime) -> None:
         """Create the tournament's first match at a fixed kickoff time."""
-        Match.objects.create(
+        make_match(
             team_home=Team.objects.create(name="Mexico", fifa_code="MEX"),
             team_away=Team.objects.create(name="Canada", fifa_code="CAN"),
             kickoff=kickoff,

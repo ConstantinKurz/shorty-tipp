@@ -11,7 +11,8 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 
 
@@ -27,7 +28,7 @@ def teams(db):
 @pytest.fixture
 def test_match(teams, db):
     """Create a test match."""
-    return Match.objects.create(
+    return make_match(
         team_home=teams[0],
         team_away=teams[1],
         kickoff=timezone.now() + timedelta(days=1),
@@ -38,7 +39,7 @@ def test_match(teams, db):
 @pytest.fixture
 def past_match(teams, db):
     """Create a past match with a result."""
-    return Match.objects.create(
+    return make_match(
         team_home=teams[0],
         team_away=teams[1],
         kickoff=timezone.now() - timedelta(days=1),
@@ -762,7 +763,7 @@ class TestPollingBehavior:
         from predictions.services import get_polling_interval
 
         # Create match that started 30 minutes ago (detected by get_polling_interval)
-        Match.objects.create(
+        make_match(
             team_home=teams[0],
             team_away=teams[1],
             kickoff=timezone.now() - timedelta(minutes=30),
@@ -778,7 +779,7 @@ class TestPollingBehavior:
         from predictions.services import get_polling_interval
 
         # Create match that finished hours ago (outside active window)
-        Match.objects.create(
+        make_match(
             team_home=teams[0],
             team_away=teams[1],
             kickoff=timezone.now() - timedelta(hours=5),
@@ -984,7 +985,7 @@ class TestVersionTracking:
         import json
 
         # Create match that just started (post-kickoff)
-        match = Match.objects.create(
+        match = make_match(
             team_home=teams[0],
             team_away=teams[1],
             kickoff=timezone.now() - timedelta(minutes=10),

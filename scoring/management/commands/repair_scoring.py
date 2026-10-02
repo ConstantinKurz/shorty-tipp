@@ -59,7 +59,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
-        matches = list(find_unscored_matches().select_related("team_home", "team_away"))
+        matches = list(find_unscored_matches().select_related("team_home", "team_away", "round"))
 
         if not matches:
             self.stdout.write(self.style.SUCCESS("No matches need scoring repair."))
@@ -85,7 +85,7 @@ class Command(BaseCommand):
                 continue
 
             repaired += 1
-            final_affected = final_affected or match.round == "final"
+            final_affected = final_affected or match.round.is_final
             self.stdout.write(f"  [{match.pk}] scored {scored} prediction(s)")
 
         if final_affected:

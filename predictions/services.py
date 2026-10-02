@@ -9,8 +9,8 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.ranking import apply_olympic_ranking, create_tiebreaker_from_keys
-from matches.constants import ROUND_ORDER as TOURNAMENT_PHASES
-from matches.models import Match
+from matches.models import Match, Round
+from matches.tournament import get_active_tournament
 from predictions.models import MatchPrediction
 
 if TYPE_CHECKING:
@@ -26,139 +26,117 @@ class PredictionLimitService:
     """
     Service for checking prediction and joker limits.
 
-    Enforces the game rules for:
-    - Joker limits per tournament round
-    - Combined joker pool for semi-final, final, and third-place matches
-    - Group stage prediction limit (max 36)
+    Every limit is read from the ``Round`` the match belongs to:
+    - ``Round.joker_count`` is the joker limit of the round or of its joker pool
+    - ``Round.joker_pool`` groups rounds that draw from one shared joker limit
+    - ``Round.prediction_limit`` caps the predictions a user may place in the round
+    - ``Tournament.lock_buffer_minutes`` decides when predictions close
     """
 
-    # Joker limits per round (configurable)
-    # Group stage: no jokers allowed
-    # r32/r16: 3 each
-    # qf: 2
-    # sf/final/3rd: 2 combined (shared pool)
-    JOKER_LIMITS: dict[str, int] = {
-        "group": 0,  # No jokers in group stage
-        "r32": 3,
-        "r16": 3,
-        "qf": 2,
-        "sf": 2,  # sf + final + 3rd share pool of 2
-        "final": 2,  # Combined with sf
-        "3rd": 2,  # Combined with sf
-    }
-
-    # Combined rounds that share joker pool
-    COMBINED_ROUNDS: frozenset[str] = frozenset({"sf", "final", "3rd"})
-
-    # Maximum group stage predictions allowed
-    GROUP_STAGE_LIMIT: int = 36
-
-    # Lock buffer: predictions close N minutes before kickoff
-    LOCK_BUFFER_MINUTES: int = 3
-
     @classmethod
-    def get_joker_limit_for_round(cls, round_code: str) -> int:
+    def get_joker_limit_for_round(cls, match_round: Round) -> int:
         """
         Get the maximum jokers allowed for a round.
 
         Args:
-            round_code: Tournament round code (group, r32, r16, qf, sf, final, 3rd)
+            match_round: The round to check.
 
         Returns:
-            Maximum number of jokers allowed for the round.
-            Returns 0 for unknown rounds.
+            Maximum number of jokers allowed for the round or its joker pool.
         """
-        return cls.JOKER_LIMITS.get(round_code, 0)
+        return int(match_round.joker_count)
 
     @classmethod
-    def get_joker_count_for_round(cls, user: "User", round_code: str) -> int:
+    def get_joker_count_for_round(cls, user: "User", match_round: Round) -> int:
         """
-        Count jokers user has set in a round (or combined rounds).
-
-        For sf/final/3rd rounds, counts jokers across all three as they
-        share a combined pool.
+        Count jokers the user has set in a round or across its joker pool.
 
         Args:
             user: The user to check jokers for.
-            round_code: Tournament round code.
+            match_round: The round to count jokers in.
 
         Returns:
-            Number of active jokers in the round (or combined rounds).
+            Number of active jokers in the round or in its joker pool.
         """
-        if round_code in cls.COMBINED_ROUNDS:
-            rounds = list(cls.COMBINED_ROUNDS)
-        else:
-            rounds = [round_code]
+        predictions = MatchPrediction.objects.filter(user=user, joker_active=True)
 
-        return MatchPrediction.objects.filter(
-            user=user,
-            match__round__in=rounds,
-            joker_active=True,
-        ).count()
+        if match_round.joker_pool:
+            predictions = predictions.filter(
+                match__round__tournament_id=match_round.tournament_id,
+                match__round__joker_pool=match_round.joker_pool,
+            )
+        else:
+            predictions = predictions.filter(match__round=match_round)
+
+        return predictions.count()
 
     @classmethod
-    def can_add_joker(cls, user: "User", round_code: str) -> bool:
+    def can_add_joker(cls, user: "User", match_round: Round) -> bool:
         """
         Check if user can add another joker in this round.
 
         Args:
             user: The user wanting to add a joker.
-            round_code: Tournament round code.
+            match_round: The round the joker would be placed in.
 
         Returns:
-            True if user has not reached the joker limit for this round.
+            True if the user has not reached the joker limit of the round's pool.
         """
-        limit = cls.get_joker_limit_for_round(round_code)
-        current = cls.get_joker_count_for_round(user, round_code)
+        limit = cls.get_joker_limit_for_round(match_round)
+        current = cls.get_joker_count_for_round(user, match_round)
         return current < limit
 
     @classmethod
-    def get_group_stage_prediction_count(cls, user: "User") -> int:
+    def get_prediction_count_for_round(cls, user: "User", match_round: Round) -> int:
         """
-        Count user's group stage predictions.
+        Count the user's predictions in a round.
 
         Args:
             user: The user to count predictions for.
+            match_round: The round to count predictions in.
 
         Returns:
-            Number of predictions the user has made for group stage matches.
+            Number of predictions the user has made in the round.
         """
-        return MatchPrediction.objects.filter(
-            user=user,
-            match__round="group",
-        ).count()
+        return MatchPrediction.objects.filter(user=user, match__round=match_round).count()
 
     @classmethod
-    def can_add_group_stage_prediction(cls, user: "User") -> bool:
+    def can_add_prediction(cls, user: "User", match_round: Round) -> bool:
         """
-        Check if user can add another group stage prediction.
+        Check if user can add another prediction in this round.
 
         Args:
             user: The user wanting to add a prediction.
+            match_round: The round the prediction would be placed in.
 
         Returns:
-            True if user has not reached the 36 group stage prediction limit.
+            True if the round has no limit or the user is still below it.
         """
-        return cls.get_group_stage_prediction_count(user) < cls.GROUP_STAGE_LIMIT
+        if match_round.prediction_limit is None:
+            return True
+        return bool(
+            cls.get_prediction_count_for_round(user, match_round) < match_round.prediction_limit
+        )
 
     @classmethod
     def is_match_locked(cls, match: "Match", reference_time: datetime | None = None) -> bool:
         """
         Check if predictions are locked for a match.
 
-        Predictions close LOCK_BUFFER_MINUTES (3) minutes before kickoff.
+        Predictions close ``Tournament.lock_buffer_minutes`` before kickoff.
 
         Args:
             match: The match to check lock status for.
             reference_time: Optional datetime to use instead of now (for testing).
 
         Returns:
-            True if predictions are locked (current time >= kickoff - 3 minutes).
+            True if predictions are locked.
         """
         if reference_time is None:
             reference_time = timezone.now()
 
-        lock_time = match.kickoff - timedelta(minutes=cls.LOCK_BUFFER_MINUTES)
+        buffer_minutes = match.round.tournament.lock_buffer_minutes
+        lock_time = match.kickoff - timedelta(minutes=buffer_minutes)
         return bool(reference_time >= lock_time)
 
 
@@ -196,23 +174,26 @@ def get_phase_stats(user: "User") -> dict[str, dict[str, Any]]:
         user: The authenticated user to get stats for.
 
     Returns:
-        Dict mapping phase code to stats dict containing:
+        Dict mapping round code to stats dict containing:
+        - label: Display label of the round
         - predictions: Number of predictions user has made
         - jokers: Number of active jokers user has set
-        - total_matches: Total matches in this phase
-        - joker_limit: Maximum jokers allowed for this phase
+        - total_matches: Prediction limit of the round, or its match count when unlimited
+        - joker_limit: Maximum jokers allowed for this round
     """
     stats: dict[str, dict[str, Any]] = {}
 
     # Get match counts per phase in one query
     match_counts = dict(
-        Match.objects.values("round").annotate(count=Count("id")).values_list("round", "count")
+        Match.objects.values("round__code")
+        .annotate(count=Count("id"))
+        .values_list("round__code", "count")
     )
 
     # Get prediction counts per phase in one query
     prediction_data = (
         MatchPrediction.objects.filter(user=user)
-        .values("match__round")
+        .values("match__round__code")
         .annotate(
             count=Count("id"),
             joker_count=Count("id", filter=Q(joker_active=True)),
@@ -220,23 +201,21 @@ def get_phase_stats(user: "User") -> dict[str, dict[str, Any]]:
     )
     # Build lookup: phase -> (count, joker_count)
     prediction_counts: dict[str, tuple[int, int]] = {
-        row["match__round"]: (row["count"], row["joker_count"]) for row in prediction_data
+        row["match__round__code"]: (row["count"], row["joker_count"]) for row in prediction_data
     }
 
-    for phase in TOURNAMENT_PHASES:
-        pred_count, joker_count = prediction_counts.get(phase, (0, 0))
+    for match_round in get_active_tournament().rounds.all():
+        pred_count, joker_count = prediction_counts.get(match_round.code, (0, 0))
 
-        # For group stage, use prediction limit (36) instead of total matches (72)
-        if phase == "group":
-            display_total = PredictionLimitService.GROUP_STAGE_LIMIT
-        else:
-            display_total = match_counts.get(phase, 0)
+        # A limited round shows its limit, an unlimited one shows how many matches it has
+        display_total = match_round.prediction_limit or match_counts.get(match_round.code, 0)
 
-        stats[phase] = {
+        stats[match_round.code] = {
+            "label": match_round.label,
             "predictions": pred_count,
             "jokers": joker_count,
             "total_matches": display_total,
-            "joker_limit": PredictionLimitService.get_joker_limit_for_round(phase),
+            "joker_limit": match_round.joker_count,
         }
 
     return stats

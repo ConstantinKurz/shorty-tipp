@@ -36,7 +36,7 @@
                     <!-- Matches for this date -->
                     <div class="space-y-3 date-group" data-date="{{ date_key }}">
                         {% for item in matches %}
-                            {% include "predictions/prediction_row.html" with match=item.match prediction=item.prediction form=item.form is_locked=item.is_locked can_add_joker=item.can_add_joker joker_count=item.joker_count joker_limit=item.joker_limit is_group_stage=item.is_group_stage %}
+                            {% include "predictions/prediction_row.html" with match=item.match prediction=item.prediction form=item.form is_locked=item.is_locked can_add_joker=item.can_add_joker joker_count=item.joker_count joker_limit=item.joker_limit %}
                         {% endfor %}
                     </div>
                 {% empty %}
@@ -62,31 +62,23 @@
     // Controls filtering matches by tournament phase (group, R16, quarters, etc.)
     // Updates stats display and manages URL state
     const PhaseNav = {
-        currentPhase: 'group',
+        currentPhase: null,
         stats: {},
-        
-        // Phase labels in German
-        phaseLabels: {
-            'group': 'Gruppenphase',
-            'r32': 'Achtelfinale (R32)',
-            'r16': 'Achtelfinale (R16)',
-            'qf': 'Viertelfinale',
-            'sf': 'Halbfinale',
-            '3rd': 'Spiel um Platz 3',
-            'final': 'Finale'
-        },
         
         init() {
             const navEl = document.getElementById('phase-nav');
             if (!navEl) return;
             
-            // Load phase stats (predictions count, joker count) from DOM data attribute
+            // Load phase stats (label, prediction count, joker count) from DOM data attribute
             try {
                 this.stats = JSON.parse(navEl.dataset.phaseStats);
             } catch (e) {
                 console.error('Failed to parse phase stats:', e);
                 return;
             }
+
+            const firstPhase = Object.keys(this.stats)[0];
+            if (!firstPhase) return;
             
             // Attach click handlers to all phase tabs
             document.querySelectorAll('.phase-tab').forEach(tab => {
@@ -98,8 +90,8 @@
             if (urlPhase && this.stats[urlPhase]) {
                 this.switchPhase(urlPhase, false);
             } else {
-                // Default to group phase on first visit
-                this.switchPhase('group', false);
+                // Default to the first configured round on first visit
+                this.switchPhase(firstPhase, false);
             }
         },
         
@@ -172,9 +164,9 @@
                 predictionsText.textContent = `${stat.predictions}/${stat.total_matches} Tipps`;
             }
             
-            // Joker stats only visible in knockout phases (not in group stage)
+            // Joker stats only visible in rounds that allow jokers
             if (jokersEl && jokersText) {
-                if (phase === 'group') {
+                if (!stat.joker_limit) {
                     jokersEl.style.display = 'none';
                 } else {
                     jokersEl.style.display = 'flex';

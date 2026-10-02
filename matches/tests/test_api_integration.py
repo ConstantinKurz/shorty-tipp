@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from conftest import make_match
 from matches.models import Match, Team
 from matches.services import sync_matches_from_api
 from predictions.models import MatchPrediction
@@ -37,7 +38,7 @@ class TestAPIIntegration:
     def match(self, teams: tuple[Team, Team]) -> Match:
         """Create test match."""
         germany, brazil = teams
-        return Match.objects.create(
+        return make_match(
             external_id=1001,
             team_home=germany,
             team_away=brazil,

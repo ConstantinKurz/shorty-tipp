@@ -3,6 +3,7 @@
 import pytest
 from django.utils import timezone
 
+from conftest import make_match
 from scoring.ranking_service import RankingService
 from users.models import User
 
@@ -198,13 +199,13 @@ class TestEdgeCases:
 @pytest.fixture
 def matches_by_round(db):
     """Create matches across different tournament rounds."""
-    from matches.models import Match, Team
+    from matches.models import Team
 
     team_a = Team.objects.create(name="Team A", fifa_code="TEA")
     team_b = Team.objects.create(name="Team B", fifa_code="TEB")
 
     matches = {
-        "group": Match.objects.create(
+        "group": make_match(
             team_home=team_a,
             team_away=team_b,
             round="group",
@@ -213,7 +214,7 @@ def matches_by_round(db):
             goals_home=2,
             goals_away=1,
         ),
-        "r16": Match.objects.create(
+        "r16": make_match(
             team_home=team_a,
             team_away=team_b,
             round="r16",
@@ -222,7 +223,7 @@ def matches_by_round(db):
             goals_home=3,
             goals_away=0,
         ),
-        "qf": Match.objects.create(
+        "qf": make_match(
             team_home=team_a,
             team_away=team_b,
             round="qf",
@@ -231,7 +232,7 @@ def matches_by_round(db):
             goals_home=1,
             goals_away=1,
         ),
-        "final": Match.objects.create(
+        "final": make_match(
             team_home=team_a,
             team_away=team_b,
             round="final",
@@ -375,13 +376,13 @@ class TestRankingServiceRoundFiltering:
 
     def test_get_leaderboard_up_to_round_no_finished_matches(self, db):
         """Test round with no finished matches returns users with zero points."""
-        from matches.models import Match, Team
+        from matches.models import Team
 
         team_a = Team.objects.create(name="Team A", fifa_code="TAA")
         team_b = Team.objects.create(name="Team B", fifa_code="TBB")
 
         # Create scheduled match (not finished)
-        Match.objects.create(
+        make_match(
             team_home=team_a,
             team_away=team_b,
             round="group",
@@ -480,15 +481,15 @@ class TestLiveChampionBonusInLeaderboard:
 
     def test_live_champion_bonus_stored_in_total_points(self, db):
         """Test live bonus is added to total_points during final."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
         # Create live final with home team leading
-        Match.objects.create(
+        make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -540,15 +541,15 @@ class TestLiveChampionBonusInLeaderboard:
 
     def test_live_bonus_updates_when_champion_changes(self, db):
         """Test live bonus is recalculated when leading team changes."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
         # Create live final
-        final = Match.objects.create(
+        final = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -598,15 +599,15 @@ class TestLiveChampionBonusInLeaderboard:
 
     def test_live_bonus_removed_when_final_finished(self, db):
         """Test live bonus is replaced with final bonus when final ends."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
         # Create live final
-        final = Match.objects.create(
+        final = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -644,15 +645,15 @@ class TestLiveChampionBonusInLeaderboard:
 
     def test_no_live_bonus_when_final_not_started(self, db):
         """Test no live bonus when final hasn't started."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from scoring.champion_scoring import update_live_champion_bonuses
 
         # Create teams
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
         # Create scheduled final
-        Match.objects.create(
+        make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -684,13 +685,13 @@ class TestRecalculateUserScore:
 
     def test_recalculate_user_score_preserves_champion_bonus(self, db) -> None:
         """recalculate_user_score() must preserve champion_bonus_points in total_points."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from predictions.models import MatchPrediction
 
         # Create a finished match
         team_a = Team.objects.create(name="Team A", fifa_code="TEA")
         team_b = Team.objects.create(name="Team B", fifa_code="TEB")
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a,
             team_away=team_b,
             round="group",
@@ -815,7 +816,7 @@ class TestRankUpdateSignal:
 
     def test_ranks_update_after_match_result(self, db):
         """Global ranks update after match result is entered."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from matches.signals import match_result_entered
         from predictions.models import MatchPrediction
 
@@ -824,7 +825,7 @@ class TestRankUpdateSignal:
         team_b = Team.objects.create(name="Team B", fifa_code="TEB")
 
         # Create match
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_a,
             team_away=team_b,
             round="group",
@@ -872,7 +873,7 @@ class TestRankUpdateSignal:
 
     def test_ranks_correct_after_multiple_match_results(self, db):
         """Global ranks update correctly after multiple match results."""
-        from matches.models import Match, Team
+        from matches.models import Team
         from matches.signals import match_result_entered
         from predictions.models import MatchPrediction
 
@@ -881,14 +882,14 @@ class TestRankUpdateSignal:
         team_b = Team.objects.create(name="Team B", fifa_code="TEB")
 
         # Create two matches
-        match1 = Match.objects.create(
+        match1 = make_match(
             team_home=team_a,
             team_away=team_b,
             round="group",
             kickoff=timezone.now(),
             status="scheduled",
         )
-        match2 = Match.objects.create(
+        match2 = make_match(
             team_home=team_b,
             team_away=team_a,
             round="group",

@@ -3,32 +3,143 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 from matches.signals import match_result_entered
 
 logger = logging.getLogger(__name__)
 
 
-class Team(models.Model):
-    """Represents a country/team participating in World Cup 2026."""
+class Tournament(models.Model):
+    """Tournament-wide configuration for a single tipping game."""
 
-    ODDS_CATEGORY_CHOICES = [
-        ("A", "Category A (odds rank 1-8)"),
-        ("B", "Category B (odds rank 9+)"),
-    ]
+    name: models.CharField = models.CharField(
+        max_length=100, help_text="Tournament name (e.g., WM 2026)"
+    )
+    slug: models.SlugField = models.SlugField(
+        max_length=50, unique=True, help_text="Short identifier (e.g., wm-2026)"
+    )
+    api_competition_code: models.CharField = models.CharField(
+        max_length=10,
+        help_text="football-data.org competition code (e.g., WC for World Cup, EC for Euro)",
+    )
+    api_season: models.IntegerField = models.IntegerField(
+        null=True, blank=True, help_text="football-data.org season year, if the API requires one"
+    )
+    lock_buffer_minutes: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        default=3, help_text="Minutes before kickoff after which predictions are locked"
+    )
+    is_active: models.BooleanField = models.BooleanField(
+        default=False, help_text="The one tournament this installation is currently running"
+    )
+
+    class Meta:
+        db_table = "matches_tournament"
+        ordering = ["name"]
+        verbose_name = "Tournament"
+        verbose_name_plural = "Tournaments"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_tournament",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.name)
+
+
+class Round(models.Model):
+    """One round of a tournament together with its scoring and prediction parameters."""
+
+    tournament: models.ForeignKey = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name="rounds",
+        help_text="Tournament this round belongs to",
+    )
+    code: models.CharField = models.CharField(
+        max_length=10, help_text="Short round code (e.g., group, r16, final)"
+    )
+    label: models.CharField = models.CharField(
+        max_length=50, help_text="Display label (e.g., Sechzehntelfinale)"
+    )
+    order: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        help_text="Position of the round within the tournament, ascending"
+    )
+    multiplier: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Factor applied to the base points of every prediction in this round",
+    )
+    joker_count: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        default=0, help_text="Number of jokers available in this round or its joker pool"
+    )
+    joker_multiplier: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        default=2, help_text="Factor applied to the round score when a joker is active"
+    )
+    joker_pool: models.CharField = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Shared joker pool key; rounds with the same key share one joker limit",
+    )
+    prediction_limit: models.PositiveSmallIntegerField = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum number of matches that may be predicted in this round; empty means all",
+    )
+    is_final: models.BooleanField = models.BooleanField(
+        default=False, help_text="Marks the round that decides the champion"
+    )
+    api_stage: models.CharField = models.CharField(
+        max_length=30, help_text="football-data.org stage name (e.g., ROUND_OF_16)"
+    )
+
+    class Meta:
+        db_table = "matches_round"
+        ordering = ["order"]
+        verbose_name = "Round"
+        verbose_name_plural = "Rounds"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tournament", "code"], name="unique_round_code_per_tournament"
+            ),
+            models.UniqueConstraint(
+                fields=["tournament", "order"], name="unique_round_order_per_tournament"
+            ),
+            models.UniqueConstraint(
+                fields=["tournament", "api_stage"], name="unique_round_api_stage_per_tournament"
+            ),
+            models.UniqueConstraint(
+                fields=["tournament"],
+                condition=Q(is_final=True),
+                name="unique_final_round_per_tournament",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.label)
+
+    @property
+    def effective_joker_pool(self) -> str:
+        """Return the joker pool key, falling back to the round code for unpooled rounds."""
+        return str(self.joker_pool or self.code)
+
+
+class Team(models.Model):
+    """Represents a country/team participating in the configured tournament."""
 
     name: models.CharField = models.CharField(max_length=100, help_text="Team name (e.g., Germany)")
     fifa_code: models.CharField = models.CharField(
         max_length=3, unique=True, help_text="FIFA country code (e.g., GER)"
     )
-    points: models.IntegerField = models.IntegerField(default=0, help_text="Championship points")
-    odds_category: models.CharField = models.CharField(
-        max_length=1,
-        choices=ODDS_CATEGORY_CHOICES,
-        default="",
-        blank=True,
-        help_text="Champion prediction category: A (odds rank 1-8, 20pts) or B (rank 9+, 30pts). Set by admin based on betting odds.",
+    champion_points: models.IntegerField = models.IntegerField(
+        default=0,
+        help_text="Bonus points awarded to users who picked this team as champion",
     )
 
     class Meta:
@@ -49,16 +160,6 @@ class Match(models.Model):
     scoring of all predictions for this match via ScoringService.
     For the final match, also triggers champion prediction scoring.
     """
-
-    ROUND_CHOICES = [
-        ("group", "Group Stage"),
-        ("r32", "Round of 32"),
-        ("r16", "Round of 16"),
-        ("qf", "Quarter-Final"),
-        ("sf", "Semi-Final"),
-        ("3rd", "Third Place"),
-        ("final", "Final"),
-    ]
 
     STATUS_CHOICES = [
         ("scheduled", "Scheduled"),
@@ -91,8 +192,8 @@ class Match(models.Model):
         Team, on_delete=models.PROTECT, related_name="away_matches", help_text="Away team"
     )
     kickoff: models.DateTimeField = models.DateTimeField(help_text="Match start time")
-    round: models.CharField = models.CharField(
-        max_length=10, choices=ROUND_CHOICES, help_text="Tournament round"
+    round: models.ForeignKey = models.ForeignKey(
+        Round, on_delete=models.PROTECT, related_name="matches", help_text="Tournament round"
     )
     goals_home: models.IntegerField = models.IntegerField(
         null=True, blank=True, help_text="Goals scored by home team"
@@ -127,7 +228,7 @@ class Match(models.Model):
             return (
                 f"{self.team_home.name} {self.goals_home}-{self.goals_away} {self.team_away.name}"
             )
-        return f"{self.team_home.name} vs {self.team_away.name} ({self.get_round_display()})"
+        return f"{self.team_home.name} vs {self.team_away.name} ({self.round.label})"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """

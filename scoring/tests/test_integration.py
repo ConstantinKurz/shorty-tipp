@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Team
 from predictions.models import MatchPrediction
 from scoring.match_scoring import ScoringService
 from scoring.ranking_service import RankingService
@@ -16,10 +17,10 @@ from users.models import User
 def tournament_setup(db) -> dict:
     """Set up a mini tournament scenario."""
     # Teams
-    germany = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-    brazil = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
-    france = Team.objects.create(name="France", fifa_code="FRA", odds_category="A")
-    argentina = Team.objects.create(name="Argentina", fifa_code="ARG", odds_category="A")
+    germany = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+    brazil = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
+    france = Team.objects.create(name="France", fifa_code="FRA", champion_points=20)
+    argentina = Team.objects.create(name="Argentina", fifa_code="ARG", champion_points=20)
 
     # Users
     alice = User.objects.create_user(username="alice", password="test")
@@ -52,7 +53,7 @@ class TestEndToEndScoring:
         users = tournament_setup["users"]
 
         # Create a group stage match
-        match = Match.objects.create(
+        match = make_match(
             team_home=teams["germany"],
             team_away=teams["brazil"],
             kickoff=timezone.now(),
@@ -116,7 +117,7 @@ class TestMultipleMatchesWithMultipliers:
         alice = tournament_setup["users"]["alice"]
 
         # Group stage match (x1 multiplier) - create without results first
-        group_match = Match.objects.create(
+        group_match = make_match(
             team_home=teams["germany"],
             team_away=teams["brazil"],
             kickoff=timezone.now(),
@@ -138,7 +139,7 @@ class TestMultipleMatchesWithMultipliers:
         group_match.save()
 
         # Quarter-final match (x3 multiplier)
-        qf_match = Match.objects.create(
+        qf_match = make_match(
             team_home=teams["france"],
             team_away=teams["argentina"],
             kickoff=timezone.now(),
@@ -175,7 +176,7 @@ class TestJokerImpact:
         alice = tournament_setup["users"]["alice"]
 
         # Round of 16 match (x2 multiplier) - create without results first
-        match = Match.objects.create(
+        match = make_match(
             team_home=teams["germany"],
             team_away=teams["brazil"],
             kickoff=timezone.now(),
@@ -221,7 +222,7 @@ class TestChampionPredictionFlow:
         )
 
         # Create scheduled final match first (no results)
-        final_match = Match.objects.create(
+        final_match = make_match(
             team_home=teams["germany"],
             team_away=teams["brazil"],
             kickoff=timezone.now(),
@@ -249,7 +250,7 @@ class TestRecalculationConsistency:
         alice = tournament_setup["users"]["alice"]
 
         # Create match without results first
-        match = Match.objects.create(
+        match = make_match(
             team_home=teams["germany"],
             team_away=teams["brazil"],
             kickoff=timezone.now(),
@@ -324,8 +325,8 @@ class TestRoundBasedRankingFullFlow:
     def test_round_based_ranking_full_flow(self, db) -> None:
         """Integration test creating matches across rounds and verifying filtered rankings."""
         # Setup: Create teams
-        germany = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        brazil = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="A")
+        germany = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        brazil = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=20)
 
         # Setup: Create users
         alice = User.objects.create_user(username="alice", password="test")
@@ -333,7 +334,7 @@ class TestRoundBasedRankingFullFlow:
 
         # Create matches across different rounds
         # Group stage match
-        group_match = Match.objects.create(
+        group_match = make_match(
             team_home=germany,
             team_away=brazil,
             round="group",
@@ -342,7 +343,7 @@ class TestRoundBasedRankingFullFlow:
         )
 
         # R16 match
-        r16_match = Match.objects.create(
+        r16_match = make_match(
             team_home=germany,
             team_away=brazil,
             round="r16",
@@ -351,7 +352,7 @@ class TestRoundBasedRankingFullFlow:
         )
 
         # Quarter-final match
-        qf_match = Match.objects.create(
+        qf_match = make_match(
             team_home=germany,
             team_away=brazil,
             round="qf",
@@ -485,7 +486,7 @@ class TestScoringReliabilityIntegration:
         """Test champion scoring called multiple times doesn't double-award points."""
         from django.utils import timezone
 
-        from matches.models import Match, Team
+        from matches.models import Team
         from scoring.champion_scoring import update_live_champion_bonuses
         from users.models import User
 
@@ -493,16 +494,16 @@ class TestScoringReliabilityIntegration:
         champion = Team.objects.create(
             name="Germany",
             fifa_code="GER",
-            odds_category="A",
+            champion_points=20,
         )
         runner_up = Team.objects.create(
             name="Brazil",
             fifa_code="BRA",
-            odds_category="B",
+            champion_points=30,
         )
 
         # Create finished final
-        Match.objects.create(
+        make_match(
             team_home=champion,
             team_away=runner_up,
             kickoff=timezone.now(),
@@ -540,7 +541,7 @@ class TestScoringReliabilityIntegration:
 
         from django.utils import timezone
 
-        from matches.models import Match, Team
+        from matches.models import Team
         from predictions.services import PredictionLimitService
         from users.models import User
 
@@ -551,12 +552,12 @@ class TestScoringReliabilityIntegration:
         )
 
         # Create teams
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
         # Create match with kickoff in 5 minutes
         kickoff = timezone.now() + timedelta(minutes=5)
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
@@ -583,11 +584,11 @@ class TestScoringFailureHandling:
     @pytest.fixture
     def scored_setup(self, db) -> dict:
         """Create a match with one unscored prediction."""
-        team_home = Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
-        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+        team_home = Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
+        team_away = Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
         user = User.objects.create_user(username="alice", password="test")
 
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),

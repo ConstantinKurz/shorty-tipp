@@ -1,5 +1,5 @@
 {# Current user prediction form - for HTMX swap after save/delete/joker #}
-{# Required context: match, is_locked, current_user_prediction, current_user_form, can_add_joker, joker_count, joker_limit, is_group_stage, current_user, just_saved #}
+{# Required context: match, is_locked, current_user_prediction, current_user_form, can_add_joker, joker_count, joker_limit, has_prediction_limit, current_user, just_saved #}
 
 <form id="current-user-prediction-form" 
       class="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 mb-4 border-2 border-emerald-500 dark:border-emerald-600"
@@ -93,7 +93,7 @@
 
         <!-- Actions -->
         <div class="flex items-center gap-2">
-            {% if not is_group_stage %}
+            {% if joker_limit %}
                 <!-- Joker Toggle -->
                 <button type="button"
                         hx-post="{% url 'predictions:prediction-joker' match.id %}?context=match-predictions"

@@ -195,7 +195,7 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict[str, Any]]) -> str:
     # Get all finished matches ordered by kickoff
     matches = (
         Match.objects.filter(status="finished")
-        .select_related("team_home", "team_away")
+        .select_related("team_home", "team_away", "round")
         .order_by("kickoff")
     )
 
@@ -249,7 +249,7 @@ def generate_detailed_leaderboard_csv(leaderboard: list[dict[str, Any]]) -> str:
             writer.writerow(
                 [
                     match_date,
-                    match.round,
+                    match.round.code,
                     match_str,
                     result_str,
                     pred_str,

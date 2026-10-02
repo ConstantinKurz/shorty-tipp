@@ -3,9 +3,9 @@
 import pytest
 from django.utils import timezone
 
-from matches.models import Match, Team
+from conftest import make_match
+from matches.models import Match, Round, Team
 from predictions.models import MatchPrediction
-from scoring.champion_scoring import calculate_champion_points
 from scoring.match_scoring import ScoringService
 from users.models import User
 
@@ -13,19 +13,19 @@ from users.models import User
 @pytest.fixture
 def team_home(db) -> Team:
     """Create home team fixture."""
-    return Team.objects.create(name="Germany", fifa_code="GER", odds_category="A")
+    return Team.objects.create(name="Germany", fifa_code="GER", champion_points=20)
 
 
 @pytest.fixture
 def team_away(db) -> Team:
     """Create away team fixture."""
-    return Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B")
+    return Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30)
 
 
 @pytest.fixture
 def group_match(db, team_home: Team, team_away: Team) -> Match:
     """Create group stage match fixture."""
-    return Match.objects.create(
+    return make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),
@@ -39,7 +39,7 @@ def group_match(db, team_home: Team, team_away: Team) -> Match:
 @pytest.fixture
 def r16_match(db, team_home: Team, team_away: Team) -> Match:
     """Create round of 16 match fixture."""
-    return Match.objects.create(
+    return make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),
@@ -53,7 +53,7 @@ def r16_match(db, team_home: Team, team_away: Team) -> Match:
 @pytest.fixture
 def final_match(db, team_home: Team, team_away: Team) -> Match:
     """Create final match fixture."""
-    return Match.objects.create(
+    return make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),
@@ -198,7 +198,7 @@ class TestRoundMultipliers:
 
     def test_group_stage_x1(self, db, team_home: Team, team_away: Team, user: User) -> None:
         """Test group stage has x1 multiplier."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -216,7 +216,7 @@ class TestRoundMultipliers:
 
     def test_r32_x2(self, db, team_home: Team, team_away: Team, user: User) -> None:
         """Test round of 32 has x2 multiplier."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -234,7 +234,7 @@ class TestRoundMultipliers:
 
     def test_r16_x2(self, db, team_home: Team, team_away: Team, user: User) -> None:
         """Test round of 16 has x2 multiplier."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -253,7 +253,7 @@ class TestRoundMultipliers:
     def test_knockout_x3(self, db, team_home: Team, team_away: Team, user: User) -> None:
         """Test quarter-final and beyond has x3 multiplier."""
         for round_name in ["qf", "sf", "3rd", "final"]:
-            match = Match.objects.create(
+            match = make_match(
                 team_home=team_home,
                 team_away=team_away,
                 kickoff=timezone.now(),
@@ -310,30 +310,19 @@ class TestJokerMultiplier:
 
 
 class TestChampionPrediction:
-    """Test champion prediction scoring per Shortytipp rules section 8."""
+    """Test champion prediction points come from the team configuration."""
 
-    def test_champion_category_a_20_points(self, db, team_home: Team) -> None:
-        """Test category A champion prediction awards 20 points."""
-        team_home.odds_category = "A"
+    def test_champion_points_read_from_team(self, db, team_home: Team) -> None:
+        """A team's configured champion points are awarded unchanged."""
+        team_home.champion_points = 45
         team_home.save()
 
-        points = calculate_champion_points(team_home)
-        assert points == 20
+        assert team_home.champion_points == 45
 
-    def test_champion_category_b_30_points(self, db, team_away: Team) -> None:
-        """Test category B champion prediction awards 30 points."""
-        team_away.odds_category = "B"
-        team_away.save()
-
-        points = calculate_champion_points(team_away)
-        assert points == 30
-
-    def test_champion_no_category_0_points(self, db) -> None:
-        """Test champion with no category awards 0 points."""
+    def test_champion_points_default_to_zero(self, db) -> None:
+        """A team without configured champion points awards no bonus."""
         team = Team.objects.create(name="Unknown", fifa_code="UNK")
-        assert team.odds_category == ""
-        points = calculate_champion_points(team)
-        assert points == 0
+        assert team.champion_points == 0
 
 
 class TestScorePrediction:
@@ -388,32 +377,58 @@ class TestScorePrediction:
         assert user.jokers_used == 1
 
 
-class TestRoundValidation:
-    """Test round code validation."""
+class TestRoundConfiguration:
+    """Test that multipliers come from the Round row, not from code."""
 
-    def test_invalid_round_code_raises_error(self) -> None:
-        """Unknown round codes must raise ValueError, not silently default to 1."""
-        with pytest.raises(ValueError, match="Unknown round 'playoffs'"):
-            ScoringService._get_round_multiplier("playoffs")
+    def test_seeded_round_multipliers(self, db) -> None:
+        """The seeded configuration carries the documented multipliers."""
+        multipliers = dict(
+            Round.objects.filter(tournament__is_active=True).values_list("code", "multiplier")
+        )
 
-    def test_all_valid_round_codes_return_correct_multipliers(self) -> None:
-        """All valid round codes return correct multipliers."""
-        assert ScoringService._get_round_multiplier("group") == 1
-        assert ScoringService._get_round_multiplier("r32") == 2
-        assert ScoringService._get_round_multiplier("r16") == 2
-        assert ScoringService._get_round_multiplier("qf") == 3
-        assert ScoringService._get_round_multiplier("sf") == 3
-        assert ScoringService._get_round_multiplier("3rd") == 3
-        assert ScoringService._get_round_multiplier("final") == 3
+        assert multipliers == {
+            "group": 1,
+            "r32": 2,
+            "r16": 2,
+            "qf": 3,
+            "sf": 3,
+            "3rd": 3,
+            "final": 3,
+        }
 
-    def test_invalid_round_error_message_lists_valid_rounds(self) -> None:
-        """Error message for invalid round should list all valid rounds."""
-        with pytest.raises(ValueError) as exc_info:
-            ScoringService._get_round_multiplier("invalid")
+    def test_round_multiplier_read_from_configuration(
+        self, db, group_match: Match, user: User
+    ) -> None:
+        """Changing the round multiplier changes the points of its matches."""
+        prediction = MatchPrediction.objects.create(
+            user=user,
+            match=group_match,
+            predicted_goals_home=2,
+            predicted_goals_away=1,
+        )
 
-        error_message = str(exc_info.value)
-        assert "Unknown round 'invalid'" in error_message
-        assert "Valid rounds:" in error_message
-        # Check that at least some valid rounds are mentioned
-        assert "group" in error_message
-        assert "final" in error_message
+        group_match.round.multiplier = 5
+        group_match.round.save(update_fields=["multiplier"])
+
+        result = ScoringService.calculate_match_points(prediction, group_match)
+
+        assert result["points"] == 30  # 6 * 5
+
+    def test_joker_multiplier_read_from_configuration(
+        self, db, r16_match: Match, user: User
+    ) -> None:
+        """A joker multiplier of 3 triples the round score."""
+        prediction = MatchPrediction.objects.create(
+            user=user,
+            match=r16_match,
+            predicted_goals_home=3,
+            predicted_goals_away=0,
+            joker_active=True,
+        )
+
+        r16_match.round.joker_multiplier = 3
+        r16_match.round.save(update_fields=["joker_multiplier"])
+
+        result = ScoringService.calculate_match_points(prediction, r16_match)
+
+        assert result["points"] == 36  # 6 * 2 * 3

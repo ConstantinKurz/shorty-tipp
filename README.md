@@ -152,6 +152,68 @@ Access the application:
 - Admin interface: http://localhost:8000/admin/
 - Login with the superuser credentials created above
 
+## Tournament Configuration
+
+The tournament format is data, not code. A `Tournament` row holds the API competition code, the
+API season and the prediction lock buffer; one `Round` row per round holds its label, order, score
+multiplier, joker count, joker multiplier, joker pool, prediction limit, final flag and API stage.
+Exactly one tournament is active at a time.
+
+A fresh database is seeded with the 2026 World Cup ("WM 2026", slug `wm-2026`). Everything about
+it is editable under **Matches → Tournaments** in the admin.
+
+### Creating a tournament
+
+```bash
+python manage.py create_tournament \
+  --preset em24 --name "EM 2028" --slug em-2028 --competition EC --activate
+```
+
+Available presets:
+
+| Preset | Rounds |
+|---|---|
+| `wm48` | group, r32, r16, qf, sf, 3rd, final (the 2026 World Cup) |
+| `wm32` | group, r16, qf, sf, 3rd, final |
+| `em24` | group, r16, qf, sf, final (no round of 32, no third-place match) |
+
+Omit `--preset` to create a tournament with no rounds and fill them in through the admin inline.
+The admin add form offers the same presets through a dropdown.
+
+> The `em24` preset's `api_stage` values are **unverified** against the live football-data.org
+> `EC` competition. Confirm them before the first sync.
+
+### Switching to another tournament
+
+> **Warning:** switching destroys all predictions, points, rankings and champion picks of the
+> previous tournament. This is intended — the application holds exactly one tournament at a time
+> and keeps no history. Take a database dump first if you want to keep the old standings.
+
+```bash
+# 1. Drop and recreate the database
+dropdb tipapp && createdb tipapp
+
+# 2. Apply migrations (this seeds the 2026 World Cup)
+python manage.py migrate
+
+# 3. Recreate an administrator
+python manage.py createsuperuser
+
+# 4. Create and activate the new tournament
+python manage.py create_tournament \
+  --preset em24 --name "EM 2028" --slug em-2028 --competition EC --activate
+
+# 5. Import teams and matches
+python manage.py sync_teams
+python manage.py update_matches --once
+```
+
+Finally, set each team's `champion_points` under **Matches → Teams**. Teams left at `0` award no
+champion bonus; the tournament change form warns how many are still unset.
+
+If round configuration changes after matches have been scored, run the **Recalculate scores**
+action on the tournament in the admin (or `python manage.py recalculate_scores`).
+
 ## Football-Data.org API Integration
 
 The application can automatically sync match results from the [football-data.org](https://www.football-data.org/) API, eliminating the need for manual match result entry.
@@ -181,10 +243,11 @@ The application can automatically sync match results from the [football-data.org
    python manage.py sync_teams
    ```
 
-   This creates Team records in the database from the API. You can specify a different competition:
+   This creates Team records from the competition configured on the **active tournament**
+   (`Tournament.api_competition_code`). To sync a different tournament, name it by slug:
 
    ```bash
-   python manage.py sync_teams --competition=EURO
+   python manage.py sync_teams --tournament=em-2028
    ```
 
 4. **Run the Match Updater**
@@ -194,6 +257,11 @@ The application can automatically sync match results from the [football-data.org
    ```bash
    python manage.py update_matches
    ```
+
+   It also defaults to the active tournament and accepts `--tournament=<slug>`.
+
+   A match whose API `stage` matches no `Round.api_stage` of the tournament aborts the sync with
+   an error naming the stage. Fix the round configuration in the admin and run the command again.
 
    This command:
    - Runs in a persistent while-loop
@@ -293,7 +361,7 @@ services:
 
 **Solution:**
 - Run `sync_teams` first
-- Verify the competition code (default: "WC" for World Cup)
+- Verify the competition code on the active tournament (`WC` for the World Cup)
 - Check API response in logs for data availability
 
 ---

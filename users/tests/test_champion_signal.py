@@ -13,8 +13,8 @@ from users.models import User
 def teams(db) -> dict[str, Team]:
     """Create test teams."""
     return {
-        "germany": Team.objects.create(name="Germany", fifa_code="GER", odds_category="A"),
-        "brazil": Team.objects.create(name="Brazil", fifa_code="BRA", odds_category="B"),
+        "germany": Team.objects.create(name="Germany", fifa_code="GER", champion_points=20),
+        "brazil": Team.objects.create(name="Brazil", fifa_code="BRA", champion_points=30),
     }
 
 

@@ -13,7 +13,8 @@ from django.db import DatabaseError
 from django.utils.dateparse import parse_datetime
 
 from matches.api_client import FootballDataClient
-from matches.models import Match, Team
+from matches.models import Match, Round, Team, Tournament
+from matches.tournament import get_active_tournament
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +36,7 @@ API_STATUS_MAP = {
     "FINISHED": "finished",
 }
 
-# Round mapping from API to Django
-API_ROUND_MAP = {
-    "GROUP_STAGE": "group",
-    "ROUND_OF_32": "r32",
-    "ROUND_OF_16": "r16",
-    "QUARTER_FINALS": "qf",
-    "SEMI_FINALS": "sf",
-    "THIRD_PLACE": "3rd",
-    "FINAL": "final",
-}
+# Round mapping comes from Round.api_stage of the tournament being synced.
 
 # Winner mapping from API to Django
 API_WINNER_MAP = {
@@ -54,7 +46,11 @@ API_WINNER_MAP = {
 }
 
 
-def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
+class UnknownApiStageError(ValueError):
+    """Raised when the API reports a stage that no round of the tournament maps to."""
+
+
+def sync_teams_from_api(tournament: Tournament) -> tuple[int, int, int]:
     """
     Sync teams from football-data.org API to database.
 
@@ -62,16 +58,16 @@ def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
     matching by fifa_code (API 'tla' field).
 
     Args:
-        competition: Competition code (default: WC for World Cup)
+        tournament: Tournament whose ``api_competition_code`` is fetched
 
     Returns:
-        Tuple of (created_count, updated_count)
+        Tuple of (created_count, updated_count, unchanged_count)
 
     Raises:
         FootballDataAPIError: If API request fails
     """
     client = FootballDataClient()
-    teams_data = client.get_teams(competition)
+    teams_data = client.get_teams(tournament.api_competition_code)
 
     created_count = 0
     updated_count = 0
@@ -124,7 +120,7 @@ def sync_teams_from_api(competition: str = "WC") -> tuple[int, int, int]:
     return (created_count, updated_count, unchanged_count)
 
 
-def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
+def sync_matches_from_api(tournament: Tournament | None = None) -> list[MatchSyncResult]:
     """
     Sync matches from football-data.org API to database.
 
@@ -133,26 +129,38 @@ def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
     that need scoring updates.
 
     A match that fails to sync (including a failure while scoring it) is logged
-    and skipped so the remaining matches are still processed.
+    and skipped so the remaining matches are still processed. A stage that no round
+    maps to is not skipped: it aborts the sync.
 
     Args:
-        competition: Competition code (default: WC for World Cup)
+        tournament: Tournament to sync; defaults to the active tournament
 
     Returns:
         List of MatchSyncResult with goal change information
 
     Raises:
         FootballDataAPIError: If API request fails
+        UnknownApiStageError: If the API reports a stage no round maps to
     """
+    if tournament is None:
+        tournament = get_active_tournament()
+
     client = FootballDataClient()
-    matches_data = client.get_matches(competition)
+    matches_data = client.get_matches(tournament.api_competition_code)
+
+    rounds_by_stage = {
+        round_.api_stage: round_ for round_ in Round.objects.filter(tournament=tournament)
+    }
 
     results: list[MatchSyncResult] = []
     failed_count = 0
 
     for match_data in matches_data:
         try:
-            result = _sync_match(match_data)
+            result = _sync_match(match_data, rounds_by_stage)
+        except UnknownApiStageError:
+            # A stage nobody mapped must not be imported as something else.
+            raise
         except (ValueError, TypeError, KeyError, ValidationError, DatabaseError):
             failed_count += 1
             logger.exception("Failed to sync match %s", match_data.get("id"))
@@ -171,15 +179,21 @@ def sync_matches_from_api(competition: str = "WC") -> list[MatchSyncResult]:
     return results
 
 
-def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
+def _sync_match(
+    match_data: dict[str, Any], rounds_by_stage: dict[str, Round]
+) -> MatchSyncResult | None:
     """
     Sync a single match from API data.
 
     Args:
         match_data: Match dictionary from API
+        rounds_by_stage: Rounds of the tournament keyed by their API stage name
 
     Returns:
         MatchSyncResult if successful, None if skipped
+
+    Raises:
+        UnknownApiStageError: If the match's stage maps to no round
     """
     external_id = match_data.get("id")
     if not external_id:
@@ -213,8 +227,13 @@ def _sync_match(match_data: dict[str, Any]) -> MatchSyncResult | None:
     status_api = match_data.get("status", "SCHEDULED")
     status = API_STATUS_MAP.get(status_api, "scheduled")
 
-    stage_api = match_data.get("stage", "GROUP_STAGE")
-    round_value = API_ROUND_MAP.get(stage_api, "group")
+    stage_api = match_data.get("stage", "")
+    if stage_api not in rounds_by_stage:
+        raise UnknownApiStageError(
+            f"API stage {stage_api!r} maps to no round. "
+            f"Configured stages: {', '.join(sorted(rounds_by_stage))}"
+        )
+    round_value = rounds_by_stage[stage_api]
 
     kickoff_str = match_data.get("utcDate")
     if not kickoff_str:

@@ -2,7 +2,82 @@
 Pytest configuration and fixtures for tipapp.
 """
 
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
+
+from matches.models import Match, Round, Team
+from matches.tournament import get_active_tournament
+
+
+@pytest.fixture
+def tournament(db):
+    """
+    Return the active tournament seeded by the migrations.
+
+    Returns:
+        Tournament: The active tournament of the test database.
+    """
+    return get_active_tournament()
+
+
+@pytest.fixture
+def rounds(tournament):
+    """
+    Return the rounds of the active tournament keyed by their code.
+
+    Returns:
+        dict[str, Round]: Mapping of round code to Round instance.
+    """
+    return {match_round.code: match_round for match_round in tournament.rounds.all()}
+
+
+def make_team(name, fifa_code, **kwargs):
+    """
+    Create a Team for tests.
+
+    Args:
+        name: Team name (e.g., "Germany")
+        fifa_code: FIFA country code (e.g., "GER")
+        **kwargs: Additional Team field values
+
+    Returns:
+        Team: The created team
+    """
+    return Team.objects.create(name=name, fifa_code=fifa_code, **kwargs)
+
+
+def make_match(*, team_home, team_away, kickoff=None, round="group", **kwargs):
+    """
+    Create a Match for tests.
+
+    Tests must not construct Match directly so that schema changes to the model
+    touch this factory instead of every call site.
+
+    Args:
+        team_home: Home team instance
+        team_away: Away team instance
+        kickoff: Match start time, defaults to one day in the future
+        round: Round code (e.g., "group", "r16", "final") or a Round instance
+        **kwargs: Additional Match field values
+
+    Returns:
+        Match: The created match
+    """
+    if kickoff is None:
+        kickoff = timezone.now() + timedelta(days=1)
+
+    if isinstance(round, str):
+        round = Round.objects.get(tournament__is_active=True, code=round)
+
+    return Match.objects.create(
+        team_home=team_home,
+        team_away=team_away,
+        kickoff=kickoff,
+        round=round,
+        **kwargs,
+    )
 
 
 @pytest.fixture

@@ -44,12 +44,15 @@ done
 Bei ~100 Usern und ~64 Matches: Kein echter Performance-Gewinn, mehr Code, mehr Bugs.
 
 - alles mal aufräumen (from import noch in funktionen. viele klassen in einer datei.)
+
 ==============================
+- Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - e2e tests (python manage.py create_wm2026_testdata --clear)
  - kann ich die wm per test mal durchmodelieren?
+
+# UI polishing
 - UI polishing (Menu Punkte besser sichtbar. Logout als Icon? Eigenen User highlighten.)
 + light dark mode besser 
-- Tipp app programmierbar machen (Spiel um Platz 3, Wieviele Tipps in Gruppenphase )
 - css klassen
 - frontend aufeinander abstimmen?
 - "error": "Limit erreicht: Max. 36 Gruppenphasen-Tipps erlaubt."

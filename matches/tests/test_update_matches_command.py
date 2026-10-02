@@ -10,8 +10,9 @@ import pytest
 from django.core.management import call_command
 from django.utils import timezone
 
+from conftest import make_match
 from matches.management.commands.update_matches import Command
-from matches.models import Match, Team
+from matches.models import Team
 from matches.services import MatchSyncResult
 
 
@@ -29,7 +30,7 @@ class TestUpdateMatchesCommand:
     def test_update_matches_once_flag(self, teams: tuple[Team, Team]) -> None:
         """Verify --once flag runs single iteration and exits."""
         team_home, team_away = teams
-        match = Match.objects.create(
+        match = make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -51,7 +52,7 @@ class TestUpdateMatchesCommand:
     def test_calculate_sleep_interval_live_match(self, teams: tuple[Team, Team]) -> None:
         """Verify interval is 10 seconds when live match exists."""
         team_home, team_away = teams
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -76,7 +77,7 @@ class TestUpdateMatchesCommand:
         """Verify interval is 60 seconds for match < 30 minutes away."""
         team_home, team_away = teams
         # Match in 20 minutes
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -94,7 +95,7 @@ class TestUpdateMatchesCommand:
         """Verify interval is 300 seconds for match 30min-2h away."""
         team_home, team_away = teams
         # Match in 1 hour
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -112,7 +113,7 @@ class TestUpdateMatchesCommand:
         """Verify interval is 600 seconds for match > 2 hours away."""
         team_home, team_away = teams
         # Match in 3 hours
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -129,7 +130,7 @@ class TestUpdateMatchesCommand:
     def test_update_matches_triggers_scoring(self, teams: tuple[Team, Team]) -> None:
         """Verify scoring is triggered when goals change."""
         team_home, team_away = teams
-        match = Match.objects.create(
+        match = make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -160,7 +161,7 @@ class TestUpdateMatchesCommand:
     def test_update_matches_triggers_champion_scoring(self, teams: tuple[Team, Team]) -> None:
         """Verify champion scoring is triggered when final match finishes."""
         team_home, team_away = teams
-        match = Match.objects.create(
+        match = make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -191,7 +192,7 @@ class TestUpdateMatchesCommand:
 
         call_count = 0
 
-        def side_effect_sync():
+        def side_effect_sync(tournament):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -218,7 +219,7 @@ class TestUpdateMatchesCommand:
     ) -> None:
         """Verify scoring is not triggered when goals don't change."""
         team_home, team_away = teams
-        match = Match.objects.create(
+        match = make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -244,7 +245,7 @@ class TestUpdateMatchesCommand:
         """Match with kickoff passed but status still scheduled should trigger fast polling."""
         team_home, team_away = teams
         # Kickoff was 1 minute ago, status still "scheduled"
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -262,7 +263,7 @@ class TestUpdateMatchesCommand:
         """Finished matches should not trigger active window polling."""
         team_home, team_away = teams
         # Match finished 1 hour ago
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,
@@ -280,7 +281,7 @@ class TestUpdateMatchesCommand:
         """Match approaching kickoff (within 30 min) should trigger active window."""
         team_home, team_away = teams
         # Match starts in 15 minutes
-        Match.objects.create(
+        make_match(
             external_id=1001,
             team_home=team_home,
             team_away=team_away,

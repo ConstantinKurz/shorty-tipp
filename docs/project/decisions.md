@@ -171,3 +171,43 @@ on an unexpected error, and `scoring/signals.py` logs the match id and re-raises
 `matches/services.py` now writes `""` rather than `None` when the API reports no winner.
 
 **Status**: Implemented
+
+## 2026-10-01: Tournament Format Lives in the Database
+
+**Context**: The format of the 2026 World Cup was hardcoded in seven places — round order and
+labels in `matches/constants.py`, round choices on `Match.round`, multipliers in
+`scoring/match_scoring.py`, joker limits and the group-stage limit in `predictions/services.py`,
+the lock buffer, the API competition code and the API stage mapping in `matches/services.py`.
+Running the game for a European Championship required a code change, a migration and a deployment.
+
+**Decision**: Move the format into two tables. `Tournament` holds installation-wide settings
+(API competition code, season, prediction lock buffer, active flag); `Round` holds every per-round
+parameter (code, label, order, multiplier, joker count, joker multiplier, joker pool, prediction
+limit, final flag, API stage). `Match.round` becomes a `ForeignKey` with `on_delete=PROTECT`.
+Exactly one tournament may be active, enforced by a partial unique index.
+
+**Consequences**: "Is there a third-place match?" is not a flag but the presence of a row. Round
+labels have one source of truth, which also fixed the `r32` label (now "Sechzehntelfinale").
+Configuration is read live on every request so admin edits take effect immediately; because points
+are denormalised, the tournament admin warns when scored predictions exist and offers a
+"Recalculate scores" action. Presets (`wm48`, `wm32`, `em24`) and `create_tournament()` give the
+admin, the management command and the test fixtures one shared code path. Switching tournaments
+remains an operational procedure that drops the database, so no query is scoped by tournament.
+
+**Status**: Implemented
+
+## 2026-10-01: Champion Bonus Is a Number per Team
+
+**Context**: `Team.odds_category` encoded two fixed betting-odds categories (A = 20 points,
+B = 30 points) and `Team.points` was dead code that had never been read or written.
+
+**Decision**: Replace both with a single `Team.champion_points` integer. Migration
+`matches.0013` renames `points` to `champion_points` and derives its value from `odds_category`
+(A → 20, B → 30, blank → 0) before dropping the category column.
+
+**Consequences**: The A/B scheme stays expressible by setting eight teams to 20 and the rest to 30,
+so no existing bonus changes value. Any other distribution is now possible without a migration.
+A team left at 0 awards no bonus, which the tournament admin warns about.
+`docs/rules/wm2026-rules.md` section 8 was updated accordingly, and open clarification 3 resolved.
+
+**Status**: Implemented

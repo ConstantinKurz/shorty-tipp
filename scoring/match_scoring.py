@@ -12,6 +12,7 @@ from django.db.models import F
 
 from matches.models import Match
 from predictions.models import MatchPrediction
+from scoring.champion_scoring import update_live_champion_bonuses
 from users.models import User
 
 
@@ -27,21 +28,9 @@ class ScoringService:
     5. One team's goals only: 1 point
     6. No match: 0 points
 
-    Points are multiplied by round multiplier, then by joker (if active).
+    Points are multiplied by the round multiplier, then by the round's joker
+    multiplier when the prediction carries a joker. Both come from the ``Round`` row.
     """
-
-    # Round multipliers per Shortytipp rules section 4
-    ROUND_MULTIPLIERS: dict[str, int] = {
-        "group": 1,  # Group stage
-        "r32": 2,  # Round of 32
-        "r16": 2,  # Round of 16
-        "qf": 3,  # Quarter-final
-        "sf": 3,  # Semi-final
-        "3rd": 3,  # Third place
-        "final": 3,  # Final
-    }
-
-    VALID_ROUNDS = frozenset(ROUND_MULTIPLIERS.keys())
 
     @staticmethod
     def _calculate_base_points(
@@ -178,39 +167,19 @@ class ScoringService:
         return pred_home == actual_home or pred_away == actual_away
 
     @staticmethod
-    def _get_round_multiplier(match_round: str) -> int:
+    def _apply_joker_multiplier(points: int, joker_active: bool, joker_multiplier: int) -> int:
         """
-        Get the round multiplier for a match.
-
-        Args:
-            match_round: The tournament round (e.g., 'group', 'r16', 'final')
-
-        Returns:
-            Multiplier value (1, 2, or 3)
-
-        Raises:
-            ValueError: If match_round is not a valid round code
-        """
-        if match_round not in ScoringService.VALID_ROUNDS:
-            raise ValueError(
-                f"Unknown round '{match_round}'. "
-                f"Valid rounds: {', '.join(sorted(ScoringService.VALID_ROUNDS))}"
-            )
-        return ScoringService.ROUND_MULTIPLIERS[match_round]
-
-    @staticmethod
-    def _apply_joker_multiplier(points: int, joker_active: bool) -> int:
-        """
-        Apply joker multiplier if active.
+        Apply the round's joker multiplier if the joker is active.
 
         Args:
             points: Points after round multiplier
             joker_active: Whether joker is active for this prediction
+            joker_multiplier: Factor configured on the round
 
         Returns:
-            Final points (doubled if joker active)
+            Final points
         """
-        return points * 2 if joker_active else points
+        return points * joker_multiplier if joker_active else points
 
     @staticmethod
     def calculate_match_points(
@@ -243,10 +212,10 @@ class ScoringService:
             actual_away=match.goals_away,
         )
 
-        round_multiplier = ScoringService._get_round_multiplier(match.round)
+        round_multiplier = match.round.multiplier
         points_after_round = base_points * round_multiplier
         final_points = ScoringService._apply_joker_multiplier(
-            points_after_round, prediction.joker_active
+            points_after_round, prediction.joker_active, match.round.joker_multiplier
         )
 
         return {
@@ -328,3 +297,36 @@ class ScoringService:
             count += 1
 
         return count
+
+
+@transaction.atomic
+def recalculate_all_scores() -> int:
+    """
+    Reset and recompute every score from the current configuration.
+
+    Clears user statistics and prediction scores, re-scores all finished matches and
+    refreshes champion bonuses. Used after round or team configuration changed.
+
+    Returns:
+        Number of predictions scored.
+    """
+    User.objects.update(total_points=0, exact_match_count=0, jokers_used=0, champion_bonus_points=0)
+    MatchPrediction.objects.update(points_earned=None, is_exact_match=False)
+
+    finished_matches = (
+        Match.objects.filter(
+            status="finished",
+            goals_home__isnull=False,
+            goals_away__isnull=False,
+        )
+        .select_related("round")
+        .order_by("kickoff")
+    )
+
+    total_scored = 0
+    for match in finished_matches:
+        total_scored += ScoringService.score_all_predictions_for_match(match)
+
+    update_live_champion_bonuses()
+
+    return total_scored

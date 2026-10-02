@@ -3,8 +3,17 @@ from datetime import UTC, datetime
 import pytest
 from django.db import IntegrityError
 
-from matches.models import Match, Team
+from matches.models import Match, Round, Team
 from matches.signals import match_result_entered
+
+# These tests exercise Match and Team construction, field definitions, constraints and
+# save() semantics themselves, so they use the models directly instead of the
+# make_match()/make_team() factories in conftest.py.
+
+
+def get_round(code):
+    """Return the configured round of the active tournament with the given code."""
+    return Round.objects.get(tournament__is_active=True, code=code)
 
 
 @pytest.mark.django_db
@@ -17,7 +26,7 @@ class TestTeamModel:
         assert team.id is not None
         assert team.name == "Germany"
         assert team.fifa_code == "GER"
-        assert team.points == 0
+        assert team.champion_points == 0
 
     def test_team_str_returns_name(self):
         """Test __str__ returns team name."""
@@ -44,32 +53,23 @@ class TestTeamModel:
         assert teams[1].name == "Brazil"
         assert teams[2].name == "Germany"
 
-    def test_team_default_points(self):
-        """Test team creation with default points."""
+    def test_team_default_champion_points(self):
+        """Test team creation with default champion points."""
         team = Team.objects.create(name="France", fifa_code="FRA")
-        assert team.points == 0
+        assert team.champion_points == 0
 
-    def test_team_odds_category_defaults_to_empty(self):
-        """Test odds_category defaults to "" and never holds NULL."""
-        team = Team.objects.create(name="Wales", fifa_code="WAL")
-        assert team.odds_category == ""
-
-        team.refresh_from_db()
-        assert team.odds_category == ""
-        assert not Team.objects.filter(odds_category__isnull=True).exists()
-
-    def test_set_team_points(self):
-        """Test setting team points."""
+    def test_set_team_champion_points(self):
+        """Test setting team champion points."""
         team = Team.objects.create(name="Spain", fifa_code="ESP")
-        team.points = 100
+        team.champion_points = 100
         team.save()
         team.refresh_from_db()
-        assert team.points == 100
+        assert team.champion_points == 100
 
-    def test_negative_points_values(self):
-        """Test team can have negative points."""
-        team = Team.objects.create(name="Italy", fifa_code="ITA", points=-10)
-        assert team.points == -10
+    def test_negative_champion_points_values(self):
+        """Test team can have negative champion points."""
+        team = Team.objects.create(name="Italy", fifa_code="ITA", champion_points=-10)
+        assert team.champion_points == -10
 
 
 @pytest.mark.django_db
@@ -90,22 +90,22 @@ class TestMatchModel:
         """Test creating a match with required fields."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
         assert match.id is not None
         assert match.team_home == team_home
         assert match.team_away == team_away
         assert match.kickoff == kickoff
-        assert match.round == "group"
+        assert match.round.code == "group"
         assert match.status == "scheduled"  # Default
 
     def test_match_str_representation_scheduled(self, team_home, team_away):
         """Test __str__ for scheduled match."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
-        assert str(match) == "Germany vs Brazil (Group Stage)"
+        assert str(match) == "Germany vs Brazil (Gruppenphase)"
 
     def test_match_str_representation_finished(self, team_home, team_away):
         """Test __str__ for finished match with score."""
@@ -114,7 +114,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             goals_home=2,
             goals_away=1,
             status="finished",
@@ -127,19 +127,19 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
         )
         match2 = Match.objects.create(
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
         )
         match3 = Match.objects.create(
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 25, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
         )
 
         matches = list(Match.objects.all())
@@ -151,7 +151,7 @@ class TestMatchModel:
         """Test team.home_matches returns correct matches."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
 
         home_matches = team_home.home_matches.all()
@@ -162,7 +162,7 @@ class TestMatchModel:
         """Test team.away_matches returns correct matches."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
 
         away_matches = team_away.away_matches.all()
@@ -173,7 +173,7 @@ class TestMatchModel:
         """Test scheduled match without goals."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
         assert match.goals_home is None
         assert match.goals_away is None
@@ -186,7 +186,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="final",
+            round=get_round("final"),
             goals_home=3,
             goals_away=2,
             status="finished",
@@ -202,7 +202,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             external_id=12345,
         )
         assert match.external_id == 12345
@@ -221,7 +221,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             external_id=99999,
         )
 
@@ -231,7 +231,7 @@ class TestMatchModel:
                 team_home=team_away,
                 team_away=team_home,
                 kickoff=kickoff,
-                round="group",
+                round=get_round("group"),
                 external_id=99999,  # Duplicate
             )
 
@@ -242,7 +242,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             external_id=None,
         )
         assert match.external_id is None
@@ -252,7 +252,7 @@ class TestMatchModel:
             team_home=team_away,
             team_away=team_home,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             external_id=None,
         )
         assert match2.external_id is None
@@ -261,7 +261,7 @@ class TestMatchModel:
         """Test winner field defaults to "" for scheduled matches and never holds NULL."""
         kickoff = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
         match = Match.objects.create(
-            team_home=team_home, team_away=team_away, kickoff=kickoff, round="group"
+            team_home=team_home, team_away=team_away, kickoff=kickoff, round=get_round("group")
         )
         assert match.winner == ""
 
@@ -278,7 +278,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             winner="home",
             goals_home=2,
             goals_away=1,
@@ -291,7 +291,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             winner="away",
             goals_home=0,
             goals_away=1,
@@ -304,7 +304,7 @@ class TestMatchModel:
             team_home=team_home,
             team_away=team_away,
             kickoff=kickoff,
-            round="group",
+            round=get_round("group"),
             winner="draw",
             goals_home=1,
             goals_away=1,
@@ -345,7 +345,7 @@ class TestMatchResultSignalTrigger:
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
             goals_home=1,
             goals_away=1,
             status="live",
@@ -392,7 +392,7 @@ class TestMatchResultSignalTrigger:
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
         )
 
         match.status = "live"
@@ -407,7 +407,7 @@ class TestMatchResultSignalTrigger:
             team_home=team_home,
             team_away=team_away,
             kickoff=datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
-            round="group",
+            round=get_round("group"),
             goals_home=3,
             goals_away=0,
             status="finished",

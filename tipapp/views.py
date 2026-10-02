@@ -14,13 +14,20 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from matches.constants import get_available_rounds
-from matches.models import Match
+from matches.models import Match, Round
 from predictions.forms import PredictionForm
 from predictions.models import MatchPrediction
 from predictions.services import PredictionLimitService, get_polling_interval
 from scoring.ranking_service import RankingService
 from users.models import User
+
+
+def _get_available_rounds() -> list[dict[str, Any]]:
+    """Return the rounds of the active tournament as code/label dicts for the filter."""
+    return [
+        {"code": row["code"], "label": row["label"]}
+        for row in Round.objects.filter(tournament__is_active=True).values("code", "label")
+    ]
 
 
 def _get_validated_round(request: HttpRequest) -> str | None:
@@ -34,7 +41,7 @@ def _get_validated_round(request: HttpRequest) -> str | None:
         Valid round code or None if not specified or invalid
     """
     selected_round = request.GET.get("round")
-    if selected_round and selected_round not in [r["code"] for r in get_available_rounds()]:
+    if selected_round and selected_round not in [r["code"] for r in _get_available_rounds()]:
         return None
     return selected_round
 
@@ -139,7 +146,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
         upcoming_matches = list(
             Match.objects.filter(kickoff__gt=now)
             .order_by("kickoff")
-            .select_related("team_home", "team_away")[:3]
+            .select_related("team_home", "team_away", "round", "round__tournament")[:3]
         )
 
         # Get user's predictions for those matches
@@ -154,15 +161,13 @@ class HomeView(LoginRequiredMixin, TemplateView):
         for match in upcoming_matches:
             prediction = predictions_dict.get(match.id)
             is_locked = match.kickoff <= now
-            is_group_stage = match.round == "group"
 
-            # Get joker info for this match's round
-            if is_group_stage:
-                joker_limit = 0  # No jokers in group stage
-                joker_count = 0
-            else:
-                joker_limit = PredictionLimitService.get_joker_limit_for_round(match.round)
-                joker_count = PredictionLimitService.get_joker_count_for_round(user, match.round)
+            joker_limit = PredictionLimitService.get_joker_limit_for_round(match.round)
+            joker_count = (
+                PredictionLimitService.get_joker_count_for_round(user, match.round)
+                if joker_limit
+                else 0
+            )
 
             # Create form for this match
             form = PredictionForm(
@@ -178,7 +183,6 @@ class HomeView(LoginRequiredMixin, TemplateView):
                     "prediction": prediction,
                     "form": form,
                     "is_locked": is_locked,
-                    "is_group_stage": is_group_stage,
                     "joker_limit": joker_limit,
                     "joker_count": joker_count,
                 }
@@ -187,7 +191,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
         context.update(
             {
                 "selected_round": selected_round,
-                "available_rounds": get_available_rounds(),
+                "available_rounds": _get_available_rounds(),
                 "matches_data": matches_data,
                 "ranking_interval": get_polling_interval(),
                 "leaderboard": ranking_context[
@@ -219,7 +223,7 @@ class RankingUpdatesView(LoginRequiredMixin, View):
 
         context = {
             "selected_round": selected_round,
-            "available_rounds": get_available_rounds(),
+            "available_rounds": _get_available_rounds(),
             "leaderboard": ranking_context["full_leaderboard"],
             **ranking_context,
         }

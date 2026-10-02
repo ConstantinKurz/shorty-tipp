@@ -8,6 +8,7 @@ scoring scenarios including first scoring, rescoring, and result changes.
 import pytest
 from django.utils import timezone
 
+from conftest import make_match
 from matches.models import Match, Team
 from predictions.models import MatchPrediction
 from scoring.match_scoring import ScoringService
@@ -35,7 +36,7 @@ def user(db) -> User:
 @pytest.fixture
 def finished_match(db, team_home: Team, team_away: Team) -> Match:
     """Create a finished match with result 2-1."""
-    return Match.objects.create(
+    return make_match(
         team_home=team_home,
         team_away=team_away,
         kickoff=timezone.now(),
@@ -106,7 +107,7 @@ class TestChangedResult:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Changing result from exact (6 pts) to tendency (3 pts) should decrement total."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -151,7 +152,7 @@ class TestExactMatchTransitions:
         self, db, team_home: Team, team_away: Team, user: User
     ) -> None:
         """Changing from non-exact to exact should increment exact_match_count."""
-        match = Match.objects.create(
+        match = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -306,7 +307,7 @@ class TestChampionBonusInvariant:
         user.save()
 
         # Create two matches
-        match1 = Match.objects.create(
+        match1 = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),
@@ -315,7 +316,7 @@ class TestChampionBonusInvariant:
             goals_home=2,
             goals_away=1,
         )
-        match2 = Match.objects.create(
+        match2 = make_match(
             team_home=team_home,
             team_away=team_away,
             kickoff=timezone.now(),

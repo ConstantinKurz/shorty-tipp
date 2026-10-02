@@ -91,7 +91,7 @@
             {% if matches_data %}
             <div class="space-y-4">
                 {% for match_data in matches_data %}
-                    {% with match=match_data.match prediction=match_data.prediction is_locked=match_data.is_locked is_group_stage=match_data.is_group_stage joker_limit=match_data.joker_limit joker_count=match_data.joker_count origin_page="home" %}
+                    {% with match=match_data.match prediction=match_data.prediction is_locked=match_data.is_locked joker_limit=match_data.joker_limit joker_count=match_data.joker_count origin_page="home" %}
                         {% include "predictions/prediction_row.html" %}
                     {% endwith %}
                 {% endfor %}

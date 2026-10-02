@@ -34,7 +34,7 @@ class UserSettingsForm(forms.ModelForm):
     )
 
     predicted_champion = forms.ModelChoiceField(
-        queryset=Team.objects.all().order_by("name"),
+        queryset=Team.objects.order_by("name"),
         required=False,
         empty_label="-- Team wählen --",
         widget=forms.Select(
