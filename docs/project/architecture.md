@@ -2,45 +2,58 @@
 
 > Verified reference document. Every claim below was checked against this repository's
 > source code (models, views, urls, signals, templates, settings, management commands)
-> on 2026-09-16. File paths are exact.
+> on 2026-09-16; the tournament-configuration and email-notification claims were
+> re-verified on 2026-10-23 against the `configurable-tournament` and `email-init`
+> changes. File paths are exact.
 
 ## 1. One-sentence summary
 
-`django-tipapp` is a private World Cup 2026 tipping game: logged-in users predict match
-scores, use a limited number of jokers, pick a champion, and compare points on a
-leaderboard. Django renders pages server-side; HTMX refreshes small HTML fragments
-without full page reloads.
+`django-tipapp` is a private tipping game for one football tournament at a time —
+currently the 2026 World Cup: logged-in users predict match scores, use a limited number
+of jokers, pick a champion, and compare points on a leaderboard. The tournament format
+(rounds, multipliers, jokers, limits) is data in the database, not code. Django renders
+pages server-side; HTMX refreshes small HTML fragments without full page reloads.
 
 ## 2. What the app currently offers
 
 - Login, logout, password reset (Django auth views)
 - Per-user settings: username, email, theme, champion pick
 - Chronological match list with client-side phase filtering
-- Up to 36 group-stage predictions, jokers in knockout rounds with phase-dependent limits
+- Prediction and joker limits per round, read from the tournament configuration
+  (the seeded 2026 setup: 36 group-stage predictions, jokers in the knockout rounds)
 - Autosave of predictions, a dedicated "all predictions for this match" page
 - Live-ish updates of match rows and leaderboard via HTMX polling
 - Automatic result import from football-data.org
 - Automatic scoring and Olympic-style ranking
+- Programmable tournament: rounds, multipliers, joker counts/pools, prediction limits,
+  lock buffer and champion bonus points are editable in the admin; new tournaments are
+  created from a preset via `python manage.py create_tournament` or the admin add form
+  (see the runbook in [README.md](../../README.md))
 - Django admin, staff-only CSV leaderboard export
+- Outgoing email: password reset (Django auth), a daily leaderboard report to the admin
+  address and daily reminders to users with missing predictions, sent by the
+  `notification_daemon` management command (see §12.2)
 
 Not yet implemented (present only as product-boundary goals in
 [.github/copilot-instructions.md](../../.github/copilot-instructions.md)):
 - A forum/discussion feature for tippers
-- The `notifications` app: the directory exists
-  ([notifications/](../../notifications/)) with `migrations/`, `management/`, `tests/`
-  subfolders, but there is no `models.py` or `apps.py`, and it is **not** listed in
-  `INSTALLED_APPS` ([tipapp/settings/base.py](../../tipapp/settings/base.py)). Treat it
-  as inactive scaffolding, not a working app.
+- In-app notifications: the `notifications` app
+  ([notifications/](../../notifications/)) is registered in `INSTALLED_APPS` but is
+  service-only — `models.py`, `views.py` and `admin.py` are empty stubs, there are no
+  migrations and no URLs. It sends email; it does not store or display notifications.
 
 ## 3. Mental model
 
-Three independent flows:
+Four independent flows:
 
 1. **Browser ↔ Django.** Loads pages, saves predictions, polls for HTML fragments.
 2. **Background process ↔ football-data.org.** `update_matches` management command
    fetches scores and writes them to PostgreSQL.
 3. **Signal-driven scoring.** A changed match result triggers scoring and ranking
    recalculation.
+4. **Background process ↔ SMTP.** `notification_daemon` reads the database on a schedule
+   and sends leaderboard reports and prediction reminders by email. It never writes
+   domain data.
 
 ```mermaid
 flowchart TD
@@ -50,6 +63,8 @@ flowchart TD
     U -->|Match.save| P
     U --> S["match_result_entered signal"]
     S --> P
+    N["notification_daemon command"] -->|read| P
+    N -->|send_mail| M["SMTP server"]
 ```
 
 The browser's HTMX polling never calls football-data.org directly — it only reads the
@@ -65,6 +80,7 @@ current state from PostgreSQL via Django views.
 | HTMX | Interactive UI without a JS framework or bespoke JSON API |
 | Tailwind via CDN | `templates/base.html` loads `cdn.tailwindcss.com` directly; `static/` is empty — there is no production Tailwind build step today |
 | Separate management command for sync | API calls don't block web request/response cycle |
+| Tournament format as data (`Tournament`/`Round` rows, presets as defaults) | A new tournament is a configuration change, not a code change; no round codes or point factors are hardcoded |
 | Django signals (`match_result_entered`) | Small, event-based coupling between `matches` and `scoring` (see [docs/project/decisions.md](decisions.md)) |
 | Cached `total_points` / `global_rank` on `User` | Leaderboard reads become cheap; see the 2026-08-24 decision in [decisions.md](decisions.md) |
 
@@ -79,12 +95,22 @@ OpenSpec-documented reason).
 tipapp/         Project root: URLs, settings, HomeView, RankingUpdatesView
 core/           Shared ranking algorithm (Olympic-style tie handling)
 users/          Custom User model, settings/rules views, forms
-matches/        Team/Match models, football-data.org client, sync command, signals
+matches/        Tournament/Round/Team/Match models, round presets, tournament factory,
+                football-data.org client, sync + create_tournament commands, signals
 predictions/    MatchPrediction model, limit/lock service, HTMX views, forms
 scoring/        Scoring formulas, champion bonus, ranking service, signals, CSV export
-notifications/  Scaffolding only — not registered in INSTALLED_APPS, no models yet
+notifications/  EmailService + notification_daemon/test_email commands, email templates;
+                no models, no views, no URLs
 templates/      Full pages + reusable partials (predictions row is shared between pages)
 ```
+
+Tournament configuration lives in `matches`:
+[matches/presets.py](../../matches/presets.py) holds the round presets (`wm48`, `wm32`,
+`em24`) as frozen `RoundSpec` dataclasses, and
+[matches/tournament.py](../../matches/tournament.py) is the single factory
+(`create_tournament()`, `create_rounds_from_preset()`) plus the single accessor
+(`get_active_tournament()`). Admin, management command and test fixtures all go through
+it, so a configuration cannot differ depending on where it was created.
 
 The split follows domain boundaries, not technical layers — each app owns its models,
 forms, views, URLs, and services.
@@ -93,6 +119,8 @@ forms, views, URLs, and services.
 
 ```mermaid
 erDiagram
+    TOURNAMENT ||--o{ ROUND : defines
+    ROUND ||--o{ MATCH : groups
     USER ||--o{ MATCH_PREDICTION : submits
     TEAM ||--o{ MATCH : home_team
     TEAM ||--o{ MATCH : away_team
@@ -110,7 +138,7 @@ predicted_champion: models.ForeignKey  # matches.Team, nullable
 total_points: models.IntegerField      # includes champion bonus
 exact_match_count: models.IntegerField
 jokers_used: models.IntegerField
-champion_bonus_points: models.IntegerField  # 20 (category A) or 30 (category B)
+champion_bonus_points: models.IntegerField  # copy of the champion team's Team.champion_points
 global_rank: models.IntegerField       # nullable, indexed, Olympic-style
 theme_preference: models.CharField     # light/dark/system
 ```
@@ -132,6 +160,13 @@ one `is_final`. "Which rounds exist" is a query, not a constant.
 
 Switching tournaments is an operational procedure that drops the database (see the README
 runbook), so no query is scoped by tournament.
+
+Rounds are created either from a preset in [matches/presets.py](../../matches/presets.py)
+(`wm48`, `wm32`, `em24`) or by hand in the admin inline. The admin enforces the
+configuration rules that a single row cannot express
+([matches/admin.py](../../matches/admin.py), `RoundInlineFormSet.clean()`): exactly one
+round is the final, `code`/`order`/`api_stage` are unique within the tournament, and all
+rounds sharing a `joker_pool` must declare the same `joker_count`.
 
 ### `matches.Team` / `matches.Match` ([matches/models.py](../../matches/models.py))
 
@@ -214,7 +249,8 @@ follow the same path; only the template returned is a smaller fragment.
 
 ### 8.1 Login / logout / password reset
 Standard Django auth views (see `tipapp/urls.py`), templates in `templates/registration/`
-and `templates/login.html`. Other pages use `LoginRequiredMixin`.
+and `templates/login.html`. Other pages use `LoginRequiredMixin`. Password-reset mails use
+the configured Django email backend (§12.2).
 
 ### 8.2 Home (`/`) — `tipapp.views.HomeView`
 Combines: personal rank card, ranking (compact + full via
@@ -283,6 +319,17 @@ Plain `TemplateView`; collapsible sections are pure client-side JS, no HTMX invo
 Django admin at `/admin/`. `/scoring/admin/download-leaderboard/` —
 `DownloadLeaderboardView`, decorated with `staff_member_required`, streams CSV via
 `scoring/exports.py`.
+
+**Matches → Tournaments** is the configuration surface
+([matches/admin.py](../../matches/admin.py)):
+- The *add* form offers a `preset` dropdown and hides the round inline; the rounds are
+  created by `create_rounds_from_preset()` in `save_model()`.
+- The *change* form shows the round inline and warns when predictions are already scored
+  (round changes then require the "Recalculate scores" action) and when teams still have
+  `champion_points = 0`.
+- The admin action "Recalculate scores for all finished matches" runs
+  `recalculate_all_scores()`; the same work is available as
+  `python manage.py recalculate_scores`.
 
 ## 9. Prediction write flow
 
@@ -375,6 +422,22 @@ Every limit is read from the `Round` of the match:
 The seeded 2026 configuration sets joker counts `0/3/3/2/2/2/2`, pool `ko_final` over
 `sf`/`3rd`/`final`, `prediction_limit=36` on the group stage and a lock buffer of 3 minutes.
 
+### Champion bonus ([scoring/champion_scoring.py](../../scoring/champion_scoring.py))
+
+The final is the round with `is_final=True`, not a hardcoded round code. The bonus a user
+receives is `Team.champion_points` of the current champion (`0` awards nothing), so the
+bonus table is data, not code. `update_live_champion_bonuses()` resets every stored bonus
+first and re-awards from the current state of the final, which keeps the value correct
+while the final is still live.
+
+### Changing the configuration after matches were scored
+
+`Round.multiplier`, `Round.joker_multiplier`, `Round.is_final` and `Team.champion_points`
+are read at scoring time only. Editing them does not rewrite already-stored
+`MatchPrediction.points_earned`; run the admin action "Recalculate scores for all finished
+matches" or `python manage.py recalculate_scores` afterwards. The tournament change form
+warns about this.
+
 ### Trigger: `Match.save()` → `match_result_entered` signal
 
 [matches/signals.py](../../matches/signals.py) defines the signal;
@@ -401,7 +464,9 @@ next distinct rank skips ahead (`1, 2, 2, 4`). `RankingService.update_all_user_r
 persists the result to `User.global_rank` (see the 2026-08-24 entry in
 [decisions.md](decisions.md) for why this is cached rather than computed per request).
 
-## 12. Result import
+## 12. Background processes
+
+### 12.1 Result import
 
 `python manage.py update_matches`
 ([matches/management/commands/update_matches.py](../../matches/management/commands/update_matches.py))
@@ -422,20 +487,89 @@ on 5xx responses. `sync_matches_from_api()` uses `Match.objects.update_or_create
 so `Match.save()` (and therefore the scoring signal) fires naturally whenever goals
 change during import — no manual scoring call is needed in the command itself.
 
+#### Tournament scoping of the sync
+
+Both `update_matches` and `sync_teams` work on the active tournament
+(`get_active_tournament()`) and accept `--tournament=<slug>` to target another one. The
+competition requested from the API is `Tournament.api_competition_code` (plus
+`api_season` where required) — no competition code is hardcoded.
+
+The API `stage` of a match is resolved against `Round.api_stage` of that tournament
+(`rounds_by_stage` in [matches/services.py](../../matches/services.py)). A stage that maps
+to no round raises `UnknownApiStageError` and **aborts** the whole sync instead of
+guessing a round; every other per-match failure is logged and skipped so the remaining
+matches still import.
+
+### 12.2 Email notifications
+
+`python manage.py notification_daemon`
+([notifications/management/commands/notification_daemon.py](../../notifications/management/commands/notification_daemon.py))
+is the second long-lived process, built like `update_matches`: graceful SIGTERM/SIGINT
+shutdown, `--once` for testing, a broad `except` so the loop survives an iteration
+failure. It checks every `--interval` seconds (default 3600) and sends at most one of
+each mail per calendar day:
+
+| Flag | Default | Sends |
+|---|---|---|
+| `--leaderboard-hour` | 20 | Leaderboard report to `LEADERBOARD_ADMIN_EMAIL` |
+| `--reminder-hour` | 10 | Prediction reminder to every user with missing predictions |
+
+"At most once per day" is tracked in memory (`last_leaderboard_date`,
+`last_reminder_date`), not in the database — a restart can therefore re-send a mail that
+was already sent the same day, and the trigger is `current_hour >= configured_hour`, so a
+daemon started late in the day sends immediately.
+
+Both mails are built in `EmailService`
+([notifications/services.py](../../notifications/services.py)) and rendered from
+`notifications/templates/notifications/emails/` (HTML + plain-text variant each, sent
+together via `send_mail(..., html_message=...)`):
+
+- `send_leaderboard_to_admin()` takes the **newest `LeaderboardSnapshot`** — not the live
+  ranking — enriches every entry with that user's predictions, and mails it to
+  `LEADERBOARD_ADMIN_EMAIL`. Without a snapshot
+  (`python manage.py create_snapshot`) or without that setting it returns
+  `(False, reason)` and sends nothing.
+- `get_users_with_missing_predictions()` collects matches with kickoff in the next 24h and
+  `status="scheduled"`, then maps each active non-staff user to the matches they have not
+  predicted. `send_prediction_reminder()` skips users without an email address.
+
+Sending never raises into the caller: `SMTPException`, `OSError` and
+`TemplateDoesNotExist` are caught, logged and returned as `(False, message)`. There is no
+retry and no delivery log — a failed mail is only visible in the logs, and the next
+attempt is the next scheduled run.
+
+Configuration is environment-driven ([tipapp/settings/base.py](../../tipapp/settings/base.py)):
+`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_USE_SSL`, `EMAIL_HOST_USER`,
+`EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`, `LEADERBOARD_ADMIN_EMAIL`. The backend depends on
+the settings module: development defaults to the console backend and honours an `EMAIL_BACKEND`
+override, tests use `locmem`, production falls back to Django's default SMTP backend
+(`EMAIL_BACKEND` is read in `development.py` only). Verify a real SMTP setup with
+`python manage.py test_email --leaderboard` or
+`python manage.py test_email --reminder=<username>`.
+
+Password-reset mails go through the same Django email backend but are sent by the auth
+views, not by the daemon.
+
 ## 13. Where do I change what
 
 | Task | Primary files |
 |---|---|
 | Add a URL | `tipapp/urls.py` or `<app>/urls.py` |
+| Round config (multiplier, jokers, limits, final flag) | Django admin → Tournaments, or `matches/presets.py` for a new tournament |
+| Add a tournament format preset | `matches/presets.py` |
+| Tournament creation / active-tournament lookup | `matches/tournament.py`, `matches/management/commands/create_tournament.py` |
 | Change the prediction row UI | `templates/predictions/prediction_row.html` |
 | Save/delete a prediction | `predictions/views.py` |
-| Lock / joker / group-limit rules | `predictions/services.py` |
+| Lock / joker / prediction-limit *logic* (the values are data) | `predictions/services.py` |
 | Polling interval, phase stats, match prediction list | `predictions/services.py` |
 | Input validation | `predictions/forms.py` |
 | Scoring formula | `scoring/match_scoring.py` |
-| Champion bonus | `scoring/champion_scoring.py` |
+| Champion bonus | `scoring/champion_scoring.py` (logic), `Team.champion_points` (values) |
 | Ranking algorithm | `core/ranking.py`, `scoring/ranking_service.py` |
 | Result import | `matches/api_client.py`, `matches/services.py` |
+| Email content/recipients | `notifications/services.py`, `notifications/templates/notifications/emails/` |
+| Email schedule | `notifications/management/commands/notification_daemon.py` (flags) |
+| SMTP / sender / admin address | environment variables read in `tipapp/settings/base.py` |
 | API polling intervals | `matches/management/commands/update_matches.py` |
 | Browser polling intervals/targets | `predictions/services.py`, `predictions/views.py`, `tipapp/views.py`, corresponding templates |
 | Home page | `tipapp/views.py`, `templates/home.html` |
@@ -456,19 +590,45 @@ change during import — no manual scoring call is needed in the command itself.
 **A prediction won't save**
 1. Is the user authenticated?
 2. Is the CSRF token present?
-3. Is `timezone.now()` already within 3 minutes of kickoff?
-4. Is the group-stage (36) or joker limit reached?
+3. Is `timezone.now()` already within `Tournament.lock_buffer_minutes` of kickoff
+   (3 minutes in the seeded 2026 configuration)?
+4. Is the round's `prediction_limit` (36 for the seeded group stage) or its
+   `joker_count` — shared across the `joker_pool` — already reached?
 5. Are both goal fields present in the POST body?
 6. What does `PredictionForm` validation say (goals must be 0–20, see
    `predictions/forms.py` — templates historically mentioned 99, verify current copy)?
+
+**The app or a command errors out on startup / sync**
+1. Is exactly one `Tournament` marked `is_active`? `get_active_tournament()` raises
+   `NoActiveTournamentError` when none is.
+2. Does the tournament have rounds, and exactly one with `is_final=True`?
+3. Does every API stage the competition reports map to a `Round.api_stage`? An unmapped
+   stage aborts `update_matches` with `UnknownApiStageError`.
+4. Is `Tournament.api_competition_code` (and `api_season`, if needed) the one you expect?
 
 **Points or rank look wrong**
 1. Does the match have both goals saved?
 2. Did `match_result_entered` actually fire (check logs for scoring/signals exceptions)?
 3. Does the prediction have `points_earned` and `is_exact_match` set?
-4. Do `User.total_points` and `champion_bonus_points` look consistent?
-5. Was `RankingService.update_all_user_ranks()` executed afterward?
-6. Are you looking at the cached global ranking or a round-filtered (dynamic) view?
+4. Was the round configuration (multiplier, joker multiplier, `is_final`) or
+   `Team.champion_points` changed after scoring? Then run `recalculate_scores`.
+5. Do `User.total_points` and `champion_bonus_points` look consistent?
+6. Was `RankingService.update_all_user_ranks()` executed afterward?
+7. Are you looking at the cached global ranking or a round-filtered (dynamic) view?
+
+**No email arrives**
+1. Which backend is active? Development defaults to the console backend (overridable with
+   `EMAIL_BACKEND`) and tests use `locmem` — neither sends real mail. Production uses
+   Django's default SMTP backend.
+2. Are `EMAIL_HOST`/`EMAIL_PORT`/credentials and `DEFAULT_FROM_EMAIL` set in the
+   environment? Test with `python manage.py test_email --leaderboard`.
+3. Leaderboard mail only: is `LEADERBOARD_ADMIN_EMAIL` set and does a
+   `LeaderboardSnapshot` exist (`python manage.py create_snapshot`)?
+4. Reminder only: does the user have an email address, is the user active and non-staff,
+   and is there a `scheduled` match within the next 24 hours they have not predicted?
+5. Is `notification_daemon` running, and has its hour (`--reminder-hour`,
+   `--leaderboard-hour`) already passed today in the server's timezone?
+6. Check the logs — send failures are logged and swallowed, never retried.
 
 ## 15. Known issues (verified against this codebase, prioritized)
 
@@ -490,10 +650,10 @@ change during import — no manual scoring call is needed in the command itself.
    [users/views.py](../../users/views.py), [users/forms.py](../../users/forms.py)
 4. **~~36-prediction group limit is effectively 35.~~ RESOLVED** (change
    `fix-prediction-correctness-bugs`). `PredictionSaveView.post()` looks up an existing
-   prediction first and checks `can_add_group_stage_prediction()` *before* creating a new
-   group-stage row, inside `transaction.atomic()`. The 36th prediction is accepted, the 37th is
-   rejected with the error partial and without creating a row. —
-   [predictions/views.py](../../predictions/views.py)
+   prediction first and checks `PredictionLimitService.can_add_prediction()` *before* creating a
+   new row in a limited round, inside `transaction.atomic()`. With the seeded group-stage limit
+   of 36 the 36th prediction is accepted, the 37th is rejected with the error partial and
+   without creating a row. — [predictions/views.py](../../predictions/views.py)
 5. **~~Winner/status-only change doesn't re-trigger scoring.~~ RESOLVED** (change
    `fix-prediction-correctness-bugs`). `Match.save()` compares all
    `Match.SCORING_RELEVANT_FIELDS` (`goals_home`, `goals_away`, `winner`, `status`) and sends
@@ -529,9 +689,13 @@ change during import — no manual scoring call is needed in the command itself.
 
 ### Priority 3 — robustness / maintenance
 
-11. **API mapping should be periodically re-verified** against the actual
-    football-data.org v4 response shapes in use (round/status code mapping falls back
-    silently on unknown values).
+11. **API stage mapping is configuration, so it must be verified per tournament.** Stage
+    names come from `Round.api_stage`; an unmapped stage aborts the sync
+    (`UnknownApiStageError`) instead of silently falling back, but the `em24` preset's
+    stage names are explicitly unverified against the live football-data.org EC
+    competition (see the comment in [matches/presets.py](../../matches/presets.py)).
+    Status mapping (`API_STATUS_MAP`) still falls back to `scheduled` on unknown values. —
+    [matches/services.py](../../matches/services.py)
 12. **Repeated per-row limit/count queries** in `PredictionListView`/`_get_match_row_context`
     could be precomputed once per phase if this becomes a measured bottleneck (not
     currently a known problem at this scale).
@@ -555,6 +719,21 @@ change during import — no manual scoring call is needed in the command itself.
     `python-dotenv`; per `.github/copilot-instructions.md` this project standardizes on
     `uv` — ensure `uv.lock` is committed and CI/deploy installs from it rather than a
     loose `pip install`.
+17. **Email delivery has no state and no retry.** `notification_daemon` keeps
+    "already sent today" only in memory, so a restart can re-send the same daily mail, and
+    a failed send is logged but never retried or recorded. A per-day/per-recipient marker
+    in the database would make both deterministic. —
+    [notifications/management/commands/notification_daemon.py](../../notifications/management/commands/notification_daemon.py),
+    [notifications/services.py](../../notifications/services.py)
+18. **Leaderboard mail reports snapshot state, not live state.** It sends the newest
+    `LeaderboardSnapshot`; if `create_snapshot` is not scheduled, the mail is either
+    missing entirely or shows an outdated ranking. —
+    [notifications/services.py](../../notifications/services.py),
+    [scoring/management/commands/create_snapshot.py](../../scoring/management/commands/create_snapshot.py)
+19. **Reminder mails scale per user.** `get_users_with_missing_predictions()` runs one
+    prediction query per active user and `send_all_prediction_reminders()` one SMTP call
+    per user, serially inside the daemon loop. Fine at ~50-100 users, not beyond. —
+    [notifications/services.py](../../notifications/services.py)
 
 ## 16. Recommended next steps
 

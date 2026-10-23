@@ -6,9 +6,13 @@ A Django-based web application for running a World Cup 2026 prediction/tipping g
 
 This application allows participants to:
 - Predict match results
-- Use jokers to double points
+- Use jokers to multiply points in rounds that allow them
+- Pick a champion for a bonus
 - Track scores and rankings
 - Compete with friends in a private tipping competition
+
+The tournament format (rounds, multipliers, joker limits, prediction limits) is configuration
+in the database, not code — see [Tournament Configuration](#tournament-configuration).
 
 Game rules are documented in [`docs/rules/wm2026-rules.md`](docs/rules/wm2026-rules.md).
 
@@ -65,7 +69,7 @@ uv pip install -e ".[dev,pdf]"
 
 The `pdf` extra installs `reportlab`, which is required for the leaderboard PDF export.
 
-Or use the Makefile (once project structure is complete):
+Or use the Makefile:
 ```bash
 make install
 ```
@@ -78,12 +82,23 @@ Copy the example environment file and adjust as needed:
 cp .env.example .env
 ```
 
+`.env` is loaded by `manage.py` only. A WSGI server started through `tipapp/wsgi.py` does not
+read it — provide the variables through the process environment there.
+
 Required environment variables:
 - `SECRET_KEY`: Django secret key (use a secure random string in production)
 - `DEBUG`: Set to `True` for development, `False` for production
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
 - `DJANGO_SETTINGS_MODULE`: Set to `tipapp.settings.development` for local development
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: PostgreSQL connection details
+
+Optional, feature-specific:
+- `FOOTBALL_DATA_API_KEY`, `FOOTBALL_DATA_BASE_URL`: result import (see
+  [Football-Data.org API Integration](#football-dataorg-api-integration))
+- `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_USE_SSL`, `EMAIL_HOST_USER`,
+  `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`, `LEADERBOARD_ADMIN_EMAIL`: outgoing mail;
+  `EMAIL_BACKEND` additionally switches the backend in development settings (see
+  [Email Notifications](#email-notifications))
 
 ### 6. Start PostgreSQL with Docker Compose
 
@@ -270,11 +285,12 @@ The application can automatically sync match results from the [football-data.org
    - Handles errors gracefully and continues running
    - Shuts down gracefully on SIGTERM/SIGINT
 
-   **Adaptive Polling Intervals:**
-   - **Live match**: 30 seconds
-   - **Match starting < 30 minutes**: 1 minute
-   - **Match starting 30min - 2h**: 5 minutes
-   - **Match starting > 2 hours**: 10 minutes
+   **Adaptive Polling Intervals** (`_calculate_sleep_interval()`):
+   - **A match has status `live`**: 10 seconds
+   - **Match in the active window** (kickoff −3h to +30min, status scheduled or live): 30 seconds
+   - **Next match starting < 30 minutes**: 1 minute
+   - **Next match starting 30min - 2h**: 5 minutes
+   - **Next match starting > 2 hours**: 10 minutes
    - **No upcoming matches**: 30 minutes
 
 ### API Rate Limits
@@ -382,26 +398,133 @@ services:
   never scored, then `python manage.py repair_scoring` to score them (idempotent, exits
   non-zero when work remains or a repair failed)
 
+## Email Notifications
+
+The app sends mail through the standard Django email backend:
+
+- **Password reset** — sent by the Django auth views.
+- **Daily leaderboard report** — sent to `LEADERBOARD_ADMIN_EMAIL`, built from the **newest
+  `LeaderboardSnapshot`** (not the live ranking) and enriched with each user's predictions.
+- **Daily prediction reminder** — sent to every active, non-staff user who has no prediction
+  for a `scheduled` match starting within the next 24 hours. Users without an email address
+  are skipped.
+
+Templates live in `notifications/templates/notifications/emails/` (HTML plus plain-text
+variant for each mail), the logic in `notifications/services.py` (`EmailService`).
+
+### Configuration
+
+```bash
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-user
+EMAIL_HOST_PASSWORD=your-password
+DEFAULT_FROM_EMAIL=noreply@shortytipp.de
+LEADERBOARD_ADMIN_EMAIL=admin@example.com
+```
+
+Backend per settings module:
+
+| Settings module | Backend |
+|---|---|
+| `tipapp.settings.development` | Console by default; override with `EMAIL_BACKEND` (e.g. `django.core.mail.backends.smtp.EmailBackend`) to send real mail |
+| `tipapp.settings.test` | `locmem` — never sends |
+| `tipapp.settings.production` | Django's default SMTP backend, configured through the `EMAIL_*` variables above (`EMAIL_BACKEND` is not read here) |
+
+Verify a real SMTP setup with:
+
+```bash
+python manage.py test_email --leaderboard
+python manage.py test_email --reminder=<username>
+```
+
+### Running the Notification Daemon
+
+```bash
+python manage.py notification_daemon
+```
+
+Options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--interval` | 3600 | Seconds between checks |
+| `--leaderboard-hour` | 20 | Hour (0-23) for the leaderboard report |
+| `--reminder-hour` | 10 | Hour (0-23) for prediction reminders |
+| `--once` | – | Run a single iteration and exit (for testing) |
+
+The daemon sends each mail at most once per calendar day, triggers as soon as the configured
+hour has passed, and shuts down gracefully on SIGTERM/SIGINT.
+
+> The "already sent today" state is kept **in memory only**. A restart can re-send a mail that
+> was already sent the same day, and a failed send is logged but never retried.
+
+The leaderboard mail needs a snapshot. Create one before the configured hour, e.g. daily via
+cron or the admin action:
+
+```bash
+python manage.py create_snapshot daily
+```
+
+In production, run the daemon as a service next to `update_matches`:
+
+```yaml
+services:
+  notifier:
+    build: .
+    command: python manage.py notification_daemon
+    environment:
+      - DJANGO_SETTINGS_MODULE=tipapp.settings.production
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - LEADERBOARD_ADMIN_EMAIL=${LEADERBOARD_ADMIN_EMAIL}
+    depends_on:
+      - db
+    restart: unless-stopped
+```
+
+### Email Troubleshooting
+
+**Problem:** No mail arrives
+
+**Solution:**
+- Check `EMAIL_BACKEND` — development defaults to the console backend, tests to `locmem`
+- Verify `EMAIL_HOST`/`EMAIL_PORT`/credentials with `python manage.py test_email --leaderboard`
+- Leaderboard mail: is `LEADERBOARD_ADMIN_EMAIL` set and does a snapshot exist?
+- Reminder mail: does the user have an email address, is the user active and non-staff, and is
+  there an unpredicted `scheduled` match within 24 hours?
+- Check the logs — send failures are logged and swallowed, never retried
+
 ## Project Structure
 
 ```
 django-tipapp/
 ├── docs/                       # Documentation
+│   ├── project/                # Architecture and decision records
 │   └── rules/                  # Game rules
+├── openspec/                   # OpenSpec changes and specs
 ├── tipapp/                     # Main Django project
 │   ├── settings/               # Environment-specific settings
 │   │   ├── base.py            # Shared settings
 │   │   ├── development.py     # Development settings
 │   │   └── production.py      # Production settings
 │   ├── urls.py                # URL configuration
-│   ├── wsgi.py                # WSGI configuration
-│   └── asgi.py                # ASGI configuration
+│   ├── views.py               # Home and ranking views
+│   └── wsgi.py                # WSGI configuration
+├── core/                       # Shared ranking algorithm
 ├── users/                      # User authentication and management
-├── matches/                    # Match and team management
+├── matches/                    # Tournament, round, team and match management
 ├── predictions/                # User predictions and jokers
 ├── scoring/                    # Scoring engine and leaderboard
+├── notifications/              # Email service, notification daemon, mail templates
 ├── static/                     # Static files (CSS, JS, images)
 ├── templates/                  # HTML templates
+├── scripts/                    # Helper scripts
 ├── .venv/                      # Virtual environment (not in git)
 ├── pyproject.toml             # Project metadata and dependencies
 ├── docker-compose.yml         # Docker Compose for PostgreSQL
@@ -496,8 +619,11 @@ This creates:
 - **8 test users** (`tipper1` through `tipper8`, password: `testpass123`)
 - **~65 predictions per user** following all game rules:
   - 36 group stage predictions per user (randomly selected from 72)
-  - Jokers distributed per rules (0 in group, 3 in R32, 3 in R16, 2 in QF, 2 in SF/Final)
+  - Jokers distributed per rules (0 in group, 3 in R32, 3 in R16, 2 in QF, 2 in SF/3rd/Final)
 - **~24 finished matches** with calculated scores
+
+The command assumes the seeded `wm48` round configuration (round codes `group`, `r32`, `r16`,
+`qf`, `sf`, `3rd`, `final`) on the active tournament.
 
 ### Command Options
 
@@ -533,10 +659,13 @@ All test users have the password `testpass123`:
 The predictions page (`/predictions/`) includes:
 
 - **Single scrollable list**: All matches displayed chronologically
-- **Stage filter**: Filter by tournament round (Group, R32, R16, QF, SF, Final)
+- **Stage filter**: Filter by tournament round — the tabs come from the rounds configured on
+  the active tournament, not from a hardcoded list
 - **Auto-scroll**: Page automatically scrolls to the nearest upcoming match
-- **Live updates**: Match results update every 60 seconds via HTMX polling
-- **Joker management**: Toggle jokers on knockout matches (within limits)
+- **Live updates**: HTMX polling every 15 seconds while a match is running, every 60 seconds
+  otherwise; the interval is adjusted live via the `HX-Trigger` response header
+- **Joker management**: Toggle jokers where the round allows it (within `Round.joker_count`,
+  shared across rounds in the same joker pool)
 
 ## Admin Features
 
@@ -549,6 +678,8 @@ Staff users have access to the following admin features:
 
 #### Via Django Admin Actions
 Navigate to Admin → Scoring → Leaderboard Snapshots:
+- **Create daily snapshot from current leaderboard**: Snapshot the current leaderboard (same as
+  `python manage.py create_snapshot daily`)
 - **Export selected snapshots to CSV**: Basic export of selected snapshots
 - **Export detailed leaderboard with predictions to CSV**: Full export with per-match prediction details
 
